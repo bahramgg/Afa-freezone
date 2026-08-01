@@ -1,0 +1,457 @@
+// AFA — currency payment gateway for Golestan Free Zone.
+//
+// Money moves through three flows (receive / send / settle), each a state
+// machine advanced by a different actor. Every transition is appended to
+// StatusEvent so the whole chain of custody stays auditable.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────── Identity ───────────────────────────
+
+enum Role {
+  IRANIAN
+  FOREIGN
+  ADMIN
+  BANK
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String @id @default(cuid())
+  /** Human-facing identifier shown in the UI: IR-001, FOR-042, ... */
+  uid       String @unique
+  role      Role
+
+  fullName  String
+  email     String? @unique
+  /** Normalised to +989xxxxxxxxx before storage. */
+  phone     String? @unique
+  /** Argon2id hash. Null for Iranian users, who authenticate by OTP. */
+  passwordHash String?
+
+  // Iranian merchants
+  nationalId String? @unique
+  freezoneId String?
+
+  // Foreign merchants
+  passportNo String?
+  country    String?
+
+  address     String?
+  avatarColor String  @default("oklch(0.7 0.16 280)")
+
+  kyc             KycStatus @default(PENDING)
+  kycRejectReason String?
+  kycReviewedAt   DateTime?
+  kycReviewedById String?
+  kycReviewedBy   User?     @relation("KycReviewer", fields: [kycReviewedById], references: [id], onDelete: SetNull)
+  kycReviewed     User[]    @relation("KycReviewer")
+
+  disabledAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  wallets       Wallet[]
+  sessions      Session[]
+  otpCodes      OtpCode[]
+  notifications Notification[]
+  statusEvents  StatusEvent[]
+
+  invoices           Invoice[]     @relation("InvoiceOwner")
+  sendRequests       SendRequest[] @relation("SendOwner")
+  sendCounterparties SendRequest[] @relation("SendCounterparty")
+  settlements        Settlement[]  @relation("SettlementOwner")
+
+  @@index([role, kyc])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  /** SHA-256 of the opaque token; the raw token only ever lives in the cookie. */
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum OtpPurpose {
+  LOGIN
+}
+
+model OtpCode {
+  id        String     @id @default(cuid())
+  phone     String
+  /** Argon2id hash of the code — a leaked table must not hand over live codes. */
+  codeHash  String
+  purpose   OtpPurpose @default(LOGIN)
+  attempts  Int        @default(0)
+  consumedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([phone, createdAt])
+}
+
+// ─────────────────────────── Wallets ───────────────────────────
+
+enum WalletOwnerKind {
+  USER
+  BANK
+}
+
+enum BankWalletKind {
+  SEND
+  RECEIVE
+  SHARED
+}
+
+model Wallet {
+  id        String          @id @default(cuid())
+  /** Lowercased 0x-prefixed BSC address. */
+  address   String
+  label     String
+  ownerKind WalletOwnerKind @default(USER)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /** Only meaningful for bank-owned wallets. */
+  bankKind BankWalletKind?
+  active   Boolean         @default(true)
+
+  verified   Boolean   @default(false)
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([address, userId])
+  @@index([ownerKind, active])
+}
+
+// ─────────────────────────── Shared money types ───────────────────────────
+
+enum Currency {
+  USDT
+  BNB
+}
+
+enum Actor {
+  USER
+  COUNTERPARTY
+  ADMIN
+  BANK
+  SYSTEM
+}
+
+/// Append-only audit trail. One row per state transition, on any flow.
+model StatusEvent {
+  id        String   @id @default(cuid())
+  /** "invoice" | "send" | "settlement" */
+  subject   String
+  subjectId String
+  fromStatus String?
+  toStatus   String
+  actor      Actor
+  note       String?
+
+  actorUserId String?
+  actorUser   User?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([subject, subjectId, createdAt])
+}
+
+// ─────────────────────────── Flow 1: receive ───────────────────────────
+
+enum InvoiceStatus {
+  PENDING
+  APPROVED
+  PAYMENT_PENDING
+  PAID
+  EXPIRED
+  REJECTED
+}
+
+model Invoice {
+  id     String @id @default(cuid())
+  /** INV-1042 */
+  ref    String @unique
+  /** TRX-1042 — the identifier both parties quote to each other. */
+  trxRef String @unique
+
+  ownerId String
+  owner   User   @relation("InvoiceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  /** Stored in the token's smallest unit as a decimal to avoid float drift. */
+  amount   Decimal  @db.Decimal(38, 18)
+  currency Currency
+
+  description String
+  goodsTitle  String
+  senderName  String
+
+  status InvoiceStatus @default(PENDING)
+
+  /** Gateway address the foreign buyer must pay into. */
+  paymentAddress String?
+  /** Merchant wallet that receives the settled funds. */
+  walletAddress  String?
+
+  feeAmount Decimal? @db.Decimal(38, 18)
+  netAmount Decimal? @db.Decimal(38, 18)
+
+  rejectReason String?
+  expiresAt    DateTime?
+  paidAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chainTxId String?      @unique
+  chainTx   ChainTx?     @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, status])
+  @@index([status, createdAt])
+}
+
+// ─────────────────────────── Flow 2: send ───────────────────────────
+
+enum SendStatus {
+  AWAITING_COUNTERPARTY
+  AWAITING_ADMIN
+  AWAITING_BANK_REVIEW
+  BANK_RATE_LOCKED
+  RIAL_RECEIVED
+  CRYPTO_SENT
+  PAID
+  REJECTED
+}
+
+model SendRequest {
+  id     String @id @default(cuid())
+  ref    String @unique
+  trxRef String @unique
+
+  ownerId String
+  owner   User   @relation("SendOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  counterpartyId String?
+  counterparty   User?   @relation("SendCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
+  /** Free-text fallback when the counterparty has no account yet. */
+  counterpartyUid String
+
+  amount      Decimal  @db.Decimal(38, 18)
+  currency    Currency
+  description String?
+
+  status SendStatus @default(AWAITING_COUNTERPARTY)
+
+  /** Rial per token. Locked by the bank; not editable afterwards. */
+  exchangeRate Decimal? @db.Decimal(24, 4)
+  rateLocked   Boolean  @default(false)
+  rateLockedAt DateTime?
+  rialAmount   Decimal? @db.Decimal(24, 2)
+
+  bankAccount    String?
+  rialReceiptNo  String?
+  rialDepositAt  DateTime?
+
+  recipientWalletAddress String?
+  bankWalletAddress      String?
+
+  rejectedBy   Actor?
+  rejectReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chainTxId String?  @unique
+  chainTx   ChainTx? @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, status])
+  @@index([status, createdAt])
+}
+
+// ─────────────────────────── Flow 3: settlement ───────────────────────────
+
+enum SettlementStatus {
+  AWAITING_ADMIN
+  AWAITING_BANK
+  BANK_RATE_LOCKED
+  CRYPTO_RECEIVED
+  CRYPTO_CONFIRMED
+  BANK_APPROVED
+  SETTLED
+  REJECTED
+}
+
+model Settlement {
+  id     String @id @default(cuid())
+  ref    String @unique
+  trxRef String @unique
+
+  ownerId String
+  owner   User   @relation("SettlementOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  goodsTitle  String
+  description String
+
+  amount   Decimal  @db.Decimal(38, 18)
+  currency Currency
+
+  /** Merchant wallet the crypto is sent from. */
+  walletAddress String
+  /** Rial account the proceeds are paid into. */
+  bankAccount   String
+
+  status SettlementStatus @default(AWAITING_ADMIN)
+
+  exchangeRate Decimal?  @db.Decimal(24, 4)
+  rateLocked   Boolean   @default(false)
+  rateLockedAt DateTime?
+  rialAmount   Decimal?  @db.Decimal(24, 2)
+
+  bankWalletAddress String?
+  bankResponseAt    DateTime?
+  bankResponseNote  String?
+
+  rialReceiptNo String?
+  rialDepositAt DateTime?
+  settledAt     DateTime?
+
+  rejectedBy   Actor?
+  rejectReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /** The merchant's payout transaction, verified on chain. */
+  chainTxId String?  @unique
+  chainTx   ChainTx? @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, status])
+  @@index([status, createdAt])
+}
+
+// ─────────────────────────── Chain ───────────────────────────
+
+enum ChainTxStatus {
+  SEEN
+  CONFIRMING
+  CONFIRMED
+  FAILED
+}
+
+enum ChainTxDirection {
+  IN
+  OUT
+}
+
+/// A transaction observed on chain. Written only by the watcher and the
+/// verification endpoint — never trusted straight from a client.
+model ChainTx {
+  id     String @id @default(cuid())
+  hash   String @unique
+  chainId Int
+
+  direction ChainTxDirection
+  status    ChainTxStatus    @default(SEEN)
+
+  fromAddress String
+  toAddress   String
+
+  currency Currency
+  /** Human-scale amount, decoded using the token's decimals. */
+  amount   Decimal @db.Decimal(38, 18)
+  /** Raw on-chain integer value, kept for exact re-verification. */
+  rawValue String
+
+  blockNumber   BigInt?
+  confirmations Int      @default(0)
+  gasFee        Decimal? @db.Decimal(38, 18)
+
+  seenAt      DateTime  @default(now())
+  confirmedAt DateTime?
+
+  /** Set once the deposit is matched to an invoice or settlement. */
+  matchedAt DateTime?
+
+  invoice     Invoice?
+  sendRequest SendRequest?
+  settlement  Settlement?
+
+  @@index([toAddress, status])
+  @@index([status, blockNumber])
+}
+
+/// Bookmark for the deposit watcher, so a restart resumes where it left off.
+model ChainCursor {
+  chainId         Int    @id
+  lastScannedBlock BigInt
+  updatedAt       DateTime @updatedAt
+}
+
+// ─────────────────────────── Notifications & settings ───────────────────────────
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind  String
+  title String
+  body  String
+  href  String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+/// Single-row table holding the operational parameters the admin panel edits.
+model Settings {
+  id Int @id @default(1)
+
+  feeBasePercent Decimal @db.Decimal(6, 3) @default(2)
+  feeMin         Decimal @db.Decimal(38, 18) @default(1)
+  feeMax         Decimal @db.Decimal(38, 18) @default(500)
+
+  invoiceValidityMinutes Int     @default(30)
+  invoiceMinAmount       Decimal @db.Decimal(38, 18) @default(10)
+  invoiceMaxAmount       Decimal @db.Decimal(38, 18) @default(100000)
+
+  usdtRate Decimal @db.Decimal(24, 4) @default(66800)
+  bnbRate  Decimal @db.Decimal(24, 4) @default(222000)
+
+  dailySendLimit       Decimal @db.Decimal(38, 18) @default(50000)
+  dailySettlementLimit Decimal @db.Decimal(38, 18) @default(50000)
+  minTxAmount          Decimal @db.Decimal(38, 18) @default(10)
+  bankFeePercent       Decimal @db.Decimal(6, 3) @default(0.5)
+
+  updatedAt DateTime @updatedAt
+}

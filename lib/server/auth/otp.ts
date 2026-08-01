@@ -5,7 +5,7 @@ import { env } from "../env";
 import { emailProvider } from "../email";
 import { otpEmail } from "../email/templates";
 import { hashSecret, verifySecret } from "./password";
-import { badRequest, tooManyRequests } from "../http";
+import { ApiError, badRequest, tooManyRequests } from "../http";
 
 /** Lowercases and trims, so the same address never yields two accounts. */
 export function normalizeEmail(input: string): string {
@@ -52,7 +52,7 @@ export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCod
 
   const user = await db.user.findUnique({ where: { email }, select: { id: true } });
 
-  await db.$transaction([
+  const [, issued] = await db.$transaction([
     // Supersede outstanding codes so only the newest one can be redeemed.
     db.otpCode.updateMany({
       where: { email, consumedAt: null },
@@ -63,7 +63,19 @@ export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCod
     }),
   ]);
 
-  await emailProvider().send({ to: email, ...otpEmail(code, OTP_TTL_MINUTES) });
+  try {
+    await emailProvider().send({ to: email, ...otpEmail(code, OTP_TTL_MINUTES) });
+  } catch (error) {
+    // A code nobody received must not sit there holding the resend cooldown and
+    // telling the user to check an inbox. Retract it and say what went wrong.
+    await db.otpCode.delete({ where: { id: issued.id } }).catch(() => {});
+    console.error("[otp] delivery failed", error);
+    throw new ApiError(
+      502,
+      "email_delivery_failed",
+      "ارسال ایمیل انجام نشد — نشانی را بررسی کنید یا بعداً دوباره تلاش کنید",
+    );
+  }
 
   // Only the console provider hands the code back to the caller, and only
   // outside production, so the login screen is testable without a mail service.

@@ -61,7 +61,6 @@ export function settlementScope(user: SessionUser): Prisma.SettlementWhereInput 
             "BANK_RATE_LOCKED",
             "CRYPTO_RECEIVED",
             "CRYPTO_CONFIRMED",
-            "BANK_APPROVED",
             "SETTLED",
             "REJECTED",
           ],

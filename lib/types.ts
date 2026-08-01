@@ -66,7 +66,9 @@ export type SendRequest = {
   exchangeRate?: number;
   rateLocked?: boolean;
   rialAmount?: number;
-  bankAccount?: string;
+  depositAccount?: string;
+  feeAmount?: number;
+  netAmount?: number;
   rialReceiptNo?: string;
   rialDepositAt?: string;
   bankWalletAddress?: string;
@@ -82,7 +84,6 @@ export type SettlementStatus =
   | "BANK_RATE_LOCKED"
   | "CRYPTO_RECEIVED"
   | "CRYPTO_CONFIRMED"
-  | "BANK_APPROVED"
   | "SETTLED"
   | "REJECTED";
 
@@ -96,8 +97,13 @@ export type Settlement = {
   txHash: string;
   amount: number;
   currency: Currency;
-  walletAddress: string;
-  bankAccount: string;
+  /** Absent on a payout raised from an invoice — the bank already holds it. */
+  walletAddress?: string;
+  payoutAccount?: string;
+  /** Set when this payout was raised from a paid invoice. */
+  sourceInvoiceId?: string;
+  feeAmount?: number;
+  netAmount?: number;
   status: SettlementStatus;
   createdAt: string;
   updatedAt: string;
@@ -207,7 +213,8 @@ export type NotificationKind =
   | "SEND_RATE_LOCKED"
   | "SEND_COMPLETED"
   | "FOREIGN_RECEIVE_REQUEST"
-  | "FOREIGN_CRYPTO_RECEIVED";
+  | "FOREIGN_CRYPTO_RECEIVED"
+  | "SETTLEMENT_FROM_INVOICE";
 
 export type Notification = {
   id: string;
@@ -252,5 +259,5 @@ export type Settings = {
   dailySendLimit: number;
   dailySettlementLimit: number;
   minTxAmount: number;
-  bankFeePercent: number;
+  rateTolerancePercent: number;
 };

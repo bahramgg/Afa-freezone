@@ -15,6 +15,7 @@ import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import { toRial } from "@/lib/server/money";
+import { assertRateWithinTolerance } from "@/lib/server/rates";
 import { SETTLEMENT_INCLUDE } from "../../route";
 import type { Actor, Prisma, SettlementStatus } from "@/lib/generated/prisma/client";
 
@@ -23,6 +24,7 @@ export const dynamic = "force-dynamic";
 
 const Body = z.object({
   action: z.enum([
+    "setPayoutAccount",
     "approveAdmin",
     "rejectAdmin",
     "lockRate",
@@ -30,6 +32,7 @@ const Body = z.object({
     "settle",
     "rejectBank",
   ]),
+  payoutAccount: z.string().trim().max(40).optional(),
   reason: z.string().trim().max(500).optional(),
   rate: z.number().positive().optional(),
   bankWalletAddress: z.string().trim().optional(),
@@ -57,6 +60,21 @@ export const POST = handler(
     let note: string | null = null;
 
     switch (body.action) {
+      case "setPayoutAccount": {
+        // A settlement raised from a paid invoice knows the amount but not
+        // where the rial should go — only the merchant can say that.
+        if (user.id !== settlement.ownerId) throw forbidden("این درخواست متعلق به شما نیست");
+        assertTransition(from, ["AWAITING_ADMIN", "AWAITING_BANK"], "ثبت شماره حساب");
+        if (!body.payoutAccount || body.payoutAccount.length < 4) {
+          throw badRequest("شماره حساب مقصد الزامی است");
+        }
+        to = from;
+        actor = "USER";
+        data = { payoutAccount: body.payoutAccount };
+        note = "شماره حساب دریافت ریال ثبت شد";
+        break;
+      }
+
       case "approveAdmin": {
         if (user.role !== "ADMIN") throw forbidden();
         assertTransition(from, ["AWAITING_ADMIN"], "تأیید تسویه");
@@ -81,19 +99,32 @@ export const POST = handler(
         if (user.role !== "BANK") throw forbidden();
         assertTransition(from, ["AWAITING_BANK"], "قفل نرخ");
         if (!body.rate) throw badRequest("نرخ ارز الزامی است");
-        if (!body.bankWalletAddress || !isAddress(body.bankWalletAddress)) {
+        if (!settlement.payoutAccount) {
+          throw badRequest("تاجر هنوز شماره حساب دریافت ریال را وارد نکرده است");
+        }
+        // The bank's own wallet only matters when the merchant still has to
+        // send the crypto; on an invoice payout the bank already holds it.
+        if (!settlement.sourceInvoiceId && (!body.bankWalletAddress || !isAddress(body.bankWalletAddress))) {
           throw badRequest("آدرس کیف پول بانک معتبر نیست");
         }
+        await assertRateWithinTolerance(body.rate, settlement.currency);
+
         to = "BANK_RATE_LOCKED";
         actor = "BANK";
         data = {
           exchangeRate: body.rate.toString(),
           rateLocked: true,
           rateLockedAt: new Date(),
-          rialAmount: toRial(body.rate, settlement.amount),
-          bankWalletAddress: normalizeAddress(body.bankWalletAddress),
+          // The rial follows the merchant's side of the ledger, which already
+          // has the gateway fee taken off it.
+          rialAmount: toRial(body.rate, settlement.netAmount ?? settlement.amount),
+          bankWalletAddress: body.bankWalletAddress
+            ? normalizeAddress(body.bankWalletAddress)
+            : undefined,
         };
-        note = `نرخ ${body.rate} قفل شد و آدرس کیف پول بانک اعلام شد`;
+        note = settlement.sourceInvoiceId
+          ? `نرخ ${body.rate} قفل شد`
+          : `نرخ ${body.rate} قفل شد و آدرس کیف پول بانک اعلام شد`;
         break;
       }
 
@@ -101,6 +132,9 @@ export const POST = handler(
         // The merchant reports the transfer they made to the bank's wallet.
         if (user.id !== settlement.ownerId) throw forbidden("این درخواست متعلق به شما نیست");
         assertTransition(from, ["BANK_RATE_LOCKED"], "ثبت تراکنش پرداخت");
+        if (settlement.sourceInvoiceId) {
+          throw badRequest("این تسویه از یک فاکتور پرداخت‌شده ساخته شده — کریپتو از قبل نزد بانک است");
+        }
         if (!body.txHash) throw badRequest("هش تراکنش الزامی است");
         if (!settlement.bankWalletAddress) {
           throw badRequest("آدرس کیف پول بانک هنوز اعلام نشده است");
@@ -130,7 +164,15 @@ export const POST = handler(
 
       case "settle": {
         if (user.role !== "BANK") throw forbidden();
-        assertTransition(from, ["CRYPTO_CONFIRMED", "BANK_APPROVED"], "تسویه نهایی");
+        // An invoice payout skips the crypto leg entirely: the transfer that
+        // funded it was already verified on the invoice.
+        assertTransition(
+          from,
+          settlement.sourceInvoiceId
+            ? ["BANK_RATE_LOCKED", "CRYPTO_CONFIRMED"]
+            : ["CRYPTO_CONFIRMED"],
+          "تسویه نهایی",
+        );
         if (!body.receiptNo) throw badRequest("شماره رسید واریز ریالی الزامی است");
         to = "SETTLED";
         actor = "BANK";

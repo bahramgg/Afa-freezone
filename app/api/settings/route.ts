@@ -28,7 +28,7 @@ const Body = z.object({
   dailySendLimit: z.number().min(0).optional(),
   dailySettlementLimit: z.number().min(0).optional(),
   minTxAmount: z.number().min(0).optional(),
-  bankFeePercent: z.number().min(0).max(100).optional(),
+  rateTolerancePercent: z.number().min(0).max(100).optional(),
 });
 
 export const PATCH = handler(async (request: Request) => {

@@ -19,12 +19,14 @@ type SettlementsState = {
     amount: number;
     currency: Currency;
     walletAddress: string;
-    bankAccount: string;
+    payoutAccount: string;
   }) => Promise<Settlement>;
 
+  /** Names the account an invoice-derived payout should land in. */
+  setPayoutAccount: (ref: string, payoutAccount: string) => Promise<void>;
   adminApprove: (ref: string) => Promise<void>;
   adminReject: (ref: string, reason: string) => Promise<void>;
-  lockBankRate: (ref: string, rate: number, bankWalletAddress: string) => Promise<void>;
+  lockBankRate: (ref: string, rate: number, bankWalletAddress?: string) => Promise<void>;
   /** Merchant reports the transfer they made to the bank's wallet. */
   submitUserTx: (ref: string, txHash: string) => Promise<void>;
   settle: (ref: string, receiptNo: string, note?: string) => Promise<void>;
@@ -77,6 +79,8 @@ export const useSettlementsStore = create<SettlementsState>()((set, get) => {
       return settlement;
     },
 
+    setPayoutAccount: (ref, payoutAccount) =>
+      transition(ref, { action: "setPayoutAccount", payoutAccount }),
     adminApprove: (ref) => transition(ref, { action: "approveAdmin" }),
     adminReject: (ref, reason) => transition(ref, { action: "rejectAdmin", reason }),
     lockBankRate: (ref, rate, bankWalletAddress) =>

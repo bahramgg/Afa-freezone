@@ -18,21 +18,13 @@ import {
 } from "@/components/ui/Dialog";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/Select";
 import { useInvoicesStore } from "@/lib/stores/invoices";
-import type { Currency } from "@/lib/types";
 
 const schema = z.object({
   senderName: z.string().min(1, "نام ارسال کننده را وارد کنید"),
   goodsTitle: z.string().min(1, "کالای صادره را وارد کنید"),
   amount: z.coerce.number().positive("مبلغ باید مثبت باشد"),
-  currency: z.enum(["USDT", "BNB"]),
+  currency: z.literal("USDT"),
   description: z.string().min(1, "توضیحات را وارد کنید"),
 });
 
@@ -42,10 +34,10 @@ export function CreateInvoiceDialog() {
   const create = useInvoicesStore((s) => s.create);
   const [open, setOpen] = useState(false);
 
-  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } =
+  const { register, handleSubmit, reset, formState: { errors } } =
     useForm<FormValues>({
       resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-      defaultValues: { currency: "USDT" as Currency },
+      defaultValues: { currency: "USDT" },
     });
 
   const onSubmit = async (data: FormValues) => {
@@ -98,18 +90,10 @@ export function CreateInvoiceDialog() {
             </div>
             <div className="space-y-2">
               <Label>ارز</Label>
-              <Select
-                value={watch("currency")}
-                onValueChange={(v) => setValue("currency", v as Currency)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USDT">USDT</SelectItem>
-                  <SelectItem value="BNB">BNB</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Only USDT: the deposit watcher reads BEP-20 Transfer logs, and
+                  a native BNB transfer emits none, so a BNB invoice could never
+                  be credited automatically. */}
+              <Input value="USDT" readOnly dir="ltr" className="font-mono" />
             </div>
           </div>
           <div className="space-y-2">

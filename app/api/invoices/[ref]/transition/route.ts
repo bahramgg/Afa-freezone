@@ -16,6 +16,7 @@ import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
 import { pickGatewayAddress } from "@/lib/server/gateway";
 import { feeFor } from "@/lib/server/fees";
+import { raisePayoutSettlement } from "@/lib/server/payout";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import type { Actor, InvoiceStatus, Prisma } from "@/lib/generated/prisma/client";
 
@@ -181,6 +182,10 @@ export const POST = handler(
     if (recipientNote) {
       await notify(invoice.ownerId, { ...recipientNote, href: `/receive/${invoice.ref}` });
     }
+
+    // A paid invoice is only half the journey: the money is at the bank, not
+    // with the merchant. Raising the payout is what finishes it.
+    if (to === "PAID") await raisePayoutSettlement(updated);
 
     return jsonOk({ invoice: serializeInvoice(updated) });
   },

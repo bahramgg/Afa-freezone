@@ -38,7 +38,7 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
   const settings = useSettingsStore((s) => s.settings);
 
   const [rate, setRate] = useState<number>(settings.usdtRate);
-  const [bankAccount, setBankAccount] = useState("IR84-0170-0000-0011-2233-44");
+  const [depositAccount, setDepositAccount] = useState("IR84-0170-0000-0011-2233-44");
   const [receiptNo, setReceiptNo] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
   const [txHash, setTxHash] = useState("");
@@ -66,7 +66,7 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
       toast.error("نرخ معتبر را وارد کنید");
       return;
     }
-    lockRate(item!.id, rate, bankAccount);
+    lockRate(item!.id, rate, depositAccount);
     toast.success(`نرخ قفل شد: ${formatAmount(rate)} تومان`);
     onOpenChange(false);
   }
@@ -185,8 +185,8 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
                 <div className="space-y-1.5">
                   <Label>شماره حساب بانک</Label>
                   <Input
-                    value={bankAccount}
-                    onChange={(e) => setBankAccount(e.target.value)}
+                    value={depositAccount}
+                    onChange={(e) => setDepositAccount(e.target.value)}
                     dir="ltr"
                   />
                 </div>

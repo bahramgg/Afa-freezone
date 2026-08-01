@@ -39,7 +39,7 @@ const schema = z.object({
   amount: z.coerce.number().positive("مبلغ باید مثبت باشد"),
   currency: z.enum(["USDT", "BNB"]),
   walletAddress: z.string().min(1, "آدرس کیف پول را انتخاب کنید"),
-  bankAccount: z.string().min(1, "شماره حساب را وارد کنید"),
+  payoutAccount: z.string().min(1, "شماره حساب را وارد کنید"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -161,8 +161,8 @@ export function SettlementForm() {
 
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="iban">شماره حساب / شبا</Label>
-            <Input id="iban" placeholder="IR84-0170-0000-0011-2233-44" {...register("bankAccount")} />
-            {errors.bankAccount ? <p className="text-xs text-destructive">{errors.bankAccount.message}</p> : null}
+            <Input id="iban" placeholder="IR84-0170-0000-0011-2233-44" {...register("payoutAccount")} />
+            {errors.payoutAccount ? <p className="text-xs text-destructive">{errors.payoutAccount.message}</p> : null}
           </div>
 
           <DialogFooter className="sm:col-span-2 pt-2">

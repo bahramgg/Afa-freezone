@@ -29,6 +29,7 @@ export default function AdminSettingsPage() {
   const validity = field("invoiceValidityMinutes");
   const minAmount = field("invoiceMinAmount");
   const maxAmount = field("invoiceMaxAmount");
+  const rateTolerance = field("rateTolerancePercent");
 
   const setFeeBasePercent = (v: number) => edit("feeBasePercent", v);
   const setFeeMin = (v: number) => edit("feeMin", v);
@@ -36,10 +37,11 @@ export default function AdminSettingsPage() {
   const setValidity = (v: number) => edit("invoiceValidityMinutes", v);
   const setMinAmount = (v: number) => edit("invoiceMinAmount", v);
   const setMaxAmount = (v: number) => edit("invoiceMaxAmount", v);
+  const setRateTolerance = (v: number) => edit("rateTolerancePercent", v);
 
   async function saveFee() {
     try {
-      await update({ feeBasePercent, feeMin, feeMax });
+      await update({ feeBasePercent, feeMin, feeMax, rateTolerancePercent: rateTolerance });
       setDraft({});
       toast.success("تنظیمات کارمزد ذخیره شد");
     } catch (error) {
@@ -90,6 +92,25 @@ export default function AdminSettingsPage() {
                   <Input type="number" value={feeMax} onChange={(e) => setFeeMax(Number(e.target.value))} dir="ltr" />
                 </div>
               </div>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label>حد مجاز اختلاف نرخ (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={rateTolerance}
+                    onChange={(e) => setRateTolerance(Number(e.target.value))}
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    نرخی که بانک قفل می‌کند نباید بیش از این مقدار با نرخ مرجع فاصله داشته باشد.
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                کارمزد یک بار در هر مسیر گرفته می‌شود. فاکتوری که پرداخت شود کارمزدش را همان‌جا
+                می‌دهد و تسویهٔ خودکاری که از آن ساخته می‌شود کارمزد ندارد.
+              </p>
               <Button onClick={saveFee}>ذخیره</Button>
             </CardContent>
           </Card>

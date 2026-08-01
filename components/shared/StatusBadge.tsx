@@ -30,7 +30,6 @@ const SETTLEMENT_LABELS: Record<SettlementStatus, { label: string; tone: Tone }>
   BANK_RATE_LOCKED: { label: "آدرس والت اعلام شد — منتظر واریز کریپتو", tone: "info" },
   CRYPTO_RECEIVED: { label: "TX hash دریافت شد — در حال تأیید بلاکچین", tone: "info" },
   CRYPTO_CONFIRMED: { label: "کریپتو تأیید شد — در حال واریز ریال", tone: "info" },
-  BANK_APPROVED: { label: "تأیید شده", tone: "info" },
   SETTLED: { label: "موفق — ریال واریز شد", tone: "success" },
   REJECTED: { label: "رد شده", tone: "destructive" },
 };

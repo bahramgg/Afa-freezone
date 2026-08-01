@@ -15,6 +15,7 @@ import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { recordChainTx, verifyTransfer, ChainVerificationError } from "@/lib/server/chain/verify";
 import { toRial } from "@/lib/server/money";
+import { assertRateWithinTolerance } from "@/lib/server/rates";
 import { SEND_INCLUDE } from "../../route";
 import type { Actor, Prisma, SendStatus } from "@/lib/generated/prisma/client";
 
@@ -34,7 +35,7 @@ const Body = z.object({
   walletAddress: z.string().trim().optional(),
   reason: z.string().trim().max(500).optional(),
   rate: z.number().positive().optional(),
-  bankAccount: z.string().trim().optional(),
+  depositAccount: z.string().trim().optional(),
   receiptNo: z.string().trim().optional(),
   txHash: z.string().trim().optional(),
   bankWalletAddress: z.string().trim().optional(),
@@ -108,15 +109,19 @@ export const POST = handler(
         if (user.role !== "BANK") throw forbidden();
         assertTransition(from, ["AWAITING_BANK_REVIEW"], "قفل نرخ");
         if (!body.rate) throw badRequest("نرخ ارز الزامی است");
-        if (!body.bankAccount) throw badRequest("شماره حساب واریز ریالی الزامی است");
+        if (!body.depositAccount) throw badRequest("شماره حساب واریز ریالی الزامی است");
+        await assertRateWithinTolerance(body.rate, send.currency);
+
         to = "BANK_RATE_LOCKED";
         actor = "BANK";
         data = {
           exchangeRate: body.rate.toString(),
           rateLocked: true,
           rateLockedAt: new Date(),
-          rialAmount: toRial(body.rate, send.amount),
-          bankAccount: body.bankAccount,
+          // The merchant pays for the amount the counterparty receives plus the
+          // gateway fee, which netAmount already carries.
+          rialAmount: toRial(body.rate, send.netAmount ?? send.amount),
+          depositAccount: body.depositAccount,
         };
         note = `نرخ ${body.rate} قفل شد`;
         break;

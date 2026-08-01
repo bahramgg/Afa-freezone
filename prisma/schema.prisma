@@ -261,6 +261,9 @@ model Invoice {
   chainTxId String?      @unique
   chainTx   ChainTx?     @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
 
+  /** The payout settlement raised once this invoice was paid. */
+  settlement Settlement? @relation("InvoiceSettlement")
+
   @@index([ownerId, status])
   @@index([status, createdAt])
 }
@@ -303,7 +306,17 @@ model SendRequest {
   rateLockedAt DateTime?
   rialAmount   Decimal? @db.Decimal(24, 2)
 
-  bankAccount    String?
+  /** Gateway fee, in the token. Charged once per journey. */
+  feeAmount Decimal? @db.Decimal(38, 18)
+  /**
+   * The token amount the rial leg is computed from — always the merchant's side
+   * of the ledger. Sending, they pay for the amount plus the fee; receiving,
+   * they are credited for the amount less the fee.
+   */
+  netAmount Decimal? @db.Decimal(38, 18)
+
+  /** Bank account the merchant must deposit the rial into. Named by the bank. */
+  depositAccount String?
   rialReceiptNo  String?
   rialDepositAt  DateTime?
 
@@ -331,7 +344,6 @@ enum SettlementStatus {
   BANK_RATE_LOCKED
   CRYPTO_RECEIVED
   CRYPTO_CONFIRMED
-  BANK_APPROVED
   SETTLED
   REJECTED
 }
@@ -350,10 +362,13 @@ model Settlement {
   amount   Decimal  @db.Decimal(38, 18)
   currency Currency
 
-  /** Merchant wallet the crypto is sent from. */
-  walletAddress String
-  /** Rial account the proceeds are paid into. */
-  bankAccount   String
+  /**
+   * Merchant wallet the crypto is sent from. Null for a settlement raised from
+   * a paid invoice, where the crypto is already sitting in the bank's wallet.
+   */
+  walletAddress String?
+  /** Rial account the proceeds are paid into. Named by the merchant. */
+  payoutAccount String?
 
   status SettlementStatus @default(AWAITING_ADMIN)
 
@@ -361,6 +376,19 @@ model Settlement {
   rateLocked   Boolean   @default(false)
   rateLockedAt DateTime?
   rialAmount   Decimal?  @db.Decimal(24, 2)
+
+  /** Gateway fee, in the token. Zero when the source invoice already paid it. */
+  feeAmount Decimal? @db.Decimal(38, 18)
+  /** The token amount the rial leg is computed from: amount less the fee. */
+  netAmount Decimal? @db.Decimal(38, 18)
+
+  /**
+   * Set when this settlement was raised automatically from a paid invoice. The
+   * crypto is then already held by the bank, so the merchant sends nothing and
+   * the gateway fee was already taken on the invoice.
+   */
+  sourceInvoiceId String?  @unique
+  sourceInvoice   Invoice? @relation("InvoiceSettlement", fields: [sourceInvoiceId], references: [id], onDelete: SetNull)
 
   bankWalletAddress String?
   bankResponseAt    DateTime?
@@ -478,7 +506,9 @@ model Settings {
   dailySendLimit       Decimal @db.Decimal(38, 18) @default(50000)
   dailySettlementLimit Decimal @db.Decimal(38, 18) @default(50000)
   minTxAmount          Decimal @db.Decimal(38, 18) @default(10)
-  bankFeePercent       Decimal @db.Decimal(6, 3) @default(0.5)
+
+  /** Rate a bank-locked exchange rate may deviate from the reference, percent. */
+  rateTolerancePercent Decimal @db.Decimal(6, 3) @default(10)
 
   updatedAt DateTime @updatedAt
 }

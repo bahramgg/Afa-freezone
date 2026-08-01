@@ -33,6 +33,7 @@ const ICONS: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
   SEND_COMPLETED: { icon: Send, tone: "text-success bg-success/10" },
   FOREIGN_RECEIVE_REQUEST: { icon: Mail, tone: "text-primary bg-primary/10" },
   FOREIGN_CRYPTO_RECEIVED: { icon: Wallet, tone: "text-success bg-success/10" },
+  SETTLEMENT_FROM_INVOICE: { icon: Banknote, tone: "text-info bg-info/10" },
 };
 
 export function NotificationsPanel() {

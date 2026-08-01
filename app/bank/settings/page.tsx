@@ -20,7 +20,6 @@ export default function BankSettingsPage() {
   const [dailySend, setDailySend] = useState(settings.dailySendLimit);
   const [dailySettle, setDailySettle] = useState(settings.dailySettlementLimit);
   const [minTx, setMinTx] = useState(settings.minTxAmount);
-  const [feePct, setFeePct] = useState(settings.bankFeePercent);
 
   useEffect(() => {
     setUsdt(settings.usdtRate);
@@ -28,7 +27,6 @@ export default function BankSettingsPage() {
     setDailySend(settings.dailySendLimit);
     setDailySettle(settings.dailySettlementLimit);
     setMinTx(settings.minTxAmount);
-    setFeePct(settings.bankFeePercent);
   }, [settings]);
 
   function saveRates() {
@@ -37,18 +35,18 @@ export default function BankSettingsPage() {
   }
 
   function saveLimits() {
-    update({ dailySendLimit: dailySend, dailySettlementLimit: dailySettle, minTxAmount: minTx, bankFeePercent: feePct });
+    update({ dailySendLimit: dailySend, dailySettlementLimit: dailySettle, minTxAmount: minTx });
     toast.success("تنظیمات ذخیره شد");
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="تنظیمات بانک" description="پیکربندی نرخ ارز، سقف‌ها و کارمزد" />
+      <PageHeader title="تنظیمات بانک" description="پیکربندی نرخ ارز و سقف تراکنش‌ها" />
 
       <Tabs defaultValue="rates">
         <TabsList>
           <TabsTrigger value="rates">نرخ ارز</TabsTrigger>
-          <TabsTrigger value="limits">سقف‌ها و کارمزد</TabsTrigger>
+          <TabsTrigger value="limits">سقف تراکنش‌ها</TabsTrigger>
           <TabsTrigger value="security">امنیت</TabsTrigger>
         </TabsList>
 
@@ -80,7 +78,7 @@ export default function BankSettingsPage() {
         <TabsContent value="limits" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>سقف‌ها و کارمزد</CardTitle>
+              <CardTitle>سقف تراکنش‌ها</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
@@ -95,10 +93,6 @@ export default function BankSettingsPage() {
                 <div className="space-y-1.5">
                   <Label>حداقل مبلغ تراکنش (USDT)</Label>
                   <Input type="number" value={minTx} onChange={(e) => setMinTx(Number(e.target.value))} dir="ltr" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>کارمزد بانک (%)</Label>
-                  <Input type="number" step="0.1" value={feePct} onChange={(e) => setFeePct(Number(e.target.value))} dir="ltr" />
                 </div>
               </div>
               <Button onClick={saveLimits} className="bg-emerald-700 hover:bg-emerald-600">ذخیره</Button>

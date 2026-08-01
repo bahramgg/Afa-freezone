@@ -92,8 +92,12 @@ export function SettlementDetailDialog({
               copy={item.txHash}
               link={bscScanUrl(item.txHash)}
             />
-            <Row label="کیف پول کاربر" value={truncateAddress(item.walletAddress)} copy={item.walletAddress} />
-            <Row label="حساب بانکی" value={item.bankAccount} copy={item.bankAccount} />
+            {item.walletAddress ? (
+              <Row label="کیف پول کاربر" value={truncateAddress(item.walletAddress)} copy={item.walletAddress} />
+            ) : (
+              <Row label="منشأ کریپتو" value="از فاکتور پرداخت‌شده — نزد بانک" />
+            )}
+            <Row label="حساب دریافت ریال" value={item.payoutAccount ?? "ثبت نشده"} copy={item.payoutAccount} />
             {item.bankWalletAddress ? (
               <Row
                 label="آدرس والت بانک"
@@ -114,7 +118,7 @@ export function SettlementDetailDialog({
             ) : null}
           </div>
 
-          {item.status === "BANK_RATE_LOCKED" && item.bankWalletAddress ? (
+          {item.status === "BANK_RATE_LOCKED" && item.bankWalletAddress && !item.sourceInvoiceId ? (
             <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-2">
               <div className="font-medium text-sm">منتظر واریز کریپتو شما</div>
               <p className="text-xs text-muted-foreground">

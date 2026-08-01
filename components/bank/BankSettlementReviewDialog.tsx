@@ -58,19 +58,29 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
   if (!item) return null;
 
   const stage = item.status;
+  // A payout raised from a paid invoice has no crypto leg: the transfer that
+  // funded it was verified on the invoice and the money is already here.
+  const fromInvoice = Boolean(item.sourceInvoiceId);
 
   function handleLockRate() {
     if (!rate || rate <= 0) {
       toast.error("نرخ معتبر را وارد کنید");
       return;
     }
-    if (!walletAddress) {
+    if (!fromInvoice && !walletAddress) {
       toast.error("کیف پول دریافت را انتخاب کنید");
       return;
     }
-    lockRate(item!.id, rate, walletAddress);
-    toast.success("نرخ قفل شد و آدرس والت به کاربر اعلام شد");
-    onOpenChange(false);
+    lockRate(item!.id, rate, fromInvoice ? undefined : walletAddress)
+      .then(() => {
+        toast.success(
+          fromInvoice ? "نرخ قفل شد" : "نرخ قفل شد و آدرس والت به کاربر اعلام شد",
+        );
+        onOpenChange(false);
+      })
+      .catch((error) =>
+        toast.error(error instanceof Error ? error.message : "قفل نرخ انجام نشد"),
+      );
   }
 
   function handleSettle() {
@@ -78,9 +88,14 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
       toast.error("شماره فیش را وارد کنید");
       return;
     }
-    settle(item!.id, receiptNo);
-    toast.success(`تسویه ${item!.trxId} با موفقیت انجام شد`);
-    onOpenChange(false);
+    settle(item!.id, receiptNo)
+      .then(() => {
+        toast.success(`تسویه ${item!.trxId} با موفقیت انجام شد`);
+        onOpenChange(false);
+      })
+      .catch((error) =>
+        toast.error(error instanceof Error ? error.message : "ثبت واریز انجام نشد"),
+      );
   }
 
   function handleReject() {
@@ -117,7 +132,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
               }
             />
             <Info label="معادل ریالی" value={`${toPersianDigits(formatAmount(item.rialAmount ?? 0))} ت`} />
-            <Info label="شماره حساب" value={<span className="font-mono text-xs" dir="ltr">{item.bankAccount}</span>} />
+            <Info label="شماره حساب" value={<span className="font-mono text-xs" dir="ltr">{item.payoutAccount}</span>} />
             <Info
               label="هش تراکنش کریپتوی دریافتی کاربر"
               value={
@@ -129,7 +144,16 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
                 ) : "—"
               }
             />
-            <Info label="آدرس والت کاربر" value={<span className="font-mono text-xs" dir="ltr">{truncateAddress(item.walletAddress)}</span>} />
+            <Info
+              label="آدرس والت کاربر"
+              value={
+                item.walletAddress ? (
+                  <span className="font-mono text-xs" dir="ltr">{truncateAddress(item.walletAddress)}</span>
+                ) : (
+                  "کریپتو از فاکتور، نزد بانک است"
+                )
+              }
+            />
             <Info label="توضیحات" value={item.description} full />
             {item.userPayoutTxHash ? (
               <Info
@@ -162,8 +186,14 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
             <div className="rounded-md border border-info/30 bg-info/5 p-4 space-y-3">
               <div className="text-sm font-semibold flex items-center gap-2">
                 <Coins className="h-4 w-4 text-info" />
-                مرحله ۱ — اعلام نرخ و والت دریافت
+                {fromInvoice ? "مرحله ۱ — اعلام نرخ" : "مرحله ۱ — اعلام نرخ و والت دریافت"}
               </div>
+              {fromInvoice ? (
+                <p className="text-xs text-muted-foreground">
+                  کریپتوی این تسویه از فاکتور پرداخت‌شده است و در والت بانک قرار دارد — کاربر
+                  چیزی ارسال نمی‌کند.
+                </p>
+              ) : null}
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>نرخ ارز روز (تومان)</Label>
@@ -174,7 +204,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
                     dir="ltr"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className={fromInvoice ? "hidden" : "space-y-1.5"}>
                   <Label>کیف پول بانک (دریافت)</Label>
                   <select
                     value={walletAddress}
@@ -190,7 +220,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
             </div>
           ) : null}
 
-          {stage === "BANK_RATE_LOCKED" && !rejectMode ? (
+          {stage === "BANK_RATE_LOCKED" && !rejectMode && !fromInvoice ? (
             <div className="rounded-md border border-warning/30 bg-warning/5 p-4 space-y-2 text-sm">
               <div className="font-semibold flex items-center gap-2">
                 <Lock className="h-4 w-4 text-warning" />
@@ -226,18 +256,19 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
             </div>
           ) : null}
 
-          {stage === "CRYPTO_CONFIRMED" && !rejectMode ? (
+          {(stage === "CRYPTO_CONFIRMED" || (fromInvoice && stage === "BANK_RATE_LOCKED")) &&
+          !rejectMode ? (
             <div className="rounded-md border border-info/30 bg-info/5 p-4 space-y-3">
               <div className="text-sm font-semibold flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-info" />
-                مرحله ۳ — ثبت واریز ریال نهایی
+                {fromInvoice ? "مرحله ۲ — ثبت واریز ریال" : "مرحله ۳ — ثبت واریز ریال نهایی"}
               </div>
               <div className="space-y-1.5">
                 <Label>شماره فیش واریز</Label>
                 <Input value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} placeholder="TR-XX-XXXX" dir="ltr" />
                 <p className="text-xs text-muted-foreground">
                   مبلغ: {toPersianDigits(formatAmount(item.rialAmount ?? 0))} تومان به حساب{" "}
-                  <span className="font-mono" dir="ltr">{item.bankAccount}</span>
+                  <span className="font-mono" dir="ltr">{item.payoutAccount}</span>
                 </p>
               </div>
             </div>
@@ -261,7 +292,8 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
           {/* CRYPTO_RECEIVED advances on its own: the transfer was already
               verified on chain when the merchant submitted it, and the watcher
               promotes it to CRYPTO_CONFIRMED once it has enough confirmations. */}
-          {!rejectMode && stage === "CRYPTO_CONFIRMED" ? (
+          {!rejectMode &&
+          (stage === "CRYPTO_CONFIRMED" || (fromInvoice && stage === "BANK_RATE_LOCKED")) ? (
             <Button onClick={handleSettle} className="bg-emerald-700 hover:bg-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
               ثبت واریز نهایی

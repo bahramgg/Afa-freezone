@@ -11,6 +11,7 @@ import {
 } from "./client";
 import { notify } from "../notify";
 import { feeFor } from "../fees";
+import { raisePayoutSettlement } from "../payout";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type WatcherReport = {
@@ -256,6 +257,9 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     body: `پرداخت فاکتور ${invoice.ref} روی شبکه تأیید شد`,
     href: `/receive/${invoice.ref}`,
   });
+
+  // The money is at the bank now; the payout carries it on to the merchant.
+  await raisePayoutSettlement({ ...invoice, netAmount: net.toFixed(8) as unknown as Prisma.Decimal });
 
   return true;
 }

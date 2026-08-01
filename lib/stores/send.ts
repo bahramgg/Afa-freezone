@@ -24,7 +24,7 @@ type SendState = {
   approveCounterparty: (ref: string, walletAddress: string) => Promise<void>;
   approveAdmin: (ref: string) => Promise<void>;
   rejectAdmin: (ref: string, reason: string) => Promise<void>;
-  lockBankRate: (ref: string, rate: number, bankAccount: string) => Promise<void>;
+  lockBankRate: (ref: string, rate: number, depositAccount: string) => Promise<void>;
   confirmRialDeposit: (ref: string, receiptNo: string) => Promise<void>;
   /** The operator signs outside the system and reports the resulting hash. */
   recordCryptoSent: (ref: string, txHash: string, bankWalletAddress?: string) => Promise<void>;
@@ -77,8 +77,8 @@ export const useSendStore = create<SendState>()((set, get) => {
       transition(ref, { action: "acceptCounterparty", walletAddress }),
     approveAdmin: (ref) => transition(ref, { action: "approveAdmin" }),
     rejectAdmin: (ref, reason) => transition(ref, { action: "rejectAdmin", reason }),
-    lockBankRate: (ref, rate, bankAccount) =>
-      transition(ref, { action: "lockRate", rate, bankAccount }),
+    lockBankRate: (ref, rate, depositAccount) =>
+      transition(ref, { action: "lockRate", rate, depositAccount }),
     confirmRialDeposit: (ref, receiptNo) =>
       transition(ref, { action: "confirmRialDeposit", receiptNo }),
     recordCryptoSent: (ref, txHash, bankWalletAddress) =>

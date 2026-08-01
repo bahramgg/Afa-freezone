@@ -68,7 +68,9 @@ export const GET = handler(async (request: Request) => {
 
 const CreateBody = z.object({
   amount: z.number().positive("مبلغ باید بزرگ‌تر از صفر باشد"),
-  currency: z.enum(["USDT", "BNB"]),
+  // USDT only. The deposit watcher reads BEP-20 Transfer logs; a native BNB
+  // transfer emits none, so a BNB invoice could never be credited on its own.
+  currency: z.literal("USDT", { message: "فاکتور فقط با تتر (USDT) صادر می‌شود" }),
   description: z.string().trim().min(1, "شرح تراکنش الزامی است"),
   goodsTitle: z.string().trim().min(1, "عنوان کالا الزامی است"),
   senderName: z.string().trim().min(1, "نام فرستنده الزامی است"),

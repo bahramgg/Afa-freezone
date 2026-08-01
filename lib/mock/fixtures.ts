@@ -80,6 +80,6 @@ export function seedSettings(): Settings {
     dailySendLimit: 10000,
     dailySettlementLimit: 10000,
     minTxAmount: 10,
-    bankFeePercent: 1.5,
+    rateTolerancePercent: 10,
   };
 }

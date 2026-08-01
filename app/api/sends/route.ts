@@ -13,6 +13,7 @@ import { nextRef } from "@/lib/server/refs";
 import { serializeSend } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
+import { feeFor } from "@/lib/server/fees";
 import { toRial } from "@/lib/server/money";
 import { narrow, sendScope } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -109,6 +110,10 @@ export const POST = handler(async (request: Request) => {
       : Number(settings.usdtRate)
     : null;
 
+  // The foreign counterparty must receive the full agreed amount, so the
+  // gateway fee goes on top of what the merchant pays rather than out of it.
+  const fee = await feeFor(input.amount, "debit");
+
   const created = await db.$transaction(async (tx) => {
     const { ref, trxRef } = await nextRef("send", tx);
     const row = await tx.sendRequest.create({
@@ -122,9 +127,11 @@ export const POST = handler(async (request: Request) => {
         currency: input.currency,
         description: input.description ?? null,
         status: "AWAITING_COUNTERPARTY",
+        feeAmount: fee.fee.toFixed(8),
+        netAmount: fee.net.toFixed(8),
         // An indicative rate only; the binding one is locked later by the bank.
         exchangeRate: rate?.toString(),
-        rialAmount: rate ? toRial(rate, input.amount) : undefined,
+        rialAmount: rate ? toRial(rate, fee.net) : undefined,
       },
       include: SEND_INCLUDE,
     });

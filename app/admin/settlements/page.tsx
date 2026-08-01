@@ -40,7 +40,6 @@ const WITH_BANK_STATUSES: SettlementStatus[] = [
   "BANK_RATE_LOCKED",
   "CRYPTO_RECEIVED",
   "CRYPTO_CONFIRMED",
-  "BANK_APPROVED",
 ];
 
 export default function AdminSettlementsPage() {
@@ -157,7 +156,7 @@ export default function AdminSettlementsPage() {
                           </td>
                           <td className="px-4 py-3 truncate max-w-[160px]">{s.goodsTitle}</td>
                           <td className="px-4 py-3"><MoneyText amount={s.amount} currency={s.currency} /></td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground"><Ltr>{s.bankAccount}</Ltr></td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground"><Ltr>{s.payoutAccount}</Ltr></td>
                           <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={s.createdAt} /></td>
                           <td className="px-4 py-3"><SettlementStatusBadge status={s.status} /></td>
                           <td className="px-4 py-3">
@@ -200,13 +199,24 @@ export default function AdminSettlementsPage() {
               <Row
                 label="آدرس والت"
                 value={
-                  <span className="font-mono text-xs flex items-center gap-1" dir="ltr">
-                    {truncateAddress(reviewing.walletAddress)}
-                    <CopyButton value={reviewing.walletAddress} />
+                  reviewing.walletAddress ? (
+                    <span className="font-mono text-xs flex items-center gap-1" dir="ltr">
+                      {truncateAddress(reviewing.walletAddress)}
+                      <CopyButton value={reviewing.walletAddress} />
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">کریپتو نزد بانک است</span>
+                  )
+                }
+              />
+              <Row
+                label="شماره حساب"
+                value={
+                  <span className="font-mono text-xs" dir="ltr">
+                    {reviewing.payoutAccount ?? "—"}
                   </span>
                 }
               />
-              <Row label="شماره حساب" value={<span className="font-mono text-xs" dir="ltr">{reviewing.bankAccount}</span>} />
             </div>
           ) : null}
 

@@ -162,13 +162,13 @@ export default function SendPage() {
                     </div>
                   ) : null}
 
-                  {r.status === "BANK_RATE_LOCKED" && r.bankAccount ? (
+                  {r.status === "BANK_RATE_LOCKED" && r.depositAccount ? (
                     <div className="mt-3 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
                       <div className="font-medium mb-1">منتظر واریز ریال شما</div>
                       <div className="text-xs flex items-center gap-2">
                         <span className="text-muted-foreground">شماره حساب بانک:</span>
-                        <span className="font-mono" dir="ltr">{r.bankAccount}</span>
-                        <CopyButton value={r.bankAccount} />
+                        <span className="font-mono" dir="ltr">{r.depositAccount}</span>
+                        <CopyButton value={r.depositAccount} />
                       </div>
                     </div>
                   ) : null}

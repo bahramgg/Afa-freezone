@@ -11,6 +11,7 @@ import { SettlementStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SettlementForm } from "@/components/settlement/SettlementForm";
 import { SettlementDetailDialog } from "@/components/settlement/SettlementDetailDialog";
+import { PayoutAccountPrompt } from "@/components/settlement/PayoutAccountPrompt";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useHydrated } from "@/lib/stores/hydration";
 import { toPersianDigits, formatAmount } from "@/lib/format";
@@ -21,6 +22,9 @@ export default function SettlementPage() {
   const hydrated = useHydrated();
   const [open, setOpen] = useState<Settlement | null>(null);
 
+  // Payouts raised from a paid invoice arrive without anywhere to pay.
+  const awaitingAccount = list.filter((s) => s.sourceInvoiceId && !s.payoutAccount);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -28,6 +32,8 @@ export default function SettlementPage() {
         description="درخواست تسویه کریپتو به ریال — بررسی ادمین + بانک"
         actions={<SettlementForm />}
       />
+
+      <PayoutAccountPrompt pending={awaitingAccount} />
 
       <Card>
         <CardContent className="p-0">

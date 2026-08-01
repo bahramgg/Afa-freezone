@@ -14,6 +14,7 @@ import { serializeSettlement } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
+import { feeFor } from "@/lib/server/fees";
 import { toRial } from "@/lib/server/money";
 import { narrow, settlementScope } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -35,7 +36,6 @@ const Query = z.object({
       "BANK_RATE_LOCKED",
       "CRYPTO_RECEIVED",
       "CRYPTO_CONFIRMED",
-      "BANK_APPROVED",
       "SETTLED",
       "REJECTED",
     ])
@@ -68,7 +68,7 @@ const CreateBody = z.object({
   amount: z.number().positive("مبلغ باید بزرگ‌تر از صفر باشد"),
   currency: z.enum(["USDT", "BNB"]),
   walletAddress: z.string().trim().min(1, "آدرس والت مبدأ الزامی است"),
-  bankAccount: z.string().trim().min(4, "شماره حساب مقصد الزامی است"),
+  payoutAccount: z.string().trim().min(4, "شماره حساب مقصد الزامی است"),
 });
 
 export const POST = handler(async (request: Request) => {
@@ -98,6 +98,10 @@ export const POST = handler(async (request: Request) => {
       : Number(settings.usdtRate)
     : null;
 
+  // The merchant is handing crypto over, so the gateway fee comes off what they
+  // are credited. Charged here, at the point they can still see it and decline.
+  const fee = await feeFor(input.amount, "credit");
+
   const created = await db.$transaction(async (tx) => {
     const { ref, trxRef } = await nextRef("settlement", tx);
     const row = await tx.settlement.create({
@@ -110,10 +114,13 @@ export const POST = handler(async (request: Request) => {
         amount: input.amount.toString(),
         currency: input.currency,
         walletAddress: normalizeAddress(input.walletAddress),
-        bankAccount: input.bankAccount,
+        payoutAccount: input.payoutAccount,
         status: "AWAITING_ADMIN",
+        feeAmount: fee.fee.toFixed(8),
+        netAmount: fee.net.toFixed(8),
         exchangeRate: rate?.toString(),
-        rialAmount: rate ? toRial(rate, input.amount) : undefined,
+        // The merchant is credited for what is left after the fee.
+        rialAmount: rate ? toRial(rate, fee.net) : undefined,
       },
       include: SETTLEMENT_INCLUDE,
     });

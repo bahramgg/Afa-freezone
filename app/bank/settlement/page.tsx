@@ -30,7 +30,6 @@ const BANK_VISIBLE: SettlementStatus[] = [
   "BANK_RATE_LOCKED",
   "CRYPTO_RECEIVED",
   "CRYPTO_CONFIRMED",
-  "BANK_APPROVED",
   "SETTLED",
   "REJECTED",
 ];

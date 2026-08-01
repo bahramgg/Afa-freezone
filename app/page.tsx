@@ -1,29 +1,23 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/lib/stores/auth";
-import { useHydrated } from "@/lib/stores/hydration";
-import "@/lib/devtools/reset";
+import { Features } from "@/components/landing/Features";
+import { Hero } from "@/components/landing/Hero";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { LandingFooter } from "@/components/landing/LandingFooter";
+import { LandingNav } from "@/components/landing/LandingNav";
+import { PortalGrid } from "@/components/landing/PortalGrid";
+import { Security } from "@/components/landing/Security";
 
 export default function Home() {
-  const router = useRouter();
-  const isAuthed = useAuthStore((s) => s.isAuthed);
-  const hasProfile = useAuthStore((s) => s.hasProfile);
-  const hasPassedKyc = useAuthStore((s) => s.hasPassedKyc);
-  const hydrated = useHydrated();
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!isAuthed) router.replace("/login");
-    else if (!hasProfile) router.replace("/profile");
-    else if (!hasPassedKyc) router.replace("/kyc-waiting");
-    else router.replace("/dashboard");
-  }, [hydrated, isAuthed, hasProfile, hasPassedKyc, router]);
-
   return (
-    <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground">
-      در حال انتقال...
+    <div className="flex min-h-screen flex-col">
+      <LandingNav />
+      <main className="flex-1">
+        <Hero />
+        <PortalGrid />
+        <HowItWorks />
+        <Features />
+        <Security />
+      </main>
+      <LandingFooter />
     </div>
   );
 }

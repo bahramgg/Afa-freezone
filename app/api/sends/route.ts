@@ -27,7 +27,19 @@ export const SEND_INCLUDE = {
 } satisfies Prisma.SendRequestInclude;
 
 const Query = z.object({
-  status: z.string().default("ALL"),
+  status: z
+    .enum([
+      "ALL",
+      "AWAITING_COUNTERPARTY",
+      "AWAITING_ADMIN",
+      "AWAITING_BANK_REVIEW",
+      "BANK_RATE_LOCKED",
+      "RIAL_RECEIVED",
+      "CRYPTO_SENT",
+      "PAID",
+      "REJECTED",
+    ])
+    .default("ALL"),
   take: z.coerce.number().int().min(1).max(200).default(100),
 });
 
@@ -42,7 +54,7 @@ export const GET = handler(async (request: Request) => {
 
   const where = narrow(
     sendScope(user),
-    status === "ALL" ? null : { status: status as Prisma.SendRequestWhereInput["status"] },
+    status === "ALL" ? null : { status },
   );
 
   const list = await db.sendRequest.findMany({

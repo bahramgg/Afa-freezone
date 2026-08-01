@@ -27,7 +27,19 @@ export const SETTLEMENT_INCLUDE = {
 } satisfies Prisma.SettlementInclude;
 
 const Query = z.object({
-  status: z.string().default("ALL"),
+  status: z
+    .enum([
+      "ALL",
+      "AWAITING_ADMIN",
+      "AWAITING_BANK",
+      "BANK_RATE_LOCKED",
+      "CRYPTO_RECEIVED",
+      "CRYPTO_CONFIRMED",
+      "BANK_APPROVED",
+      "SETTLED",
+      "REJECTED",
+    ])
+    .default("ALL"),
   take: z.coerce.number().int().min(1).max(200).default(100),
 });
 
@@ -37,7 +49,7 @@ export const GET = handler(async (request: Request) => {
 
   const where = narrow(
     settlementScope(user),
-    status === "ALL" ? null : { status: status as Prisma.SettlementWhereInput["status"] },
+    status === "ALL" ? null : { status },
   );
 
   const list = await db.settlement.findMany({

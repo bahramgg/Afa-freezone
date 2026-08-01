@@ -13,27 +13,56 @@ const schema = z.object({
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters"),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(72),
 
-  /** BSC Testnet is 97, mainnet is 56. */
-  CHAIN_ID: z.coerce.number().int().positive().default(97),
-  CHAIN_RPC_URL: z.string().url().default("https://bsc-testnet.drpc.org"),
-  CHAIN_EXPLORER_URL: z.string().url().default("https://testnet.bscscan.com"),
+  /** BSC mainnet is 56, testnet is 97. */
+  CHAIN_ID: z.coerce.number().int().positive().default(56),
+  CHAIN_RPC_URL: z.string().url(),
+  /**
+   * Optional websocket endpoint. When set, the standalone watcher subscribes to
+   * transfers in real time instead of polling — the only workable mode on a
+   * chain producing a block every half second.
+   */
+  CHAIN_WSS_URL: z.string().url().optional(),
+  CHAIN_EXPLORER_URL: z.string().url().default("https://bscscan.com"),
   /** BEP-20 USDT contract on the configured chain. */
   USDT_CONTRACT_ADDRESS: z
     .string()
     .regex(/^0x[a-fA-F0-9]{40}$/)
-    .default("0x337610d27c682e347c9cd60bd4b3b107c9d34ddd"),
+    .default("0x55d398326f99059fF775485246999027B3197955"),
   USDT_DECIMALS: z.coerce.number().int().min(0).max(36).default(18),
-  /** Confirmations before a deposit counts as final. */
+  /**
+   * How a deposit is judged irreversible.
+   *
+   * `finalized` asks the node for its finalised head — correct on BSC, whose
+   * fast finality makes a finalised block unrevertable regardless of how many
+   * blocks follow it. `confirmations` counts blocks instead, for nodes that do
+   * not serve the finalized tag.
+   */
+  CHAIN_FINALITY: z.enum(["finalized", "confirmations"]).default("finalized"),
+  /** Only consulted when CHAIN_FINALITY=confirmations. */
   CHAIN_MIN_CONFIRMATIONS: z.coerce.number().int().positive().default(15),
-  /** Blocks per watcher pass; keep under the RPC provider's log range limit. */
-  CHAIN_SCAN_BATCH: z.coerce.number().int().positive().default(500),
+  /**
+   * Blocks per getLogs request. Providers cap this and the cap differs per plan
+   * — QuickNode's free tier allows 5. A rejected range is halved and retried,
+   * so this is a starting point rather than a hard limit.
+   */
+  CHAIN_SCAN_BATCH: z.coerce.number().int().positive().default(5),
+  /** Upper bound on getLogs requests per watcher tick, so one pass is bounded. */
+  CHAIN_SCAN_MAX_REQUESTS: z.coerce.number().int().positive().default(40),
   /** Shared secret required by the watcher's cron endpoint. */
   CHAIN_WATCHER_TOKEN: z.string().min(16).optional(),
 
-  SMS_PROVIDER: z.enum(["console", "kavenegar", "smsir", "melipayamak"]).default("console"),
-  SMS_API_KEY: z.string().optional(),
-  SMS_SENDER: z.string().optional(),
-  SMS_TEMPLATE: z.string().optional(),
+  /** OTP delivery. `console` prints to the server log — development only. */
+  EMAIL_PROVIDER: z.enum(["console", "smtp", "resend"]).default("console"),
+  EMAIL_FROM: z.string().default("AFA <no-reply@afa.local>"),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
 
   OTP_TTL_MINUTES: z.coerce.number().int().positive().default(3),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

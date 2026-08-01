@@ -25,8 +25,8 @@ type AuthState = {
   ready: boolean;
 
   load: () => Promise<void>;
-  requestOtp: (phone: string) => Promise<{ expiresAt: string; devCode?: string }>;
-  verifyOtp: (phone: string, code: string) => Promise<void>;
+  requestOtp: (email: string) => Promise<{ expiresAt: string; devCode?: string }>;
+  verifyOtp: (email: string, code: string) => Promise<void>;
   loginPassword: (
     email: string,
     password: string,
@@ -82,11 +82,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
   },
 
-  requestOtp: (phone) =>
-    api.post<{ expiresAt: string; devCode?: string }>("/auth/otp/request", { phone }),
+  requestOtp: (email) =>
+    api.post<{ expiresAt: string; devCode?: string }>("/auth/otp/request", { email }),
 
-  verifyOtp: async (phone, code) => {
-    const data = await api.post<SessionPayload>("/auth/otp/verify", { phone, code });
+  verifyOtp: async (email, code) => {
+    const data = await api.post<SessionPayload>("/auth/otp/verify", { email, code });
     set({ ...fromPayload(data), ready: true });
     pingReload(SLICE);
   },

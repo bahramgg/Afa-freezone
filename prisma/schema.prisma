@@ -98,8 +98,9 @@ enum OtpPurpose {
 }
 
 model OtpCode {
-  id        String     @id @default(cuid())
-  phone     String
+  id    String @id @default(cuid())
+  /** Lowercased email the code was sent to. */
+  email String
   /** Argon2id hash of the code — a leaked table must not hand over live codes. */
   codeHash  String
   purpose   OtpPurpose @default(LOGIN)
@@ -111,7 +112,7 @@ model OtpCode {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([phone, createdAt])
+  @@index([email, createdAt])
 }
 
 // ─────────────────────────── Wallets ───────────────────────────

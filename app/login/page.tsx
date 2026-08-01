@@ -3,44 +3,43 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Loader2, Phone } from "lucide-react";
+import { ArrowLeft, Loader2, Mail } from "lucide-react";
 import { Logo } from "@/components/shared/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useAuthStore } from "@/lib/stores/auth";
-import { toPersianDigits } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 
-type Step = "phone" | "otp";
+type Step = "email" | "otp";
 
 export default function LoginPage() {
   const router = useRouter();
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
 
-  const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState<Step>("email");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
 
   async function sendCode() {
-    const result = await requestOtp(phone);
+    const result = await requestOtp(email);
     setStep("otp");
     toast.success("کد تأیید ارسال شد", {
-      // In development the SMS provider only logs, so the code is surfaced
-      // here to keep the flow usable before an SMS panel is connected.
+      // The console provider only logs, so in development the code is surfaced
+      // here to keep the flow usable before a mail service is configured.
       description: result.devCode
         ? `کد توسعه: ${result.devCode}`
-        : "کد به شماره موبایل شما ارسال شد",
+        : "کد به نشانی ایمیل شما ارسال شد",
     });
   }
 
-  async function submitPhone(e: React.FormEvent) {
+  async function submitEmail(e: React.FormEvent) {
     e.preventDefault();
-    if (!phone.trim()) {
-      toast.error("شماره موبایل را وارد کنید");
+    if (!email.trim()) {
+      toast.error("نشانی ایمیل را وارد کنید");
       return;
     }
     setLoading(true);
@@ -57,7 +56,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await verifyOtp(phone, otp.join(""));
+      await verifyOtp(email, otp.join(""));
       // Read the session the server just established, not a stale render.
       const { hasProfile, hasPassedKyc } = useAuthStore.getState();
       if (!hasProfile) router.replace("/profile");
@@ -106,7 +105,7 @@ export default function LoginPage() {
             پنل بازرگان داخلی
           </p>
           <p className="text-primary-foreground/80 text-sm leading-7 max-w-md">
-            سامانه پرداخت ارزی سازمان منطقه آزاد. ورود با شماره موبایل ثبت‌شده در پرونده
+            سامانه پرداخت ارزی سازمان منطقه آزاد. ورود با نشانی ایمیل ثبت‌شده در پرونده
             شما انجام می‌شود.
           </p>
           <div className="flex flex-wrap gap-2 pt-2">
@@ -132,24 +131,28 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-sm space-y-6"
         >
-          {step === "phone" ? (
+          {step === "email" ? (
             <>
               <div className="space-y-1.5">
                 <h1 className="text-2xl font-semibold tracking-tight">ورود به سامانه</h1>
-                <p className="text-sm text-muted-foreground">شماره موبایل خود را وارد کنید</p>
+                <p className="text-sm text-muted-foreground">برای دریافت کد ورود، ایمیل خود را وارد کنید</p>
               </div>
 
-              <form onSubmit={submitPhone} className="space-y-4">
+              <form onSubmit={submitEmail} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">شماره موبایل</Label>
+                  <Label htmlFor="email">نشانی ایمیل</Label>
                   <div className="relative">
-                    <Phone className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    {/* The input is LTR, so the icon sits on the side its text
+                        does not start from, matching the reserved padding. */}
+                    <Mail className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="phone"
-                      inputMode="tel"
-                      placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      dir="ltr"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="pe-10 text-base"
                     />
                   </div>
@@ -171,7 +174,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <button
                   type="button"
-                  onClick={() => setStep("phone")}
+                  onClick={() => setStep("email")}
                   className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
                 >
                   <ArrowLeft className="h-3 w-3 rotate-180" />
@@ -179,7 +182,7 @@ export default function LoginPage() {
                 </button>
                 <h1 className="text-2xl font-semibold tracking-tight">کد تأیید</h1>
                 <p className="text-sm text-muted-foreground">
-                  کد ارسال‌شده به {toPersianDigits(phone)} را وارد کنید
+                  کد ارسال‌شده به <span dir="ltr" className="inline-block">{email}</span> را وارد کنید
                 </p>
               </div>
 

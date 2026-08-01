@@ -2,7 +2,14 @@ import "server-only";
 import { decodeEventLog } from "viem";
 import { db } from "../db";
 import { env } from "../env";
-import { ERC20_ABI, normalizeAddress, publicClient, toHuman, usdtAddress } from "./client";
+import {
+  ERC20_ABI,
+  irreversibleBlock,
+  normalizeAddress,
+  publicClient,
+  toHuman,
+  usdtAddress,
+} from "./client";
 import type { Currency } from "@/lib/generated/prisma/client";
 
 export type VerifiedTransfer = {
@@ -39,10 +46,11 @@ export async function verifyTransfer(
 
   const client = publicClient();
 
-  const [receipt, tx, head] = await Promise.all([
+  const [receipt, tx, head, finalized] = await Promise.all([
     client.getTransactionReceipt({ hash: hash as `0x${string}` }).catch(() => null),
     client.getTransaction({ hash: hash as `0x${string}` }).catch(() => null),
     client.getBlockNumber(),
+    irreversibleBlock(),
   ]);
 
   if (!receipt || !tx) {
@@ -53,6 +61,8 @@ export async function verifyTransfer(
   }
 
   const confirmations = Number(head - receipt.blockNumber) + 1;
+  // Irreversibility, not depth: a finalised block cannot be reorged away.
+  const confirmed = receipt.blockNumber <= finalized;
   const gasFee = toHuman(receipt.gasUsed * (receipt.effectiveGasPrice ?? 0n), "BNB");
 
   const token = usdtAddress();
@@ -116,7 +126,7 @@ export async function verifyTransfer(
     blockNumber: receipt.blockNumber,
     confirmations,
     gasFee,
-    confirmed: confirmations >= env().CHAIN_MIN_CONFIRMATIONS,
+    confirmed,
   };
 }
 

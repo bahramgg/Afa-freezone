@@ -12,7 +12,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "check:chain": "tsx scripts/check-chain.ts"
+    "check:chain": "tsx scripts/check-chain.ts",
+    "watch:chain": "tsx --conditions=react-server scripts/watch-chain.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -39,6 +40,7 @@
     "jose": "^6.2.7",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
+    "nodemailer": "^9.0.3",
     "pg": "^8.22.0",
     "prisma": "^7.9.1",
     "qrcode.react": "^4.2.0",
@@ -50,15 +52,18 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "viem": "^2.55.10",
+    "ws": "^8.21.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",

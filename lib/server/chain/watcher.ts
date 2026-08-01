@@ -1,7 +1,14 @@
 import "server-only";
 import { db } from "../db";
 import { env } from "../env";
-import { normalizeAddress, publicClient, toHuman, TRANSFER_EVENT, usdtAddress } from "./client";
+import {
+  irreversibleBlock,
+  normalizeAddress,
+  publicClient,
+  toHuman,
+  TRANSFER_EVENT,
+  usdtAddress,
+} from "./client";
 import { notify } from "../notify";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -27,9 +34,9 @@ export type WatcherReport = {
  * within RPC log-range limits.
  */
 export async function runWatcher(): Promise<WatcherReport> {
-  const { CHAIN_ID, CHAIN_SCAN_BATCH, CHAIN_MIN_CONFIRMATIONS } = env();
+  const { CHAIN_ID, CHAIN_SCAN_BATCH, CHAIN_SCAN_MAX_REQUESTS } = env();
   const client = publicClient();
-  const head = await client.getBlockNumber();
+  const [head, finalized] = await Promise.all([client.getBlockNumber(), irreversibleBlock()]);
 
   const cursor = await db.chainCursor.findUnique({ where: { chainId: CHAIN_ID } });
   // A fresh install starts one batch back rather than at genesis.
@@ -38,7 +45,12 @@ export async function runWatcher(): Promise<WatcherReport> {
     : head > BigInt(CHAIN_SCAN_BATCH)
       ? head - BigInt(CHAIN_SCAN_BATCH)
       : 0n;
-  const toBlock = fromBlock + BigInt(CHAIN_SCAN_BATCH) > head ? head : fromBlock + BigInt(CHAIN_SCAN_BATCH);
+
+  // One tick covers as much ground as its request budget allows. Providers cap
+  // the range per request, and BSC produces a block roughly every half second,
+  // so a single-window pass would fall permanently behind the head.
+  const span = BigInt(CHAIN_SCAN_BATCH) * BigInt(CHAIN_SCAN_MAX_REQUESTS);
+  const toBlock = fromBlock + span > head ? head : fromBlock + span;
 
   const report: WatcherReport = {
     fromBlock: fromBlock.toString(),
@@ -51,7 +63,7 @@ export async function runWatcher(): Promise<WatcherReport> {
   };
 
   if (fromBlock > toBlock) {
-    report.confirmationsUpdated = await refreshConfirmations(head);
+    report.confirmationsUpdated = await refreshConfirmations(finalized);
     return report;
   }
 
@@ -67,12 +79,12 @@ export async function runWatcher(): Promise<WatcherReport> {
     // once a capable endpoint is configured.
     let logs: TransferLog[];
     try {
-      logs = await fetchTransferLogs(fromBlock, toBlock);
+      logs = await fetchTransferLogs(fromBlock, toBlock, [...watched]);
     } catch (error) {
       report.scanSkipped = true;
       report.scanError =
         error instanceof Error ? error.message.split("\n")[0] : "log scan failed";
-      report.confirmationsUpdated = await refreshConfirmations(head);
+      report.confirmationsUpdated = await refreshConfirmations(finalized);
       return report;
     }
     report.transfersSeen = logs.length;
@@ -84,7 +96,7 @@ export async function runWatcher(): Promise<WatcherReport> {
       if (!to || !from || value == null || !watched.has(to)) continue;
 
       const confirmations = Number(head - log.blockNumber) + 1;
-      const confirmed = confirmations >= CHAIN_MIN_CONFIRMATIONS;
+      const confirmed = log.blockNumber <= finalized;
 
       const tx = await db.chainTx.upsert({
         where: { hash: log.transactionHash },
@@ -122,21 +134,25 @@ export async function runWatcher(): Promise<WatcherReport> {
     update: { lastScannedBlock: toBlock },
   });
 
-  report.confirmationsUpdated = await refreshConfirmations(head);
+  report.confirmationsUpdated = await refreshConfirmations(finalized);
   return report;
 }
 
 /**
- * Public RPC endpoints cap `eth_getLogs` ranges, and the cap differs per
- * provider and sometimes per request. Rather than pin a batch size that works
- * on one provider and fails on the next, a rejected range is split in half and
- * retried until it is accepted or a single block still fails — at which point
- * the error is real and worth surfacing.
+ * Providers cap how wide an `eth_getLogs` range may be. The span is cut into
+ * CHAIN_SCAN_BATCH-sized windows up front so the common case costs one request
+ * per window; halving is kept only as the fallback for a provider whose real
+ * cap is narrower than configured. Binary-searching from the full span instead
+ * would rediscover the cap on every pass and overshoot below it.
  */
-function getTransferLogs(fromBlock: bigint, toBlock: bigint) {
+function getTransferLogs(fromBlock: bigint, toBlock: bigint, recipients: string[]) {
   return publicClient().getLogs({
     address: usdtAddress(),
     event: TRANSFER_EVENT,
+    // The node filters on the indexed recipient, so a pass returns only the
+    // handful of transfers aimed at gateway wallets rather than every USDT
+    // movement on the chain.
+    args: { to: recipients as `0x${string}`[] },
     fromBlock,
     toBlock,
   });
@@ -144,14 +160,23 @@ function getTransferLogs(fromBlock: bigint, toBlock: bigint) {
 
 type TransferLog = Awaited<ReturnType<typeof getTransferLogs>>[number];
 
-async function fetchTransferLogs(fromBlock: bigint, toBlock: bigint): Promise<TransferLog[]> {
+async function fetchTransferLogs(
+  fromBlock: bigint,
+  toBlock: bigint,
+  recipients: string[],
+): Promise<TransferLog[]> {
   const out: TransferLog[] = [];
-  const queue: [bigint, bigint][] = [[fromBlock, toBlock]];
+  const window = BigInt(env().CHAIN_SCAN_BATCH);
+  const queue: [bigint, bigint][] = [];
+  for (let start = fromBlock; start <= toBlock; start += window) {
+    const end = start + window - 1n > toBlock ? toBlock : start + window - 1n;
+    queue.push([start, end]);
+  }
 
   while (queue.length) {
     const [start, end] = queue.shift()!;
     try {
-      out.push(...(await getTransferLogs(start, end)));
+      out.push(...(await getTransferLogs(start, end, recipients)));
     } catch (error) {
       if (start >= end) throw error;
       const mid = start + (end - start) / 2n;
@@ -246,7 +271,8 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
  * them once they cross the threshold. Settlements waiting on their payout are
  * moved forward in the same pass.
  */
-async function refreshConfirmations(head: bigint): Promise<number> {
+async function refreshConfirmations(finalized: bigint): Promise<number> {
+  const head = await publicClient().getBlockNumber();
   const pending = await db.chainTx.findMany({
     where: { status: "CONFIRMING", blockNumber: { not: null } },
     take: 200,
@@ -258,7 +284,7 @@ async function refreshConfirmations(head: bigint): Promise<number> {
     const confirmations = Number(head - tx.blockNumber) + 1;
     if (confirmations === tx.confirmations) continue;
 
-    const confirmed = confirmations >= env().CHAIN_MIN_CONFIRMATIONS;
+    const confirmed = tx.blockNumber <= finalized;
     await db.chainTx.update({
       where: { id: tx.id },
       data: {

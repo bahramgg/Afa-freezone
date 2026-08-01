@@ -57,6 +57,32 @@ export function toHuman(raw: bigint, currency: "USDT" | "BNB"): string {
   return formatUnits(raw, decimals);
 }
 
+/**
+ * The block past which history cannot change.
+ *
+ * BSC's fast finality makes a finalised block unrevertable, which is a far
+ * better signal than counting confirmations on a chain producing a block every
+ * half second — 15 confirmations there is seven seconds of protection. Nodes
+ * that do not serve the `finalized` tag fall back to counting.
+ */
+export async function irreversibleBlock(): Promise<bigint> {
+  const client = publicClient();
+  const { CHAIN_FINALITY, CHAIN_MIN_CONFIRMATIONS } = env();
+
+  if (CHAIN_FINALITY === "finalized") {
+    try {
+      const block = await client.getBlock({ blockTag: "finalized" });
+      if (block?.number != null) return block.number;
+    } catch {
+      // Fall through to the confirmation count below.
+    }
+  }
+
+  const head = await client.getBlockNumber();
+  const back = BigInt(CHAIN_MIN_CONFIRMATIONS);
+  return head > back ? head - back : 0n;
+}
+
 export function explorerTxUrl(hash: string) {
   return `${env().CHAIN_EXPLORER_URL.replace(/\/$/, "")}/tx/${hash}`;
 }

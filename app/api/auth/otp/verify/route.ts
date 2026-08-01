@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/server/db";
-import { normalizePhone, redeemOtp } from "@/lib/server/auth/otp";
+import { normalizeEmail, redeemOtp } from "@/lib/server/auth/otp";
 import { createSession } from "@/lib/server/auth/session";
 import { clientIp, forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
 import { serializeUser } from "@/lib/server/serialize";
@@ -10,26 +10,27 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
-  phone: z.string().min(4),
+  email: z.string().min(4),
   code: z.string().regex(/^\d{6}$/, "کد تأیید باید ۶ رقم باشد"),
 });
 
 /**
- * Verifying an OTP both signs in an existing Iranian merchant and registers a
- * new one. A first-time number gets an account in PENDING KYC; the profile and
+ * Verifying a code both signs in an existing Iranian merchant and registers a
+ * new one. A first-time address gets an account in PENDING KYC; the profile and
  * KYC screens take it from there.
  */
 export const POST = handler(async (request: Request) => {
-  const { phone, code } = await readJson(request, Body);
-  const normalized = normalizePhone(phone);
+  const { email, code } = await readJson(request, Body);
+  const normalized = normalizeEmail(email);
 
   await redeemOtp(normalized, code);
 
-  let user = await db.user.findUnique({ where: { phone: normalized } });
+  let user = await db.user.findUnique({ where: { email: normalized } });
 
   if (user && user.role !== "IRANIAN") {
-    // Staff accounts must not be reachable through the merchant OTP flow.
-    throw forbidden("این شماره متعلق به یک حساب کاربری دیگر است");
+    // Staff and foreign accounts have their own sign-in; this route must not
+    // become a way around their password.
+    throw forbidden("این نشانی متعلق به یک حساب کاربری دیگر است");
   }
   if (user?.disabledAt) throw forbidden("حساب کاربری شما غیرفعال شده است");
 
@@ -39,7 +40,7 @@ export const POST = handler(async (request: Request) => {
       data: {
         uid: await nextUid("IRANIAN"),
         role: "IRANIAN",
-        phone: normalized,
+        email: normalized,
         fullName: "",
         kyc: "PENDING",
       },
@@ -54,7 +55,6 @@ export const POST = handler(async (request: Request) => {
   return jsonOk({
     user: serializeUser(user),
     isNew,
-    // The UI routes on these instead of re-deriving them client-side.
     hasProfile: !!(user.fullName && user.nationalId),
     hasPassedKyc: user.kyc === "APPROVED",
   });

@@ -2,9 +2,19 @@ import "server-only";
 import { randomInt } from "node:crypto";
 import { db } from "../db";
 import { env } from "../env";
-import { smsProvider } from "../sms";
+import { emailProvider } from "../email";
+import { otpEmail } from "../email/templates";
 import { hashSecret, verifySecret } from "./password";
 import { badRequest, tooManyRequests } from "../http";
+
+/** Lowercases and trims, so the same address never yields two accounts. */
+export function normalizeEmail(input: string): string {
+  const value = input.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw badRequest("نشانی ایمیل معتبر نیست");
+  }
+  return value;
+}
 
 /** Accepts 09xxxxxxxxx, 9xxxxxxxxx, +989xxxxxxxxx and 00989xxxxxxxxx. */
 export function normalizePhone(input: string): string {
@@ -21,14 +31,14 @@ const RESEND_COOLDOWN_MS = 60_000;
 
 /**
  * Issues a login code. The code itself is never stored — only its Argon2 hash —
- * and any earlier unconsumed code for the same number is invalidated so a user
+ * and any earlier unconsumed code for the same address is invalidated so a user
  * can never have two live codes at once.
  */
-export async function issueOtp(phone: string): Promise<{ expiresAt: Date; devCode?: string }> {
-  const { OTP_TTL_MINUTES, SMS_PROVIDER, NODE_ENV } = env();
+export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCode?: string }> {
+  const { OTP_TTL_MINUTES, EMAIL_PROVIDER, NODE_ENV } = env();
 
   const last = await db.otpCode.findFirst({
-    where: { phone, consumedAt: null },
+    where: { email, consumedAt: null },
     orderBy: { createdAt: "desc" },
     select: { createdAt: true },
   });
@@ -40,35 +50,31 @@ export async function issueOtp(phone: string): Promise<{ expiresAt: Date; devCod
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60_000);
 
-  const user = await db.user.findUnique({ where: { phone }, select: { id: true } });
+  const user = await db.user.findUnique({ where: { email }, select: { id: true } });
 
   await db.$transaction([
     // Supersede outstanding codes so only the newest one can be redeemed.
     db.otpCode.updateMany({
-      where: { phone, consumedAt: null },
+      where: { email, consumedAt: null },
       data: { consumedAt: new Date() },
     }),
     db.otpCode.create({
-      data: { phone, codeHash: await hashSecret(code), expiresAt, userId: user?.id ?? null },
+      data: { email, codeHash: await hashSecret(code), expiresAt, userId: user?.id ?? null },
     }),
   ]);
 
-  await smsProvider().send({
-    to: phone,
-    text: `کد ورود شما به سامانه AFA: ${code}\nاعتبار: ${OTP_TTL_MINUTES} دقیقه`,
-    tokens: [code],
-  });
+  await emailProvider().send({ to: email, ...otpEmail(code, OTP_TTL_MINUTES) });
 
-  // Only the console provider exposes the code back to the caller, and only
-  // outside production, so the login screen is testable without an SMS panel.
-  const devCode = SMS_PROVIDER === "console" && NODE_ENV !== "production" ? code : undefined;
+  // Only the console provider hands the code back to the caller, and only
+  // outside production, so the login screen is testable without a mail service.
+  const devCode = EMAIL_PROVIDER === "console" && NODE_ENV !== "production" ? code : undefined;
   return { expiresAt, devCode };
 }
 
-/** Consumes a code. Returns the phone on success; throws on any failure. */
-export async function redeemOtp(phone: string, code: string): Promise<void> {
+/** Consumes a code. Throws on any failure. */
+export async function redeemOtp(email: string, code: string): Promise<void> {
   const record = await db.otpCode.findFirst({
-    where: { phone, consumedAt: null },
+    where: { email, consumedAt: null },
     orderBy: { createdAt: "desc" },
   });
 

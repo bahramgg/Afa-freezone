@@ -12,7 +12,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "check:chain": "tsx scripts/check-chain.ts",
+    "check:chain": "tsx --conditions=react-server scripts/check-chain.ts",
     "watch:chain": "tsx --conditions=react-server scripts/watch-chain.ts"
   },
   "dependencies": {

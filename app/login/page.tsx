@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Phone } from "lucide-react";
+import { Logo } from "@/components/shared/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -95,10 +96,18 @@ export default function LoginPage() {
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Hero side */}
       <div className="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-primary/95 via-primary to-primary/80 p-10 text-primary-foreground">
-        <div />
+        <Logo
+          withText
+          size={38}
+          className="[&_span]:text-white [&_span_.text-primary]:text-white/70"
+        />
         <div className="space-y-4">
+          <p className="text-lg font-semibold leading-8 max-w-md">
+            پنل بازرگان داخلی
+          </p>
           <p className="text-primary-foreground/80 text-sm leading-7 max-w-md">
-            پرداخت‌های بین‌المللی، تسویه آنی، و گزارش‌های کامل — همه در یک پنل ساده.
+            سامانه پرداخت ارزی سازمان منطقه آزاد. ورود با شماره موبایل ثبت‌شده در پرونده
+            شما انجام می‌شود.
           </p>
           <div className="flex flex-wrap gap-2 pt-2">
             {["USDT", "BNB", "BSC Network"].map((t) => (
@@ -112,7 +121,7 @@ export default function LoginPage() {
           </div>
         </div>
         <p className="text-xs text-primary-foreground/60">
-          © ۱۴۰۵ سازمان منطقه آزاد گلستان — همه حقوق محفوظ است
+          © ۱۴۰۵ سازمان منطقه آزاد — همه حقوق محفوظ است
         </p>
       </div>
 
@@ -126,7 +135,7 @@ export default function LoginPage() {
           {step === "phone" ? (
             <>
               <div className="space-y-1.5">
-                <h1 className="text-2xl font-semibold tracking-tight">ورود به پنل</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">ورود به سامانه</h1>
                 <p className="text-sm text-muted-foreground">شماره موبایل خود را وارد کنید</p>
               </div>
 
@@ -154,7 +163,7 @@ export default function LoginPage() {
 
 
               <p className="text-xs text-center text-muted-foreground">
-                با ورود، شرایط استفاده را می‌پذیرید
+                دسترسی محدود به کاربران مجاز — ورود شما ثبت می‌شود
               </p>
             </>
           ) : (

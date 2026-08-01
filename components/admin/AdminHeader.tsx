@@ -14,7 +14,7 @@ export function AdminHeader() {
             <Crown className="h-3 w-3" />
             پنل ادمین
           </Badge>
-          <span className="hidden sm:inline text-sm text-slate-400">منطقه آزاد گلستان</span>
+          <span className="hidden sm:inline text-sm text-slate-400">منطقه آزاد</span>
         </div>
         <div className="text-xs text-slate-400">
           ادمین سیستم

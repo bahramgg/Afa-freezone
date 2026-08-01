@@ -6,93 +6,76 @@ export type PortalKey = "user" | "foreign" | "admin" | "bank";
 export type Portal = {
   key: PortalKey;
   title: string;
-  subtitle: string;
-  description: string;
+  /** Who signs in here — the page is a directory, not a pitch. */
+  audience: string;
+  /** What this panel is used for, stated plainly. */
+  summary: string;
   icon: LucideIcon;
   loginHref: string;
   dashboardHref: string;
-  bullets: string[];
-  /** Tailwind classes tying each portal to the accent of its own dashboard. */
+  /** Accent tying each entry to the panel it opens. */
   accent: {
-    ring: string;
+    border: string;
     iconBg: string;
     iconText: string;
-    glow: string;
-    chip: string;
   };
 };
 
 export const PORTALS: Portal[] = [
   {
     key: "user",
-    title: "کاربر ایرانی",
-    subtitle: "بازرگان داخلی",
-    description:
-      "صدور فاکتور ارزی، دریافت USDT از خریدار خارجی و تسویه ریالی از طریق بانک عامل.",
+    title: "بازرگان داخلی",
+    audience: "اشخاص حقیقی و حقوقی ثبت‌شده در منطقه آزاد",
+    summary: "صدور فاکتور ارزی، ثبت درخواست ارسال وجه و درخواست تسویه ریالی.",
     icon: UserRound,
     loginHref: "/login",
     dashboardHref: "/dashboard",
-    bullets: ["دریافت وجه", "ارسال وجه", "تسویه ریالی"],
     accent: {
-      ring: "hover:border-primary/50",
+      border: "hover:border-primary/60",
       iconBg: "bg-primary/10",
       iconText: "text-primary",
-      glow: "group-hover:shadow-[0_0_0_1px_var(--color-primary)]",
-      chip: "bg-primary/10 text-primary",
     },
   },
   {
     key: "foreign",
     title: "بازرگان خارجی",
-    subtitle: "Foreign Merchant",
-    description:
-      "پرداخت فاکتورهای صادره از ایران با کریپتو و دریافت وجه از طرف حساب ایرانی.",
+    audience: "طرف حساب‌های بین‌المللی",
+    summary: "پرداخت فاکتورهای صادره و تأیید درخواست‌های دریافت وجه.",
     icon: Globe2,
     loginHref: "/foreign/login",
     dashboardHref: "/foreign/dashboard",
-    bullets: ["پرداخت فاکتور", "درخواست دریافت", "مدیریت والت"],
     accent: {
-      ring: "hover:border-info/50",
+      border: "hover:border-info/60",
       iconBg: "bg-info/10",
       iconText: "text-info",
-      glow: "group-hover:shadow-[0_0_0_1px_var(--color-info)]",
-      chip: "bg-info/10 text-info",
     },
   },
   {
     key: "admin",
-    title: "ادمین سازمان",
-    subtitle: "منطقه آزاد گلستان",
-    description:
-      "احراز هویت کاربران، بررسی و تأیید فاکتورها، نظارت بر تراکنش‌ها و گزارش‌گیری.",
+    title: "کارشناس سازمان",
+    audience: "کارکنان سازمان منطقه آزاد",
+    summary: "بررسی احراز هویت، تأیید تراکنش‌ها، نظارت و گزارش‌گیری.",
     icon: Crown,
     loginHref: "/admin/login",
     dashboardHref: "/admin/dashboard",
-    bullets: ["احراز هویت", "تأیید تراکنش", "گزارشات"],
     accent: {
-      ring: "hover:border-slate-500/50",
+      border: "hover:border-slate-500/60",
       iconBg: "bg-slate-500/10",
       iconText: "text-slate-600 dark:text-slate-300",
-      glow: "group-hover:shadow-[0_0_0_1px_var(--color-muted-foreground)]",
-      chip: "bg-slate-500/10 text-slate-600 dark:bg-slate-400/15 dark:text-slate-200",
     },
   },
   {
     key: "bank",
     title: "بانک عامل",
-    subtitle: "Settlement Bank",
-    description:
-      "اعلام و قفل نرخ ارز، دریافت و ارسال کریپتو از کیف پول بانک و تسویه ریالی نهایی.",
+    audience: "کارکنان واحد ارزی بانک",
+    summary: "اعلام و قفل نرخ، مدیریت کیف پول‌ها و ثبت تسویه ریالی.",
     icon: Building2,
     loginHref: "/bank/login",
     dashboardHref: "/bank/dashboard",
-    bullets: ["قفل نرخ", "کیف پول بانک", "تسویه"],
     accent: {
-      ring: "hover:border-success/50",
+      border: "hover:border-success/60",
       iconBg: "bg-success/10",
       iconText: "text-success",
-      glow: "group-hover:shadow-[0_0_0_1px_var(--color-success)]",
-      chip: "bg-success/10 text-success",
     },
   },
 ];

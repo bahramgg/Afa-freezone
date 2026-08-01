@@ -1,4 +1,4 @@
-// AFA — currency payment gateway for Golestan Free Zone.
+// AFA — currency payment gateway for the Free Zone Organization.
 //
 // Money moves through three flows (receive / send / settle), each a state
 // machine advanced by a different actor. Every transition is appended to

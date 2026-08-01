@@ -43,23 +43,23 @@ export default function ForeignLoginPage() {
         <Logo withText size={40} className="text-white [&_span]:text-white/80 [&_span_.text-primary]:text-white" />
         <div className="space-y-4">
           <h2 className="text-3xl font-semibold leading-snug">
-            International Partner Portal
-            <br />
-            <span className="text-xl">پنل کاربر بین‌المللی</span>
+            <span dir="ltr" className="block text-start">International Partner Portal</span>
+            <span className="block text-xl">پنل کاربر بین‌المللی</span>
           </h2>
-          <p className="text-white/80 text-sm leading-7 max-w-md">
-            Receive crypto from Iranian business partners safely and securely.
+          <p dir="ltr" className="max-w-md text-start text-sm leading-7 text-white/80">
+            Currency payment system of the Free Zone Organization. Access is limited to
+            registered partners and every action is logged.
           </p>
           <div className="flex flex-wrap gap-2 pt-2">
-            {["USDT", "BNB", "BSC Network", "KYC Compliant"].map((t) => (
+            {["USDT", "BNB", "BSC Network"].map((t) => (
               <span key={t} className="rounded-full bg-white/10 px-3 py-1 text-xs backdrop-blur">
                 {t}
               </span>
             ))}
           </div>
         </div>
-        <p className="text-xs text-white/60">
-          Golestan Free Zone Organization © ۱۴۰۵
+        <p dir="ltr" className="text-start text-xs text-white/60">
+          Free Zone Organization © ۱۴۰۵
         </p>
       </div>
 
@@ -74,14 +74,16 @@ export default function ForeignLoginPage() {
           </div>
           <div className="space-y-1.5">
             <h1 className="text-2xl font-semibold tracking-tight">ورود به پنل بین‌المللی</h1>
-            <p className="text-sm text-muted-foreground">با ایمیل و رمز عبور خود وارد شوید</p>
+            <p className="text-sm text-muted-foreground">
+              با ایمیل و رمز عبور خود وارد شوید — دسترسی محدود به کاربران مجاز است
+            </p>
           </div>
 
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">ایمیل</Label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Mail className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"

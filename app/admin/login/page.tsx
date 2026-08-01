@@ -44,7 +44,7 @@ export default function AdminLoginPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">پنل ادمین</h1>
-            <p className="text-xs text-slate-400 mt-1">دسترسی محدود — فقط برای ادمین‌های سیستم</p>
+            <p className="text-xs text-slate-400 mt-1">دسترسی محدود به کارشناسان سازمان — ورود شما ثبت می‌شود</p>
           </div>
         </div>
 

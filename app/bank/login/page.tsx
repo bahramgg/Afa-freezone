@@ -47,13 +47,13 @@ export default function BankLoginPage() {
           />
           <div className="inline-flex items-center gap-2 rounded-full bg-emerald-800 px-4 py-1.5 text-xs">
             <Building2 className="h-3 w-3" />
-            پنل بانک عامل — منطقه آزاد گلستان
+            پنل بانک عامل — منطقه آزاد
           </div>
         </div>
         <div className="rounded-2xl bg-emerald-900/60 border border-white/10 p-8 space-y-5">
           <div className="space-y-1.5 text-center">
             <h1 className="text-xl font-semibold">ورود به پنل بانک</h1>
-            <p className="text-xs text-emerald-300">دسترسی مخصوص پرسنل بانک عامل</p>
+            <p className="text-xs text-emerald-300">دسترسی محدود به پرسنل واحد ارزی بانک — ورود شما ثبت می‌شود</p>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
@@ -72,7 +72,7 @@ export default function BankLoginPage() {
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-emerald-200">رمز عبور</Label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-400" />
+                <Lock className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-400" />
                 <Input
                   id="password"
                   type="password"

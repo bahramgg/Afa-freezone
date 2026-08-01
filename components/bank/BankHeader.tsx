@@ -14,7 +14,7 @@ export function BankHeader() {
             <Building2 className="h-3 w-3" />
             بانک عامل
           </Badge>
-          <span className="hidden sm:inline text-sm text-emerald-300">منطقه آزاد گلستان</span>
+          <span className="hidden sm:inline text-sm text-emerald-300">منطقه آزاد</span>
         </div>
         <div className="text-xs text-emerald-300">مدیر عملیات ارزی</div>
       </div>

@@ -13,7 +13,7 @@ const vazirmatn = Vazirmatn({
 
 export const metadata: Metadata = {
   title: "AFA — درگاه پرداخت ارزی",
-  description: "سامانه پرداخت ارزی منطقه آزاد گلستان",
+  description: "سامانه پرداخت ارزی منطقه آزاد",
   icons: { icon: "/afa-logo.png" },
 };
 

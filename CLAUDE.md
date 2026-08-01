@@ -2,7 +2,7 @@
 
 # AFA — Agent Guide
 
-Currency payment gateway for **منطقه آزاد گلستان**. Real backend, real database,
+Currency payment gateway for **منطقه آزاد**. Real backend, real database,
 real chain reads. Read `README.md` first for setup and the security model.
 
 ## Shape of the codebase

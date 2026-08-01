@@ -48,8 +48,8 @@ export default function ReceivePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="دریافت وجه"
-        description="فاکتورهای دریافتی و وضعیت آنها"
+        title="صادرات — دریافت وجه"
+        description="درخواست پرداخت برای خریدار خارجی؛ پس از پرداخت، بانک معادل ریالی را به حساب شما می‌ریزد"
         actions={<CreateInvoiceDialog />}
       />
 

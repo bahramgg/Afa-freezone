@@ -12,7 +12,8 @@ import {
 import { nextRef } from "@/lib/server/refs";
 import { serializeSend } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
-import { notify } from "@/lib/server/notify";
+import { notify, notifyRole } from "@/lib/server/notify";
+import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { feeFor } from "@/lib/server/fees";
 import { toRial } from "@/lib/server/money";
 import { narrow, sendScope } from "@/lib/server/scope";
@@ -25,6 +26,7 @@ export const SEND_INCLUDE = {
   owner: { select: { uid: true, fullName: true } },
   counterparty: { select: { uid: true, fullName: true } },
   chainTx: true,
+  documents: true,
 } satisfies Prisma.SendRequestInclude;
 
 const Query = z.object({
@@ -68,11 +70,24 @@ export const GET = handler(async (request: Request) => {
   return jsonOk({ list: list.map(serializeSend) });
 });
 
+const TradeDoc = z.object({
+  kind: z.enum(["PROFORMA", "ORDER_REGISTRATION", "CUSTOMS_DECLARATION", "CONTRACT"]),
+  number: z.string().trim().min(1, "شماره سند الزامی است"),
+  issuedAt: z.string().datetime().optional(),
+  issuer: z.string().trim().max(120).optional(),
+});
+
 const CreateBody = z.object({
-  counterpartyUid: z.string().trim().min(2, "شناسه طرف خارجی الزامی است"),
+  /** Either the supplier's own wallet, or a registered counterparty's uid. */
+  recipientWalletAddress: z.string().trim().optional(),
+  counterpartyUid: z.string().trim().min(2, "نام یا شناسه طرف خارجی الزامی است"),
+  counterpartyName: z.string().trim().max(120).optional(),
+  counterpartyEmail: z.string().trim().email("ایمیل معتبر نیست").optional().or(z.literal("")),
   amount: z.number().positive("مبلغ باید بزرگ‌تر از صفر باشد"),
   currency: z.enum(["USDT", "BNB"]),
   description: z.string().trim().max(500).optional(),
+  /** At least one, because the bank cannot supply currency without paper. */
+  documents: z.array(TradeDoc).min(1, "دست‌کم یک سند تجاری الزامی است"),
 });
 
 export const POST = handler(async (request: Request) => {
@@ -99,10 +114,22 @@ export const POST = handler(async (request: Request) => {
     }
   }
 
+  if (input.recipientWalletAddress && !isAddress(input.recipientWalletAddress)) {
+    throw badRequest("آدرس کیف پول گیرنده معتبر نیست");
+  }
+
+  // The supplier may hold an account here, but usually will not: an importer
+  // has their wallet address from the proforma, and requiring a foreign
+  // supplier to register in an Iranian free-zone system before they can be paid
+  // is how a trade stops happening rather than how it is verified.
   const counterparty = await db.user.findFirst({
     where: { uid: input.counterpartyUid, role: "FOREIGN" },
     select: { id: true },
   });
+
+  if (!counterparty && !input.recipientWalletAddress) {
+    throw badRequest("آدرس کیف پول گیرنده را وارد کنید");
+  }
 
   const rate = settings
     ? input.currency === "BNB"
@@ -123,10 +150,25 @@ export const POST = handler(async (request: Request) => {
         ownerId: user.id,
         counterpartyId: counterparty?.id ?? null,
         counterpartyUid: input.counterpartyUid,
+        counterpartyName: input.counterpartyName ?? null,
+        counterpartyEmail: input.counterpartyEmail || null,
+        recipientWalletAddress: input.recipientWalletAddress
+          ? normalizeAddress(input.recipientWalletAddress)
+          : null,
         amount: input.amount.toString(),
         currency: input.currency,
         description: input.description ?? null,
-        status: "AWAITING_COUNTERPARTY",
+        // Nothing is waiting on the supplier once the importer has named the
+        // wallet, so the request goes straight to review.
+        status: input.recipientWalletAddress ? "AWAITING_ADMIN" : "AWAITING_COUNTERPARTY",
+        documents: {
+          create: input.documents.map((d) => ({
+            kind: d.kind,
+            number: d.number,
+            issuedAt: d.issuedAt ? new Date(d.issuedAt) : null,
+            issuer: d.issuer ?? null,
+          })),
+        },
         feeAmount: fee.fee.toFixed(8),
         netAmount: fee.net.toFixed(8),
         // An indicative rate only; the binding one is locked later by the bank.
@@ -139,20 +181,30 @@ export const POST = handler(async (request: Request) => {
       subject: "send",
       subjectId: row.id,
       fromStatus: null,
-      toStatus: "AWAITING_COUNTERPARTY",
+      toStatus: row.status,
       actor: "USER",
       actorUserId: user.id,
-      note: "درخواست ارسال ثبت شد",
+      note: input.recipientWalletAddress
+        ? "درخواست ارسال با آدرس گیرنده ثبت شد"
+        : "درخواست ارسال ثبت شد",
     });
     return row;
   });
 
-  if (counterparty) {
+  if (counterparty && created.status === "AWAITING_COUNTERPARTY") {
     await notify(counterparty.id, {
       kind: "FOREIGN_RECEIVE_REQUEST",
       title: "درخواست دریافت جدید",
       body: `درخواست دریافت ${input.amount} ${input.currency} از ${user.fullName}`,
       href: "/foreign/requests",
+    });
+  }
+  if (created.status === "AWAITING_ADMIN") {
+    await notifyRole("ADMIN", {
+      kind: "SEND_AWAITING_ADMIN",
+      title: "درخواست ارسال در انتظار تأیید",
+      body: `درخواست ${created.ref} آمادهٔ بررسی است`,
+      href: "/admin/send",
     });
   }
 

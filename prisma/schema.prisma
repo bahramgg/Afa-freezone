@@ -71,6 +71,7 @@ model User {
   statusEvents  StatusEvent[]
 
   ledgerEntries      LedgerEntry[]
+  refundsRequested   Refund[]      @relation("RefundRequester")
   invoices           Invoice[]     @relation("InvoiceOwner")
   sendRequests       SendRequest[] @relation("SendOwner")
   sendCounterparties SendRequest[] @relation("SendCounterparty")
@@ -271,8 +272,53 @@ model Invoice {
   /** The payout settlement raised once this invoice was paid. */
   settlement Settlement? @relation("InvoiceSettlement")
 
+  documents TradeDocument[]
+  refunds   Refund[]
+
   @@index([ownerId, status])
   @@index([status, createdAt])
+}
+
+/**
+ * The commercial paper a currency transfer rests on.
+ *
+ * A bank supplying foreign currency to an importer, or buying it from an
+ * exporter, cannot do so against a free-text description of the goods — the
+ * transfer has to be tied to a document the customs authority and the free zone
+ * can both point at. The number and date are recorded here; the paper itself
+ * stays with the parties.
+ */
+enum TradeDocumentKind {
+  /** پیش‌فاکتور */
+  PROFORMA
+  /** ثبت سفارش */
+  ORDER_REGISTRATION
+  /** کوتاژ / اظهارنامه گمرکی */
+  CUSTOMS_DECLARATION
+  /** قرارداد */
+  CONTRACT
+}
+
+model TradeDocument {
+  id     String            @id @default(cuid())
+  kind   TradeDocumentKind
+  number String
+  issuedAt DateTime?
+  issuer   String?
+  note     String?
+
+  invoiceId String?
+  invoice   Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sendId    String?
+  send      SendRequest? @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  settlementId String?
+  settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([sendId])
+  @@index([settlementId])
 }
 
 // ─────────────────────────── Flow 2: send ───────────────────────────
@@ -298,8 +344,22 @@ model SendRequest {
 
   counterpartyId String?
   counterparty   User?   @relation("SendCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
-  /** Free-text fallback when the counterparty has no account yet. */
+  /**
+   * Free-text identifier for the counterparty. An importer usually has their
+   * supplier's details from the proforma and the supplier has no account here,
+   * so this is a name or reference rather than a uid in the common case.
+   */
   counterpartyUid String
+  /** Supplier's name as it appears on the commercial documents. */
+  counterpartyName  String?
+  /** Optional, only so the supplier can be told the transfer is on its way. */
+  counterpartyEmail String?
+  /**
+   * True when the destination wallet was confirmed by the counterparty rather
+   * than only typed by the importer. Recorded, never required: a supplier
+   * without an account cannot be made to sign in.
+   */
+  recipientConfirmed Boolean @default(false)
 
   amount      Decimal  @db.Decimal(38, 18)
   currency    Currency
@@ -341,6 +401,8 @@ model SendRequest {
 
   chainTxId String?  @unique
   chainTx   ChainTx? @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
+
+  documents TradeDocument[]
 
   @@index([ownerId, status])
   @@index([status, createdAt])
@@ -413,6 +475,8 @@ model Settlement {
   rejectedBy   Actor?
   rejectReason String?
 
+  documents TradeDocument[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -422,6 +486,52 @@ model Settlement {
 
   @@index([ownerId, status])
   @@index([status, createdAt])
+}
+
+/**
+ * Money going back the way it came.
+ *
+ * A trade can fall through after the buyer has paid, and until now there was no
+ * way to return anything: the only paths money could take were forwards. The
+ * destination is never typed by anyone — it is the address the payment arrived
+ * from, read off the chain — so a refund cannot be misdirected by a slip.
+ */
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  SENT
+  REJECTED
+}
+
+model Refund {
+  id  String @id @default(cuid())
+  ref String @unique
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  amount   Decimal  @db.Decimal(38, 18)
+  currency Currency
+  /** Read from the deposit that funded the invoice, never supplied by a caller. */
+  toAddress String
+
+  status RefundStatus @default(REQUESTED)
+  reason String
+
+  requestedById String?
+  requestedBy   User?   @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  /** The operator's transfer, verified on chain before the refund is closed. */
+  txHash String?
+  sentAt DateTime?
+
+  rejectReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([invoiceId])
 }
 
 // ─────────────────────────── Ledger ───────────────────────────
@@ -446,6 +556,8 @@ enum LedgerAccount {
   FREEZONE_SHARE
   /** The bank's exchange margin, in rial. */
   BANK_SPREAD
+  /** Returned to a buyer after a trade fell through. */
+  REFUNDED
 }
 
 enum LedgerUnit {

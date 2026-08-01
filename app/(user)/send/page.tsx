@@ -30,11 +30,18 @@ import { truncateAddress, truncateHash, bscScanUrl, toPersianDigits, formatAmoun
 import type { Currency, SendRequest } from "@/lib/types";
 
 const schema = z.object({
-  counterpartyUid: z.string().min(1, "شناسه کاربر خارجی را وارد کنید"),
+  counterpartyUid: z.string().min(1, "نام یا شناسه فروشنده را وارد کنید"),
   counterpartyName: z.string().optional(),
+  counterpartyEmail: z.string().optional(),
+  recipientWalletAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "آدرس کیف پول فروشنده معتبر نیست"),
   amount: z.coerce.number().positive("مبلغ باید مثبت باشد"),
   currency: z.enum(["USDT", "BNB"]),
   description: z.string().optional(),
+  documentKind: z.enum(["PROFORMA", "ORDER_REGISTRATION", "CUSTOMS_DECLARATION", "CONTRACT"]),
+  documentNumber: z.string().min(1, "شماره سند تجاری الزامی است"),
+  documentIssuer: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -47,15 +54,19 @@ export default function SendPage() {
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } =
     useForm<FormValues>({
       resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-      defaultValues: { currency: "USDT" as Currency },
+      defaultValues: { currency: "USDT" as Currency, documentKind: "PROFORMA" },
     });
 
 
   const onSubmit = async (data: FormValues) => {
     try {
-      const item = await create(data);
-      toast.success("درخواست ارسال شد", {
-        description: `${item.trxId} — کاربر خارجی اطلاع داده شد`,
+      const { documentKind, documentNumber, documentIssuer, ...rest } = data;
+      const item = await create({
+        ...rest,
+        documents: [{ kind: documentKind, number: documentNumber, issuer: documentIssuer }],
+      });
+      toast.success("درخواست ثبت شد", {
+        description: `${item.trxId} — در انتظار بررسی ادمین`,
       });
       reset();
     } catch (error) {
@@ -65,7 +76,10 @@ export default function SendPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="ارسال وجه" description="ارسال کریپتو به کاربر خارجی (واردکننده)" />
+      <PageHeader
+        title="واردات — تأمین و ارسال ارز"
+        description="پرداخت به فروشندهٔ خارجی؛ بانک ارز را تأمین می‌کند و شما معادل ریالی را می‌پردازید"
+      />
 
       <Card>
         <CardHeader>
@@ -74,21 +88,39 @@ export default function SendPage() {
             درخواست جدید
           </CardTitle>
           <CardDescription>
-            بعد از تأیید کاربر خارجی، ادمین، و بانک — معادل ریالی را واریز و سپس کریپتو ارسال می‌شود
+            آدرس کیف پول فروشنده را از پیش‌فاکتور وارد کنید. فروشنده لازم نیست در سامانه ثبت‌نام
+            کند. پس از تأیید ادمین، بانک نرخ را اعلام می‌کند و با واریز ریال شما، ارز ارسال می‌شود.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="uid">شناسه کاربر خارجی (UID)</Label>
-              <Input id="uid" placeholder="FOR-042" {...register("counterpartyUid")} dir="ltr" />
+              <Label htmlFor="uid">فروشنده (نام یا شناسه)</Label>
+              <Input id="uid" placeholder="Ningbo Trading Co." {...register("counterpartyUid")} />
               {errors.counterpartyUid ? (
                 <p className="text-xs text-destructive">{errors.counterpartyUid.message}</p>
               ) : null}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">نام کاربر (اختیاری)</Label>
-              <Input id="name" placeholder="Michael Chen" {...register("counterpartyName")} />
+              <Label htmlFor="email">ایمیل فروشنده (اختیاری)</Label>
+              <Input id="email" placeholder="sales@example.com" {...register("counterpartyEmail")} dir="ltr" />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="wallet">آدرس کیف پول فروشنده</Label>
+              <Input
+                id="wallet"
+                placeholder="0x…"
+                dir="ltr"
+                className="font-mono text-sm"
+                {...register("recipientWalletAddress")}
+              />
+              {errors.recipientWalletAddress ? (
+                <p className="text-xs text-destructive">{errors.recipientWalletAddress.message}</p>
+              ) : (
+                <p className="text-xs text-warning">
+                  این آدرس را با پیش‌فاکتور مقابله کنید — انتقال روی زنجیره برگشت‌پذیر نیست.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="amount">مبلغ</Label>
@@ -108,8 +140,30 @@ export default function SendPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>نوع سند تجاری</Label>
+              <Select
+                value={watch("documentKind")}
+                onValueChange={(v) => setValue("documentKind", v as FormValues["documentKind"])}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PROFORMA">پیش‌فاکتور</SelectItem>
+                  <SelectItem value="ORDER_REGISTRATION">ثبت سفارش</SelectItem>
+                  <SelectItem value="CUSTOMS_DECLARATION">کوتاژ گمرکی</SelectItem>
+                  <SelectItem value="CONTRACT">قرارداد</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="docno">شماره سند</Label>
+              <Input id="docno" placeholder="PI-2026-0142" dir="ltr" {...register("documentNumber")} />
+              {errors.documentNumber ? (
+                <p className="text-xs text-destructive">{errors.documentNumber.message}</p>
+              ) : null}
+            </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="desc">توضیحات (مثلاً شماره قرارداد)</Label>
+              <Label htmlFor="desc">توضیحات</Label>
               <Textarea id="desc" rows={2} {...register("description")} />
             </div>
             <div className="sm:col-span-2 flex justify-end">

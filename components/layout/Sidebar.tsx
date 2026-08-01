@@ -19,9 +19,9 @@ import { cn } from "@/lib/cn";
 
 export const USER_NAV = [
   { href: "/dashboard", label: "داشبورد", icon: Home },
-  { href: "/receive", label: "دریافت وجه", icon: WalletIcon },
-  { href: "/send", label: "ارسال وجه", icon: Send },
-  { href: "/settlement", label: "تسویه", icon: Banknote },
+  { href: "/receive", label: "صادرات (دریافت وجه)", icon: WalletIcon },
+  { href: "/send", label: "واردات (ارسال وجه)", icon: Send },
+  { href: "/settlement", label: "تسویه ریالی", icon: Banknote },
   { href: "/wallets", label: "مدیریت والت", icon: WalletIcon },
   { href: "/reports", label: "گزارشات", icon: LineChart },
   { href: "/settings", label: "تنظیمات", icon: SettingsIcon },

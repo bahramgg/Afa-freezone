@@ -15,6 +15,9 @@ type SendState = {
   load: (opts?: { status?: SendStatus | "ALL" }) => Promise<void>;
   create: (input: {
     counterpartyUid: string;
+    counterpartyEmail?: string;
+    recipientWalletAddress?: string;
+    documents?: { kind: string; number: string; issuer?: string }[];
     amount: number;
     currency: Currency;
     description?: string;

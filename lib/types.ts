@@ -50,6 +50,20 @@ export type SendStatus =
   | "PAID"
   | "REJECTED";
 
+export type TradeDocumentKind =
+  | "PROFORMA"
+  | "ORDER_REGISTRATION"
+  | "CUSTOMS_DECLARATION"
+  | "CONTRACT";
+
+export type TradeDocument = {
+  id: string;
+  kind: TradeDocumentKind;
+  number: string;
+  issuedAt?: string;
+  issuer?: string;
+};
+
 export type SendRequest = {
   id: string;
   trxId: string;
@@ -57,6 +71,10 @@ export type SendRequest = {
   userName?: string;
   counterpartyUid: string;
   counterpartyName?: string;
+  counterpartyEmail?: string;
+  /** True when the recipient wallet was confirmed by the counterparty. */
+  recipientConfirmed?: boolean;
+  documents?: TradeDocument[];
   amount: number;
   currency: Currency;
   description?: string;
@@ -125,6 +143,26 @@ export type Settlement = {
   rialDepositAt?: string;
   rejectedBy?: "ADMIN" | "BANK";
   rejectReason?: string;
+};
+
+export type RefundStatus = "REQUESTED" | "APPROVED" | "SENT" | "REJECTED";
+
+export type Refund = {
+  id: string;
+  invoiceRef: string;
+  merchantUid?: string;
+  merchantName?: string;
+  amount: number;
+  currency: Currency;
+  /** Read off the payment that funded the invoice, never typed by anyone. */
+  toAddress: string;
+  status: RefundStatus;
+  reason: string;
+  rejectReason?: string;
+  txHash?: string;
+  requestedBy?: string;
+  sentAt?: string;
+  createdAt: string;
 };
 
 export type Wallet = {
@@ -221,7 +259,9 @@ export type NotificationKind =
   | "FOREIGN_RECEIVE_REQUEST"
   | "FOREIGN_CRYPTO_RECEIVED"
   | "SETTLEMENT_FROM_INVOICE"
-  | "PAYMENT_PARTIAL";
+  | "PAYMENT_PARTIAL"
+  | "REFUND_REQUESTED"
+  | "REFUND_UPDATED";
 
 export type Notification = {
   id: string;

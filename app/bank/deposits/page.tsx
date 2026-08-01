@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { ArrowDownToLine, Loader2, Wallet } from "lucide-react";
+import { ArrowDownToLine, Loader2, Undo2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,7 @@ import { JalaliDate } from "@/components/shared/JalaliDate";
 import { Ltr } from "@/components/shared/Ltr";
 import { api, ApiClientError } from "@/lib/api/client";
 import { useLoad } from "@/lib/stores/useLoad";
+import type { Refund } from "@/lib/types";
 import { truncateAddress, truncateHash, toPersianDigits, formatAmount } from "@/lib/format";
 
 /**
@@ -39,12 +40,17 @@ type Deposit = {
 
 export default function DepositsPage() {
   const [list, setList] = useState<Deposit[]>([]);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
   const [hash, setHash] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const data = await api.get<{ list: Deposit[] }>("/deposits").catch(() => null);
-    if (data) setList(data.list);
+    const [deposits, pending] = await Promise.all([
+      api.get<{ list: Deposit[] }>("/deposits").catch(() => null),
+      api.get<{ list: Refund[] }>("/refunds").catch(() => null),
+    ]);
+    if (deposits) setList(deposits.list);
+    if (pending) setRefunds(pending.list.filter((r) => r.status === "APPROVED"));
   }, []);
 
   useLoad(load);
@@ -63,6 +69,25 @@ export default function DepositsPage() {
       await load();
     } catch (error) {
       toast.error(error instanceof ApiClientError ? error.message : "ثبت برداشت انجام نشد");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendRefund(ref: string) {
+    const txHash = (hash[ref] ?? "").trim();
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+      toast.error("هش تراکنش معتبر نیست");
+      return;
+    }
+    setBusy(ref);
+    try {
+      await api.patch("/refunds", { ref, action: "markSent", txHash });
+      toast.success("بازگشت وجه ثبت و روی زنجیره تأیید شد");
+      setHash((h) => ({ ...h, [ref]: "" }));
+      await load();
+    } catch (error) {
+      toast.error(error instanceof ApiClientError ? error.message : "ثبت انجام نشد");
     } finally {
       setBusy(null);
     }
@@ -97,6 +122,52 @@ export default function DepositsPage() {
           </p>
         </CardContent>
       </Card>
+
+      {refunds.length > 0 ? (
+        <Card>
+          <CardContent className="space-y-3 py-4">
+            <div className="text-sm font-semibold">بازگشت وجه‌های تأییدشده</div>
+            <p className="text-xs text-muted-foreground">
+              مقصد هر کدام آدرسی است که پرداخت از آن آمده — قابل تغییر نیست. انتقال را انجام دهید
+              و هش را ثبت کنید.
+            </p>
+            {refunds.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3"
+              >
+                <div className="min-w-0 text-sm">
+                  <span className="font-mono text-xs">{r.id}</span> ·{" "}
+                  {toPersianDigits(formatAmount(r.amount))} {r.currency}
+                  <div className="flex items-center gap-1.5">
+                    <Ltr className="font-mono text-xs text-muted-foreground">
+                      {truncateAddress(r.toAddress)}
+                    </Ltr>
+                    <CopyButton value={r.toAddress} />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={hash[r.id] ?? ""}
+                    onChange={(e) => setHash((h) => ({ ...h, [r.id]: e.target.value }))}
+                    placeholder="0x…"
+                    dir="ltr"
+                    className="h-8 w-44 font-mono text-xs"
+                  />
+                  <Button size="sm" onClick={() => sendRefund(r.id)} disabled={busy === r.id}>
+                    {busy === r.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Undo2 className="h-3.5 w-3.5" />
+                    )}
+                    ثبت
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent className="p-0">

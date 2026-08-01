@@ -9,7 +9,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
-import { Bell, CheckCircle2, FileText, XCircle, Wallet, Clock, Banknote, Mail, AlertCircle, Coins, Send } from "lucide-react";
+import { Undo2, Bell, CheckCircle2, FileText, XCircle, Wallet, Clock, Banknote, Mail, AlertCircle, Coins, Send } from "lucide-react";
 import { useNotificationsStore } from "@/lib/stores/notifications";
 import { useState } from "react";
 import { useHydrated } from "@/lib/stores/hydration";
@@ -35,6 +35,8 @@ const ICONS: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
   FOREIGN_CRYPTO_RECEIVED: { icon: Wallet, tone: "text-success bg-success/10" },
   SETTLEMENT_FROM_INVOICE: { icon: Banknote, tone: "text-info bg-info/10" },
   PAYMENT_PARTIAL: { icon: Clock, tone: "text-warning bg-warning/10" },
+  REFUND_REQUESTED: { icon: Undo2, tone: "text-warning bg-warning/10" },
+  REFUND_UPDATED: { icon: Undo2, tone: "text-info bg-info/10" },
 };
 
 export function NotificationsPanel() {

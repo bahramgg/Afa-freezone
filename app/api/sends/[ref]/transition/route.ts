@@ -80,6 +80,9 @@ export const POST = handler(
         actor = "COUNTERPARTY";
         data = {
           recipientWalletAddress: normalizeAddress(body.walletAddress),
+          // Confirmed by the party who will receive it, which is stronger than
+          // an address typed by the sender — recorded, so a reviewer can see it.
+          recipientConfirmed: true,
           // Link the account now if the request was raised against a bare uid.
           counterparty: { connect: { id: user.id } },
         };

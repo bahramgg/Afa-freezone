@@ -93,9 +93,30 @@ export function serializeInvoice(i: Invoice & WithOwner & WithChainTx) {
   };
 }
 
+type TradeDoc = {
+  id: string;
+  kind: string;
+  number: string;
+  issuedAt: Date | null;
+  issuer: string | null;
+};
+
 type SendWithParties = SendRequest &
   WithOwner &
-  WithChainTx & { counterparty?: Pick<User, "uid" | "fullName"> | null };
+  WithChainTx & {
+    counterparty?: Pick<User, "uid" | "fullName"> | null;
+    documents?: TradeDoc[];
+  };
+
+export function serializeDocument(d: TradeDoc) {
+  return {
+    id: d.id,
+    kind: d.kind,
+    number: d.number,
+    issuedAt: iso(d.issuedAt),
+    issuer: d.issuer ?? undefined,
+  };
+}
 
 export function serializeSend(s: SendWithParties) {
   return {
@@ -109,7 +130,10 @@ export function serializeSend(s: SendWithParties) {
     userUid: s.owner?.uid,
     userName: s.owner?.fullName,
     counterpartyUid: s.counterparty?.uid ?? s.counterpartyUid,
-    counterpartyName: s.counterparty?.fullName ?? undefined,
+    counterpartyName: s.counterparty?.fullName ?? s.counterpartyName ?? undefined,
+    counterpartyEmail: s.counterpartyEmail ?? undefined,
+    recipientConfirmed: s.recipientConfirmed,
+    documents: s.documents?.map(serializeDocument),
     exchangeRate: num(s.exchangeRate),
     rateLocked: s.rateLocked,
     rialAmount: num(s.rialAmount),

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ActivitySquare,
   Scale,
+  Undo2,
   Banknote,
   Crown,
   FileCheck2,
@@ -29,6 +30,7 @@ export const ADMIN_NAV = [
   { href: "/admin/send", label: "ارسال وجه", icon: Send },
   { href: "/admin/settlements", label: "تسویه", icon: Banknote },
   { href: "/admin/transactions", label: "مدیریت تراکنش‌ها", icon: ActivitySquare },
+  { href: "/admin/refunds", label: "بازگشت وجه", icon: Undo2 },
   { href: "/admin/ledger", label: "دفتر کل", icon: Scale },
   { href: "/admin/reports", label: "گزارشات", icon: LineChart },
   { href: "/admin/settings", label: "تنظیمات", icon: SettingsIcon },

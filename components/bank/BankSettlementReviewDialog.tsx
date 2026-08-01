@@ -33,7 +33,6 @@ type Props = { item: Settlement | null; onOpenChange: (open: boolean) => void };
 
 export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
   const lockRate = useSettlementsStore((s) => s.lockBankRate);
-  const confirmCrypto = useSettlementsStore((s) => s.confirmCrypto);
   const settle = useSettlementsStore((s) => s.settle);
   const bankReject = useSettlementsStore((s) => s.bankReject);
   const wallets = useBankStore((s) => s.wallets);
@@ -71,12 +70,6 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
     }
     lockRate(item!.id, rate, walletAddress);
     toast.success("نرخ قفل شد و آدرس والت به کاربر اعلام شد");
-    onOpenChange(false);
-  }
-
-  function handleConfirm() {
-    confirmCrypto(item!.id);
-    toast.success("تراکنش بلاکچین تأیید شد");
     onOpenChange(false);
   }
 
@@ -265,12 +258,9 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
               تأیید و اعلام
             </Button>
           ) : null}
-          {!rejectMode && stage === "CRYPTO_RECEIVED" ? (
-            <Button onClick={handleConfirm} className="bg-info hover:bg-info/90">
-              <Wallet className="h-4 w-4" />
-              تأیید بلاکچین
-            </Button>
-          ) : null}
+          {/* CRYPTO_RECEIVED advances on its own: the transfer was already
+              verified on chain when the merchant submitted it, and the watcher
+              promotes it to CRYPTO_CONFIRMED once it has enough confirmations. */}
           {!rejectMode && stage === "CRYPTO_CONFIRMED" ? (
             <Button onClick={handleSettle} className="bg-emerald-700 hover:bg-emerald-600">
               <CheckCircle2 className="h-4 w-4" />

@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { ArrowRight, CheckCircle2, Clock, ExternalLink, Loader2, Share2, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { Countdown } from "@/components/shared/Countdown";
@@ -13,7 +14,6 @@ import { JalaliDate } from "@/components/shared/JalaliDate";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
 import { useInvoicesStore } from "@/lib/stores/invoices";
-import { TIMINGS } from "@/lib/mock/timings";
 import { bscScanUrl, formatAmount, truncateAddress, truncateHash } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -22,22 +22,37 @@ import type { Invoice } from "@/lib/types";
 export function PaymentScreen({ invoice }: { invoice: Invoice }) {
   const expire = useInvoicesStore((s) => s.expire);
   const startPayment = useInvoicesStore((s) => s.startPayment);
-  const markPaid = useInvoicesStore((s) => s.markPaid);
-  const [simulating, setSimulating] = useState(false);
+  const confirmPayment = useInvoicesStore((s) => s.confirmPayment);
+  const [txHash, setTxHash] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const isPayable = invoice.status === "APPROVED" || invoice.status === "PAYMENT_PENDING";
   const isPaid = invoice.status === "PAID";
   const isExpired = invoice.status === "EXPIRED";
 
-  async function simulatePayment() {
-    setSimulating(true);
-    if (invoice.status === "APPROVED") startPayment(invoice.id);
-    await new Promise((r) => setTimeout(r, TIMINGS.PAYMENT_SIMULATE_MS));
-    markPaid(invoice.id);
-    toast.success(`پرداخت دریافت شد`, {
-      description: `مبلغ ${formatAmount(invoice.amount)} ${invoice.currency} با موفقیت دریافت شد`,
-    });
-    setSimulating(false);
+  /**
+   * Deposits are normally picked up by the on-chain watcher. This lets a payer
+   * hand the hash over directly; the server still verifies amount, recipient
+   * and success against the chain before anything is marked paid.
+   */
+  async function submitPayment() {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash.trim())) {
+      toast.error("هش تراکنش معتبر نیست");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      if (invoice.status === "APPROVED") await startPayment(invoice.id);
+      await confirmPayment(invoice.id, txHash.trim());
+      toast.success("پرداخت تأیید شد", {
+        description: `مبلغ ${formatAmount(invoice.amount)} ${invoice.currency} روی شبکه تأیید شد`,
+      });
+      setTxHash("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تأیید پرداخت ناموفق بود");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function shareGateway() {
@@ -155,17 +170,28 @@ export function PaymentScreen({ invoice }: { invoice: Invoice }) {
                 ) : null}
 
                 {isPayable ? (
-                  <Button
-                    onClick={simulatePayment}
-                    disabled={simulating}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {simulating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
-                    تأیید پرداخت
-                  </Button>
+                  <div className="space-y-2">
+                    <label htmlFor="txHash" className="text-xs text-muted-foreground">
+                      پس از پرداخت، هش تراکنش را اینجا وارد کنید (یا منتظر تأیید خودکار بمانید)
+                    </label>
+                    <Input
+                      id="txHash"
+                      dir="ltr"
+                      placeholder="0x..."
+                      value={txHash}
+                      onChange={(e) => setTxHash(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      onClick={submitPayment}
+                      disabled={submitting}
+                      className="w-full"
+                      size="lg"
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      ثبت و راستی‌آزمایی پرداخت
+                    </Button>
+                  </div>
                 ) : (
                   <div className="rounded-md bg-muted/50 p-3 text-center text-xs text-muted-foreground">
                     این فاکتور در انتظار تأیید ادمین است. پس از تأیید، آدرس پرداخت فعال می‌شود.

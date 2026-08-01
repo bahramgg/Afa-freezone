@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ArrowLeft, CircleCheck } from "lucide-react";
 import { PORTALS, type PortalKey } from "./portals";
 import { useAuthStore } from "@/lib/stores/auth";
-import { useBankStore } from "@/lib/stores/bank";
 import { useForeignStore } from "@/lib/stores/foreign";
 import { useHydrated } from "@/lib/stores/hydration";
 import { cn } from "@/lib/cn";
@@ -14,15 +13,15 @@ export function PortalGrid() {
   const isAuthed = useAuthStore((s) => s.isAuthed);
   const hasPassedKyc = useAuthStore((s) => s.hasPassedKyc);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const isBank = useAuthStore((s) => s.isBank);
   const isForeignAuthed = useForeignStore((s) => s.isForeignAuthed);
   const foreignKyc = useForeignStore((s) => s.hasPassedKyc);
-  const isBankAuthed = useBankStore((s) => s.isBankAuthed);
 
   const active: Record<PortalKey, boolean> = {
     user: hydrated && isAuthed && hasPassedKyc,
     foreign: hydrated && isForeignAuthed && foreignKyc,
     admin: hydrated && isAdmin,
-    bank: hydrated && isBankAuthed,
+    bank: hydrated && isBank,
   };
 
   return (

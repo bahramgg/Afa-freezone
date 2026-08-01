@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Logo } from "@/components/shared/Logo";
-import { useBankStore } from "@/lib/stores/bank";
+import { useAuthStore } from "@/lib/stores/auth";
 
 export default function BankLoginPage() {
   const router = useRouter();
-  const loginBank = useBankStore((s) => s.loginBank);
+  const loginPassword = useAuthStore((s) => s.loginPassword);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,10 +21,15 @@ export default function BankLoginPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    loginBank();
-    toast.success("خوش آمدید");
-    router.replace("/bank/dashboard");
+    try {
+      await loginPassword(username, password, "bank");
+      toast.success("خوش آمدید");
+      router.replace("/bank/dashboard");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ورود ناموفق بود");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -52,21 +57,26 @@ export default function BankLoginPage() {
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-emerald-200">نام کاربری</Label>
+              <Label htmlFor="username" className="text-emerald-200">ایمیل</Label>
               <Input
+                id="username"
+                type="email"
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="bank-operator"
+                placeholder="bank@example.com"
                 className="bg-emerald-950 border-emerald-800 text-emerald-50"
                 dir="ltr"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-emerald-200">رمز عبور</Label>
+              <Label htmlFor="password" className="text-emerald-200">رمز عبور</Label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-400" />
                 <Input
+                  id="password"
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pe-10 bg-emerald-950 border-emerald-800 text-emerald-50"

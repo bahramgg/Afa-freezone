@@ -57,17 +57,17 @@ export function SettlementForm() {
       defaultValues: { currency: "USDT" as Currency },
     });
 
-  const onSubmit = (data: FormValues) => {
-    const item = create({
-      ...data,
-      userUid: user?.uid,
-      userName: user?.fullName,
-    });
-    toast.success("درخواست شما به ادمین ارسال شد", {
-      description: `${item.trxId} (${item.id}) — منتظر تأیید قانونی ادمین، سپس بانک`,
-    });
-    reset();
-    setOpen(false);
+  const onSubmit = async (data: FormValues) => {
+    try {
+      const item = await create(data);
+      toast.success("درخواست شما به ادمین ارسال شد", {
+        description: `${item.trxId} (${item.id}) — منتظر تأیید قانونی ادمین، سپس بانک`,
+      });
+      reset();
+      setOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ثبت درخواست ناموفق بود");
+    }
   };
 
   return (

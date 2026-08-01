@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import { ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAuthStore } from "@/lib/stores/auth";
-import { useKycStore } from "@/lib/stores/kyc";
 import { useHydrated } from "@/lib/stores/hydration";
 import { toast } from "sonner";
 
@@ -14,30 +13,33 @@ export default function KycWaitingPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthed = useAuthStore((s) => s.isAuthed);
-  const markKycApproved = useAuthStore((s) => s.markKycApproved);
+  const reloadSession = useAuthStore((s) => s.load);
   const hydrated = useHydrated();
 
-  const kycStatus = useKycStore((s) =>
-    user?.uid ? s.requests.find((r) => r.uid === user.uid)?.status ?? null : null
-  );
-  const rejectNote = useKycStore((s) =>
-    user?.uid ? s.requests.find((r) => r.uid === user.uid)?.rejectNote : undefined
-  );
+  const kycStatus = user?.kyc ?? null;
+  const rejectNote = user?.kycRejectReason;
 
   useEffect(() => {
     if (!hydrated) return;
     if (!isAuthed) router.replace("/login");
   }, [hydrated, isAuthed, router]);
 
+  // The decision is made by a reviewer in another session, so this page polls
+  // rather than waiting for a local state change that will never arrive.
+  useEffect(() => {
+    if (!hydrated || kycStatus === "APPROVED") return;
+    const timer = setInterval(() => void reloadSession(), 15_000);
+    return () => clearInterval(timer);
+  }, [hydrated, kycStatus, reloadSession]);
+
   useEffect(() => {
     if (kycStatus === "APPROVED") {
-      markKycApproved();
       toast.success("احراز هویت تأیید شد", {
         description: "اکنون می‌توانید از پنل استفاده کنید",
       });
       router.replace("/dashboard");
     }
-  }, [kycStatus, markKycApproved, router]);
+  }, [kycStatus, router]);
 
   if (kycStatus === "REJECTED") {
     return (

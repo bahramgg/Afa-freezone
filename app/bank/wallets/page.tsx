@@ -183,7 +183,7 @@ export default function BankWalletsPage() {
                         size="sm"
                         variant="outline"
                         className="whitespace-nowrap"
-                        onClick={() => toggle(w.address)}
+                        onClick={() => void toggle(w.id, !w.active)}
                       >
                         <Power className="h-3.5 w-3.5" />
                         {w.active ? "غیرفعال‌سازی" : "فعال‌سازی"}

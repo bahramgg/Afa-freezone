@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { toast } from "sonner";
 import { useAuthStore } from "@/lib/stores/auth";
-import { useKycStore } from "@/lib/stores/kyc";
 import { useHydrated } from "@/lib/stores/hydration";
 
 const schema = z.object({
@@ -28,8 +28,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthed = useAuthStore((s) => s.isAuthed);
-  const completeProfile = useAuthStore((s) => s.completeProfile);
-  const submitRequest = useKycStore((s) => s.submitRequest);
+  const updateProfile = useAuthStore((s) => s.updateProfile);
   const hydrated = useHydrated();
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormValues>({
@@ -57,18 +56,15 @@ export default function ProfilePage() {
     if (hydrated && !isAuthed) router.replace("/login");
   }, [hydrated, isAuthed, router]);
 
-  const onSubmit = (data: FormValues) => {
-    completeProfile(data);
-    const uid = user?.uid ?? "AFA-0000";
-    submitRequest({
-      uid,
-      fullName: data.fullName,
-      nationalId: data.nationalId,
-      phone: data.phone,
-      freezoneId: data.freezoneId,
-      address: data.address,
-    });
-    router.replace("/kyc-waiting");
+  const onSubmit = async (data: FormValues) => {
+    try {
+      // Saving a complete profile is what puts the account in the reviewer's
+      // queue; there is no separate "submit for review" step.
+      await updateProfile(data);
+      router.replace("/kyc-waiting");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ذخیره اطلاعات ناموفق بود");
+    }
   };
 
   return (

@@ -15,7 +15,8 @@ import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useTxStore } from "@/lib/stores/transactions";
 import { useHydrated } from "@/lib/stores/hydration";
 import { toPersianDigits } from "@/lib/format";
-import { seedAdminUsers } from "@/lib/mock/fixtures";
+import { useAdminUsersStore } from "@/lib/stores/adminUsers";
+import { useLoad } from "@/lib/stores/useLoad";
 
 export default function AdminDashboardPage() {
   const invoices = useInvoicesStore((s) => s.list);
@@ -27,10 +28,12 @@ export default function AdminDashboardPage() {
   const pendingInvoices = invoices.filter((i) => i.status === "PENDING").length;
   const pendingSends = sends.filter((s) => s.status === "AWAITING_ADMIN").length;
   const pendingSettlements = settlements.filter((s) => s.status === "AWAITING_ADMIN").length;
-  const pendingKyc = seedAdminUsers().filter((u) => u.kyc === "PENDING").length;
+  const users = useAdminUsersStore((s) => s.list);
+  useLoad(useAdminUsersStore.getState().load);
+  const pendingKyc = users.filter((u) => u.kyc === "PENDING").length;
 
   const monthVolume = txs.reduce((a, t) => a + t.amount * (t.currency === "BNB" ? 600 : 1), 0);
-  const totalUsers = seedAdminUsers().length;
+  const totalUsers = users.length;
 
   const recent = [
     ...invoices.slice(0, 2).map((i) => ({ type: "invoice" as const, label: "دریافت وجه جدید", user: i.userName, trx: i.trxId, amount: i.amount, currency: i.currency, createdAt: i.createdAt })),

@@ -1,34 +1,41 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { broadcast, subscribeBroadcast } from "./_broadcast";
+import { api } from "../api/client";
+import { onReload, pingReload } from "./_sync";
 import { seedSettings } from "../mock/fixtures";
 import type { Settings } from "../types";
 
-type SettingsState = {
-  settings: Settings;
-  update: (patch: Partial<Settings>) => void;
-};
-
 const SLICE = "settings";
 
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set, get) => ({
-      settings: seedSettings(),
-      update: (patch) => {
-        set({ settings: { ...get().settings, ...patch } });
-        broadcast(SLICE, { settings: get().settings });
-      },
-    }),
-    { name: "afa-demo:settings", version: 1 },
-  ),
-);
+type SettingsState = {
+  settings: Settings;
+  loaded: boolean;
 
-if (typeof window !== "undefined") {
-  subscribeBroadcast(SLICE, (payload) => {
-    const p = payload as { settings?: Settings };
-    if (p?.settings) useSettingsStore.setState({ settings: p.settings }, false);
-  });
-}
+  load: () => Promise<void>;
+  update: (patch: Partial<Settings>) => Promise<void>;
+};
+
+export const useSettingsStore = create<SettingsState>()((set) => ({
+  // Seed values stand in only until the first fetch resolves, so forms that
+  // read a rate on first paint never see undefined.
+  settings: seedSettings(),
+  loaded: false,
+
+  load: async () => {
+    try {
+      const { settings } = await api.get<{ settings: Settings }>("/settings");
+      set({ settings, loaded: true });
+    } catch {
+      set({ loaded: true });
+    }
+  },
+
+  update: async (patch) => {
+    const { settings } = await api.patch<{ settings: Settings }>("/settings", patch);
+    set({ settings });
+    pingReload(SLICE);
+  },
+}));
+
+onReload(SLICE, () => useSettingsStore.getState().load());

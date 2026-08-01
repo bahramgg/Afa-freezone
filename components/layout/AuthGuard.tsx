@@ -11,7 +11,8 @@ export function UserAuthGuard({ children }: { children: React.ReactNode }) {
   const hasProfile = useAuthStore((s) => s.hasProfile);
   const hasPassedKyc = useAuthStore((s) => s.hasPassedKyc);
   const router = useRouter();
-  const hydrated = useHydrated();
+  const ready = useAuthStore((s) => s.ready);
+  const hydrated = useHydrated() && ready;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -34,7 +35,8 @@ export function UserAuthGuard({ children }: { children: React.ReactNode }) {
 export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const router = useRouter();
-  const hydrated = useHydrated();
+  const ready = useAuthStore((s) => s.ready);
+  const hydrated = useHydrated() && ready;
 
   useEffect(() => {
     if (!hydrated) return;

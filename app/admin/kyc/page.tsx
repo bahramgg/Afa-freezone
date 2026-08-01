@@ -40,14 +40,22 @@ export default function AdminKycPage() {
     setRejectNote("");
   }
 
-  function confirmReject() {
+  async function confirmReject() {
     if (!rejectTarget) return;
-    rejectRequest(rejectTarget.uid, rejectNote || undefined);
-    toast.error(`احراز هویت ${rejectTarget.fullName} رد شد`);
-    setRejectTarget(null);
+    if (!rejectNote.trim()) {
+      toast.error("دلیل رد را وارد کنید");
+      return;
+    }
+    try {
+      await rejectRequest(rejectTarget.uid, rejectNote);
+      toast.error(`احراز هویت ${rejectTarget.fullName} رد شد`);
+      setRejectTarget(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "رد کردن ناموفق بود");
+    }
   }
 
-  const statusBadge = (status: KycRequest["status"]) => {
+  const statusBadge = (status: KycRequest["kyc"]) => {
     if (status === "APPROVED") return <Badge tone="success">تأیید شده</Badge>;
     if (status === "REJECTED") return <Badge tone="destructive">رد شده</Badge>;
     return <Badge tone="warning">در انتظار بررسی</Badge>;
@@ -94,9 +102,9 @@ export default function AdminKycPage() {
                       <td className="px-4 py-3 text-muted-foreground">
                         <JalaliDate iso={req.submittedAt} />
                       </td>
-                      <td className="px-4 py-3">{statusBadge(req.status)}</td>
+                      <td className="px-4 py-3">{statusBadge(req.kyc)}</td>
                       <td className="px-4 py-3">
-                        {req.status === "PENDING" ? (
+                        {req.kyc === "PENDING" ? (
                           <div className="flex items-center gap-2">
                             <Button
                               size="sm"
@@ -119,7 +127,7 @@ export default function AdminKycPage() {
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            {req.reviewedAt ? <JalaliDate iso={req.reviewedAt} /> : "—"}
+                            {req.submittedAt ? <JalaliDate iso={req.submittedAt} /> : "—"}
                           </span>
                         )}
                       </td>

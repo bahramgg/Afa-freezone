@@ -42,7 +42,6 @@ type FormValues = z.infer<typeof schema>;
 export default function SendPage() {
   const list = useSendStore((s) => s.list);
   const create = useSendStore((s) => s.create);
-  const markPaid = useSendStore((s) => s.markPaid);
   const hydrated = useHydrated();
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } =
@@ -51,25 +50,18 @@ export default function SendPage() {
       defaultValues: { currency: "USDT" as Currency },
     });
 
-  const [forwarding, setForwarding] = useState<string | null>(null);
 
-  const onSubmit = (data: FormValues) => {
-    const item = create(data);
-    toast.success("درخواست ارسال شد", {
-      description: `${item.trxId} — کاربر خارجی اطلاع داده شد`,
-    });
-    reset();
+  const onSubmit = async (data: FormValues) => {
+    try {
+      const item = await create(data);
+      toast.success("درخواست ارسال شد", {
+        description: `${item.trxId} — کاربر خارجی اطلاع داده شد`,
+      });
+      reset();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ثبت درخواست ناموفق بود");
+    }
   };
-
-  async function handleForward(req: SendRequest) {
-    setForwarding(req.id);
-    await new Promise((r) => setTimeout(r, TIMINGS.PAYMENT_SIMULATE_MS));
-    markPaid(req.id);
-    toast.success("ارسال نهایی به کاربر خارجی انجام شد", {
-      description: `${formatAmount(req.amount)} ${req.currency} منتقل شد`,
-    });
-    setForwarding(null);
-  }
 
   return (
     <div className="space-y-6">
@@ -191,15 +183,6 @@ export default function SendPage() {
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => handleForward(r)}
-                        disabled={forwarding === r.id}
-                      >
-                        {forwarding === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        تأیید و ارسال نهایی به {r.counterpartyName ?? "کاربر خارجی"}
-                      </Button>
                     </div>
                   ) : null}
 

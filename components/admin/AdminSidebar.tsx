@@ -35,8 +35,8 @@ export const ADMIN_NAV = [
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const logoutAdmin = useAuthStore((s) => s.logoutAdmin);
-  const pendingKyc = useKycStore((s) => s.requests.filter((r) => r.status === "PENDING").length);
+  const logoutAdmin = useAuthStore((s) => s.logout);
+  const pendingKyc = useKycStore((s) => s.requests.filter((r) => r.kyc === "PENDING").length);
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 border-s border-white/10 bg-slate-950 text-slate-100 sticky top-0 h-screen">

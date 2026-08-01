@@ -1,11 +1,19 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { broadcast, subscribeBroadcast } from "./_broadcast";
-import { seedForeignUser, seedForeignWallets, seedForeignNotifications } from "../mock/fixtures";
-import type { ForeignUser, Notification, NotificationKind, Wallet } from "../types";
+import { api } from "../api/client";
+import { onReload, pingReload } from "./_sync";
+import { useAuthStore } from "./auth";
+import type { ForeignUser, Notification, Wallet } from "../types";
 
+const SLICE = "foreign";
+
+/**
+ * The foreign persona no longer keeps a parallel identity. Sessions, wallets
+ * and notifications all come from the same endpoints as every other role —
+ * scoped server-side by the session — so this store is a thin adapter that
+ * keeps the foreign pages' existing API while reading the shared source.
+ */
 type ForeignState = {
   user: ForeignUser | null;
   isForeignAuthed: boolean;
@@ -13,143 +21,128 @@ type ForeignState = {
   hasPassedKyc: boolean;
   wallets: Wallet[];
   notifications: Notification[];
-  loginEmail: (email: string) => void;
-  loginGoogle: () => void;
-  completeProfile: (patch: Partial<ForeignUser>) => void;
-  markKycApproved: () => void;
-  updateProfile: (patch: Partial<ForeignUser>) => void;
-  logout: () => void;
-  addWallet: (input: { address: string; label?: string }) => void;
-  removeWallet: (address: string) => void;
-  pushNotification: (
-    kind: NotificationKind,
-    title: string,
-    body: string,
-    href?: string,
-  ) => void;
-  markRead: (id: string) => void;
-  markAllRead: () => void;
+  ready: boolean;
+
+  load: () => Promise<void>;
+  loginEmail: (email: string, password: string) => Promise<void>;
+  register: (input: {
+    fullName: string;
+    email: string;
+    password: string;
+    passportNo?: string;
+    country?: string;
+  }) => Promise<void>;
+  updateProfile: (patch: Partial<ForeignUser>) => Promise<void>;
+  logout: () => Promise<void>;
+
+  addWallet: (input: { address: string; label?: string }) => Promise<void>;
+  removeWallet: (id: string) => Promise<void>;
+
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
   unreadCount: () => number;
 };
 
-const SLICE = "foreign";
+export const useForeignStore = create<ForeignState>()((set, get) => {
+  /** Mirrors the shared auth slice into this store's foreign-shaped view. */
+  function syncFromAuth() {
+    const auth = useAuthStore.getState();
+    const isForeign = auth.role === "FOREIGN";
+    set({
+      user: isForeign ? (auth.user as unknown as ForeignUser) : null,
+      isForeignAuthed: isForeign,
+      hasProfile: isForeign && auth.hasProfile,
+      hasPassedKyc: isForeign && auth.hasPassedKyc,
+      ready: auth.ready,
+    });
+    return isForeign;
+  }
 
-type ForeignSnapshot = Pick<
-  ForeignState,
-  "user" | "isForeignAuthed" | "hasProfile" | "hasPassedKyc" | "wallets" | "notifications"
->;
+  return {
+    user: null,
+    isForeignAuthed: false,
+    hasProfile: false,
+    hasPassedKyc: false,
+    wallets: [],
+    notifications: [],
+    ready: false,
 
-const snapshot = (s: ForeignState): ForeignSnapshot => ({
-  user: s.user,
-  isForeignAuthed: s.isForeignAuthed,
-  hasProfile: s.hasProfile,
-  hasPassedKyc: s.hasPassedKyc,
-  wallets: s.wallets,
-  notifications: s.notifications,
+    load: async () => {
+      await useAuthStore.getState().load();
+      if (!syncFromAuth()) {
+        set({ wallets: [], notifications: [] });
+        return;
+      }
+      const [wallets, notifications] = await Promise.all([
+        api.get<{ list: Wallet[] }>("/wallets?scope=mine").catch(() => ({ list: [] })),
+        api
+          .get<{ list: Notification[] }>("/notifications")
+          .catch(() => ({ list: [] as Notification[] })),
+      ]);
+      set({ wallets: wallets.list, notifications: notifications.list });
+    },
+
+    loginEmail: async (email, password) => {
+      await useAuthStore.getState().loginPassword(email, password, "foreign");
+      await get().load();
+      pingReload(SLICE);
+    },
+
+    register: async (input) => {
+      await useAuthStore.getState().register(input);
+      await get().load();
+      pingReload(SLICE);
+    },
+
+    updateProfile: async (patch) => {
+      await useAuthStore.getState().updateProfile(patch);
+      syncFromAuth();
+      pingReload(SLICE);
+    },
+
+    logout: async () => {
+      await useAuthStore.getState().logout();
+      set({
+        user: null,
+        isForeignAuthed: false,
+        hasProfile: false,
+        hasPassedKyc: false,
+        wallets: [],
+        notifications: [],
+      });
+      pingReload(SLICE);
+    },
+
+    addWallet: async ({ address, label }) => {
+      const { wallet } = await api.post<{ wallet: Wallet }>("/wallets", {
+        address,
+        label,
+        scope: "mine",
+      });
+      set({ wallets: [...get().wallets, wallet] });
+      pingReload(SLICE);
+    },
+
+    removeWallet: async (id) => {
+      await api.delete(`/wallets/${id}`);
+      set({ wallets: get().wallets.filter((w) => w.id !== id) });
+      pingReload(SLICE);
+    },
+
+    markRead: async (id) => {
+      set({
+        notifications: get().notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      });
+      await api.post("/notifications", { id });
+    },
+
+    markAllRead: async () => {
+      set({ notifications: get().notifications.map((n) => ({ ...n, read: true })) });
+      await api.post("/notifications", { all: true });
+    },
+
+    unreadCount: () => get().notifications.filter((n) => !n.read).length,
+  };
 });
 
-export const useForeignStore = create<ForeignState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      isForeignAuthed: false,
-      hasProfile: false,
-      hasPassedKyc: false,
-      wallets: seedForeignWallets(),
-      notifications: seedForeignNotifications(),
-      loginEmail: (email) => {
-        const base = get().user ?? { ...seedForeignUser(), email };
-        set({ isForeignAuthed: true, user: base });
-        broadcast(SLICE, snapshot(get()));
-      },
-      loginGoogle: () => {
-        set({
-          isForeignAuthed: true,
-          user: get().user ?? seedForeignUser(),
-          hasProfile: false,
-        });
-        broadcast(SLICE, snapshot(get()));
-      },
-      completeProfile: (patch) => {
-        const base = get().user ?? seedForeignUser();
-        set({ user: { ...base, ...patch }, hasProfile: true });
-        broadcast(SLICE, snapshot(get()));
-      },
-      markKycApproved: () => {
-        const u = get().user ?? seedForeignUser();
-        set({ user: { ...u, kyc: "APPROVED" }, hasPassedKyc: true });
-        broadcast(SLICE, snapshot(get()));
-      },
-      updateProfile: (patch) => {
-        const u = get().user;
-        if (!u) return;
-        set({ user: { ...u, ...patch } });
-        broadcast(SLICE, snapshot(get()));
-      },
-      logout: () => {
-        set({ isForeignAuthed: false, hasProfile: false, hasPassedKyc: false });
-        broadcast(SLICE, snapshot(get()));
-      },
-      addWallet: ({ address, label }) => {
-        const wallet: Wallet = {
-          address,
-          label: label ?? "والت جدید",
-          network: "BSC",
-          verified: true,
-          verifiedAt: new Date().toISOString(),
-        };
-        set({ wallets: [...get().wallets, wallet] });
-        broadcast(SLICE, snapshot(get()));
-      },
-      removeWallet: (address) => {
-        set({ wallets: get().wallets.filter((w) => w.address !== address) });
-        broadcast(SLICE, snapshot(get()));
-      },
-      pushNotification: (kind, title, body, href) => {
-        const n: Notification = {
-          id: `fn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          kind,
-          title,
-          body,
-          href,
-          createdAt: new Date().toISOString(),
-          read: false,
-        };
-        set({ notifications: [n, ...get().notifications] });
-        broadcast(SLICE, snapshot(get()));
-      },
-      markRead: (id) => {
-        set({
-          notifications: get().notifications.map((n) =>
-            n.id === id ? { ...n, read: true } : n,
-          ),
-        });
-        broadcast(SLICE, snapshot(get()));
-      },
-      markAllRead: () => {
-        set({
-          notifications: get().notifications.map((n) => ({ ...n, read: true })),
-        });
-        broadcast(SLICE, snapshot(get()));
-      },
-      unreadCount: () => get().notifications.filter((n) => !n.read).length,
-    }),
-    { name: "afa-demo:foreign", version: 1 },
-  ),
-);
-
-if (typeof window !== "undefined") {
-  subscribeBroadcast(SLICE, (payload) => {
-    if (!payload || typeof payload !== "object") return;
-    useForeignStore.setState(payload as Partial<ForeignState>, false);
-  });
-}
-
-export function pushForeignNotification(
-  kind: NotificationKind,
-  title: string,
-  body: string,
-  href?: string,
-) {
-  useForeignStore.getState().pushNotification(kind, title, body, href);
-}
+onReload(SLICE, () => useForeignStore.getState().load());

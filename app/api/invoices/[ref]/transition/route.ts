@@ -6,6 +6,7 @@ import {
   handler,
   jsonOk,
   notFound,
+  conflict,
   readJson,
   requireUser,
 } from "@/lib/server/http";
@@ -14,6 +15,7 @@ import { serializeInvoice } from "@/lib/server/serialize";
 import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
 import { pickGatewayAddress } from "@/lib/server/gateway";
+import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import type { Actor, InvoiceStatus, Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -25,8 +27,9 @@ const INVOICE_INCLUDE = {
 } satisfies Prisma.InvoiceInclude;
 
 const Body = z.object({
-  action: z.enum(["approve", "reject", "startPayment", "expire"]),
+  action: z.enum(["approve", "reject", "startPayment", "confirmPayment", "expire"]),
   reason: z.string().trim().max(500).optional(),
+  txHash: z.string().trim().optional(),
 });
 
 /**
@@ -37,13 +40,16 @@ const Body = z.object({
 export const POST = handler(
   async (request: Request, ctx: { params: Promise<{ ref: string }> }) => {
     const { ref } = await ctx.params;
-    const { action, reason } = await readJson(request, Body);
+    const { action, reason, txHash } = await readJson(request, Body);
 
     // `startPayment` is what a buyer holding the invoice link triggers when the
     // payment screen opens. It carries no financial effect and reveals nothing
     // the public invoice lookup doesn't already show, so it needs no session.
     // Every other action is staff-only and resolves a user first.
-    const user = action === "startPayment" ? await currentUser() : await requireUser();
+    const user =
+      action === "startPayment" || action === "confirmPayment"
+        ? await currentUser()
+        : await requireUser();
 
     const invoice = await db.invoice.findFirst({
       where: { OR: [{ ref }, { trxRef: ref }] },
@@ -96,6 +102,53 @@ export const POST = handler(
         }
         to = "PAYMENT_PENDING";
         actor = "COUNTERPARTY";
+        break;
+      }
+      case "confirmPayment": {
+        // The buyer reports the hash of the payment they made. The deposit
+        // watcher does this automatically when log scanning is available; this
+        // path lets a payment settle without it, and is no less safe because
+        // the chain — not the caller — supplies amount and recipient.
+        assertTransition(from, ["APPROVED", "PAYMENT_PENDING"], "ثبت پرداخت");
+        if (!txHash) throw badRequest("هش تراکنش الزامی است");
+        if (!invoice.paymentAddress) throw badRequest("آدرس پرداخت این فاکتور تعیین نشده است");
+
+        let verified;
+        try {
+          verified = await verifyTransfer(txHash, {
+            to: invoice.paymentAddress,
+            currency: invoice.currency,
+            minAmount: invoice.amount.toString(),
+          });
+        } catch (error) {
+          if (error instanceof ChainVerificationError) throw badRequest(error.message);
+          throw error;
+        }
+
+        const chainTx = await recordChainTx(verified, "IN");
+        if (chainTx.matchedAt) throw conflict("این تراکنش قبلاً برای فاکتور دیگری ثبت شده است");
+
+        const settings = await db.settings.findUnique({ where: { id: 1 } });
+        const gross = Number(invoice.amount);
+        const rawFee = (gross * Number(settings?.feeBasePercent ?? 2)) / 100;
+        const fee = Math.min(
+          Math.max(rawFee, Number(settings?.feeMin ?? 0)),
+          Number(settings?.feeMax ?? rawFee),
+        );
+
+        to = "PAID";
+        actor = "COUNTERPARTY";
+        data = {
+          chainTx: { connect: { id: chainTx.id } },
+          paidAt: new Date(),
+          feeAmount: fee.toFixed(8),
+          netAmount: (gross - fee).toFixed(8),
+        };
+        recipientNote = {
+          kind: "PAYMENT_RECEIVED",
+          title: "پرداخت دریافت شد",
+          body: `پرداخت فاکتور ${invoice.ref} روی شبکه تأیید شد`,
+        };
         break;
       }
       case "expire": {

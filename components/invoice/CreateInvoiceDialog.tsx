@@ -48,13 +48,17 @@ export function CreateInvoiceDialog() {
       defaultValues: { currency: "USDT" as Currency },
     });
 
-  const onSubmit = (data: FormValues) => {
-    const inv = create(data);
-    toast.success("فاکتور با موفقیت ایجاد شد", {
-      description: `شماره فاکتور: ${inv.id} — منتظر تأیید ادمین`,
-    });
-    reset();
-    setOpen(false);
+  const onSubmit = async (data: FormValues) => {
+    try {
+      const inv = await create(data);
+      toast.success("فاکتور با موفقیت ایجاد شد", {
+        description: `شماره فاکتور: ${inv.id} — منتظر تأیید ادمین`,
+      });
+      reset();
+      setOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ثبت فاکتور ناموفق بود");
+    }
   };
 
   return (

@@ -32,8 +32,7 @@ type Props = {
 export function BankSendReviewDialog({ item, onOpenChange }: Props) {
   const lockRate = useSendStore((s) => s.lockBankRate);
   const confirmRial = useSendStore((s) => s.confirmRialDeposit);
-  const sendCrypto = useSendStore((s) => s.sendCrypto);
-  const markPaid = useSendStore((s) => s.markPaid);
+  const recordCryptoSent = useSendStore((s) => s.recordCryptoSent);
   const rejectBank = useSendStore((s) => s.rejectBank);
   const wallets = useBankStore((s) => s.wallets);
   const settings = useSettingsStore((s) => s.settings);
@@ -42,6 +41,7 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
   const [bankAccount, setBankAccount] = useState("IR84-0170-0000-0011-2233-44");
   const [receiptNo, setReceiptNo] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+  const [txHash, setTxHash] = useState("");
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -51,6 +51,7 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
       const send = wallets.find((w) => w.active && (w.kind === "SEND" || w.kind === "SHARED"));
       setWalletAddress(send?.address ?? wallets[0]?.address ?? "");
       setReceiptNo("");
+      setTxHash("");
       setRejectMode(false);
       setRejectReason("");
     }
@@ -80,20 +81,24 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
     onOpenChange(false);
   }
 
-  function handleSendCrypto() {
+  async function handleSendCrypto() {
     if (!walletAddress) {
       toast.error("کیف پول مبدأ را انتخاب کنید");
       return;
     }
-    sendCrypto(item!.id, walletAddress);
-    toast.success("کریپتو با موفقیت ارسال شد");
-    onOpenChange(false);
-  }
-
-  function handleMarkPaid() {
-    markPaid(item!.id);
-    toast.success("ارسال نهایی به کاربر خارجی انجام شد");
-    onOpenChange(false);
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash.trim())) {
+      toast.error("هش تراکنش معتبر نیست");
+      return;
+    }
+    try {
+      // The transfer is signed outside the system; what registers it here is
+      // the chain agreeing on recipient, currency and amount.
+      await recordCryptoSent(item!.id, txHash.trim(), walletAddress);
+      toast.success("تراکنش روی شبکه راستی‌آزمایی و ثبت شد");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ثبت تراکنش ناموفق بود");
+    }
   }
 
   function handleReject() {
@@ -233,6 +238,20 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
                   مقصد: <span className="font-mono" dir="ltr">{truncateAddress(item.recipientWalletAddress ?? "")}</span>
                 </p>
               </div>
+              <div className="space-y-1.5">
+                <Label>هش تراکنش انجام‌شده</Label>
+                <Input
+                  dir="ltr"
+                  placeholder="0x..."
+                  value={txHash}
+                  onChange={(e) => setTxHash(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  انتقال را از کیف پول بانک انجام دهید و هش آن را اینجا وارد کنید؛ سامانه
+                  مبلغ و گیرنده را روی شبکه راستی‌آزمایی می‌کند.
+                </p>
+              </div>
             </div>
           ) : null}
 
@@ -243,7 +262,8 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
                 کریپتو ارسال شد — منتظر تأیید نهایی کاربر ایرانی
               </div>
               <p className="text-xs text-muted-foreground">
-                کاربر ایرانی باید کریپتو را به والت کاربر خارجی منتقل کند.
+                تراکنش ثبت شد و در حال دریافت تأییدیه‌های شبکه است. با رسیدن به حد نصاب،
+                وضعیت به‌صورت خودکار «موفق» می‌شود.
               </p>
             </div>
           ) : null}
@@ -272,15 +292,10 @@ export function BankSendReviewDialog({ item, onOpenChange }: Props) {
           {!rejectMode && stage === "RIAL_RECEIVED" ? (
             <Button onClick={handleSendCrypto} className="bg-info hover:bg-info/90">
               <Send className="h-4 w-4" />
-              ارسال کریپتو
+              ثبت و راستی‌آزمایی تراکنش
             </Button>
           ) : null}
-          {!rejectMode && stage === "CRYPTO_SENT" ? (
-            <Button onClick={handleMarkPaid} className="bg-emerald-700 hover:bg-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-              تأیید نهایی به کاربر خارجی
-            </Button>
-          ) : null}
+
         </DialogFooter>
       </DialogContent>
     </Dialog>

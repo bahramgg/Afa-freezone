@@ -27,7 +27,7 @@ const COUNTRIES = ["چین", "آلمان", "ترکیه", "روسیه", "امار
 
 export default function ForeignProfilePage() {
   const router = useRouter();
-  const completeProfile = useForeignStore((s) => s.completeProfile);
+  const updateProfile = useForeignStore((s) => s.updateProfile);
   const user = useForeignStore((s) => s.user);
 
   const form = useForm<FormValues>({
@@ -43,7 +43,7 @@ export default function ForeignProfilePage() {
   });
 
   function onSubmit(values: FormValues) {
-    completeProfile(values);
+    updateProfile(values);
     router.replace("/foreign/kyc-waiting");
   }
 

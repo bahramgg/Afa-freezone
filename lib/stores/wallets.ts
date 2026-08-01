@@ -1,46 +1,52 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { broadcast, subscribeBroadcast } from "./_broadcast";
-import { seedWallets } from "../mock/fixtures";
+import { api } from "../api/client";
+import { onReload, pingReload } from "./_sync";
 import type { Wallet } from "../types";
-
-type WalletsState = {
-  list: Wallet[];
-  add: (w: Omit<Wallet, "verified" | "verifiedAt" | "network">) => Wallet;
-  remove: (address: string) => void;
-};
 
 const SLICE = "wallets";
 
-export const useWalletsStore = create<WalletsState>()(
-  persist(
-    (set, get) => ({
-      list: seedWallets(),
-      add: (w) => {
-        const wallet: Wallet = {
-          ...w,
-          network: "BSC",
-          verified: true,
-          verifiedAt: new Date().toISOString(),
-        };
-        set({ list: [...get().list, wallet] });
-        broadcast(SLICE, { list: get().list });
-        return wallet;
-      },
-      remove: (address) => {
-        set({ list: get().list.filter((w) => w.address !== address) });
-        broadcast(SLICE, { list: get().list });
-      },
-    }),
-    { name: "afa-demo:wallets", version: 1 },
-  ),
-);
+type WalletsState = {
+  list: Wallet[];
+  loading: boolean;
+  loaded: boolean;
 
-if (typeof window !== "undefined") {
-  subscribeBroadcast(SLICE, (payload) => {
-    const p = payload as { list?: Wallet[] };
-    if (p?.list) useWalletsStore.setState({ list: p.list }, false);
-  });
-}
+  load: () => Promise<void>;
+  add: (input: { address: string; label?: string }) => Promise<Wallet>;
+  remove: (id: string) => Promise<void>;
+};
+
+export const useWalletsStore = create<WalletsState>()((set, get) => ({
+  list: [],
+  loading: false,
+  loaded: false,
+
+  load: async () => {
+    set({ loading: true });
+    try {
+      const { list } = await api.get<{ list: Wallet[] }>("/wallets?scope=mine");
+      set({ list, loaded: true });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  add: async (input) => {
+    const { wallet } = await api.post<{ wallet: Wallet }>("/wallets", {
+      ...input,
+      scope: "mine",
+    });
+    set({ list: [...get().list, wallet] });
+    pingReload(SLICE);
+    return wallet;
+  },
+
+  remove: async (id) => {
+    await api.delete(`/wallets/${id}`);
+    set({ list: get().list.filter((w) => w.id !== id) });
+    pingReload(SLICE);
+  },
+}));
+
+onReload(SLICE, () => useWalletsStore.getState().load());

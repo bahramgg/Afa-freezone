@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Vazirmatn } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { SessionBootstrap } from "@/components/layout/DataBootstrap";
 import "./globals.css";
 
 const vazirmatn = Vazirmatn({
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="fa-IR" dir="rtl" className={`${vazirmatn.variable} h-full antialiased`}>
       <body className="min-h-full bg-background text-foreground">
         <ThemeProvider>
+          <SessionBootstrap />
           {children}
         </ThemeProvider>
         <Toaster

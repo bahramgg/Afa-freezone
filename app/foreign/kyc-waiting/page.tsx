@@ -7,20 +7,26 @@ import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Logo } from "@/components/shared/Logo";
 import { useForeignStore } from "@/lib/stores/foreign";
-import { TIMINGS } from "@/lib/mock/timings";
 
 export default function ForeignKycWaitingPage() {
   const router = useRouter();
-  const markKyc = useForeignStore((s) => s.markKycApproved);
+  const reloadForeign = useForeignStore((s) => s.load);
+
+  const hasPassedKyc = useForeignStore((s) => s.hasPassedKyc);
+
+  // A reviewer approves from the admin panel, so this page polls for the
+  // decision rather than simulating one after a delay.
+  useEffect(() => {
+    if (hasPassedKyc) return;
+    const timer = setInterval(() => void reloadForeign(), 15_000);
+    return () => clearInterval(timer);
+  }, [hasPassedKyc, reloadForeign]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      markKyc();
-      toast.success("احراز هویت تأیید شد");
-      router.replace("/foreign/dashboard");
-    }, TIMINGS.KYC_WAIT_MS);
-    return () => clearTimeout(t);
-  }, [markKyc, router]);
+    if (!hasPassedKyc) return;
+    toast.success("احراز هویت تأیید شد");
+    router.replace("/foreign/dashboard");
+  }, [hasPassedKyc, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-info/5 to-background p-6">

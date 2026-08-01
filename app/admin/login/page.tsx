@@ -8,27 +8,27 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useAuthStore } from "@/lib/stores/auth";
-import { TIMINGS } from "@/lib/mock/timings";
 import { toast } from "sonner";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const loginAdmin = useAuthStore((s) => s.loginAdmin);
-  const [user, setUser] = useState("admin");
-  const [pass, setPass] = useState("admin");
+  const loginPassword = useAuthStore((s) => s.loginPassword);
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user.toLowerCase().startsWith("admin")) {
-      toast.error("نام کاربری ادمین باید با admin شروع شود");
-      return;
-    }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, TIMINGS.OTP_VERIFY_MS));
-    loginAdmin();
-    toast.success("ورود ادمین موفق");
-    router.replace("/admin/dashboard");
+    try {
+      await loginPassword(user, pass, "admin");
+      toast.success("ورود ادمین موفق");
+      router.replace("/admin/dashboard");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ورود ناموفق بود");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -50,9 +50,12 @@ export default function AdminLoginPage() {
 
         <form onSubmit={submit} className="space-y-4 rounded-lg border border-white/10 bg-slate-900 p-6">
           <div className="space-y-2">
-            <Label htmlFor="user" className="text-slate-300">نام کاربری</Label>
+            <Label htmlFor="user" className="text-slate-300">ایمیل</Label>
             <Input
               id="user"
+              type="email"
+              autoComplete="username"
+              dir="ltr"
               value={user}
               onChange={(e) => setUser(e.target.value)}
               className="bg-slate-800 border-white/10 text-slate-100"

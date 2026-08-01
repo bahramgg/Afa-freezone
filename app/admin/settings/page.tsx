@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -14,30 +14,51 @@ export default function AdminSettingsPage() {
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
 
-  const [feeBasePercent, setFeeBasePercent] = useState(settings.feeBasePercent);
-  const [feeMin, setFeeMin] = useState(settings.feeMin);
-  const [feeMax, setFeeMax] = useState(settings.feeMax);
-  const [validity, setValidity] = useState(settings.invoiceValidityMinutes);
-  const [minAmount, setMinAmount] = useState(settings.invoiceMinAmount);
-  const [maxAmount, setMaxAmount] = useState(settings.invoiceMaxAmount);
+  // Only fields the admin has actually typed into live in local state; every
+  // other value reads straight from the store, so a settings refetch is picked
+  // up without an effect copying one piece of state into another.
+  const [draft, setDraft] = useState<Partial<typeof settings>>({});
+  const field = <K extends keyof typeof settings>(key: K) =>
+    (draft[key] ?? settings[key]) as (typeof settings)[K];
+  const edit = <K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
 
-  useEffect(() => {
-    setFeeBasePercent(settings.feeBasePercent);
-    setFeeMin(settings.feeMin);
-    setFeeMax(settings.feeMax);
-    setValidity(settings.invoiceValidityMinutes);
-    setMinAmount(settings.invoiceMinAmount);
-    setMaxAmount(settings.invoiceMaxAmount);
-  }, [settings]);
+  const feeBasePercent = field("feeBasePercent");
+  const feeMin = field("feeMin");
+  const feeMax = field("feeMax");
+  const validity = field("invoiceValidityMinutes");
+  const minAmount = field("invoiceMinAmount");
+  const maxAmount = field("invoiceMaxAmount");
 
-  function saveFee() {
-    update({ feeBasePercent, feeMin, feeMax });
-    toast.success("تنظیمات کارمزد ذخیره شد");
+  const setFeeBasePercent = (v: number) => edit("feeBasePercent", v);
+  const setFeeMin = (v: number) => edit("feeMin", v);
+  const setFeeMax = (v: number) => edit("feeMax", v);
+  const setValidity = (v: number) => edit("invoiceValidityMinutes", v);
+  const setMinAmount = (v: number) => edit("invoiceMinAmount", v);
+  const setMaxAmount = (v: number) => edit("invoiceMaxAmount", v);
+
+  async function saveFee() {
+    try {
+      await update({ feeBasePercent, feeMin, feeMax });
+      setDraft({});
+      toast.success("تنظیمات کارمزد ذخیره شد");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ذخیره ناموفق بود");
+    }
   }
 
-  function saveInvoice() {
-    update({ invoiceValidityMinutes: validity, invoiceMinAmount: minAmount, invoiceMaxAmount: maxAmount });
-    toast.success("تنظیمات فاکتور ذخیره شد");
+  async function saveInvoice() {
+    try {
+      await update({
+        invoiceValidityMinutes: validity,
+        invoiceMinAmount: minAmount,
+        invoiceMaxAmount: maxAmount,
+      });
+      setDraft({});
+      toast.success("تنظیمات فاکتور ذخیره شد");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ذخیره ناموفق بود");
+    }
   }
 
   return (

@@ -7,13 +7,13 @@ import { LogOut, Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/shared/Logo";
-import { useBankStore } from "@/lib/stores/bank";
+import { useAuthStore } from "@/lib/stores/auth";
 import { cn } from "@/lib/cn";
 import { BANK_NAV } from "./BankSidebar";
 
 export function BankMobileNav() {
   const pathname = usePathname();
-  const logout = useBankStore((s) => s.logoutBank);
+  const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
   const [open, setOpen] = useState(false);
 

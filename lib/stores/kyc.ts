@@ -1,93 +1,78 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { broadcast, subscribeBroadcast } from "./_broadcast";
+import { api, query } from "../api/client";
+import { onReload, pingReload } from "./_sync";
+
+const SLICE = "kyc";
 
 export type KycStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type KycRequest = {
   uid: string;
   fullName: string;
-  nationalId: string;
-  phone: string;
-  freezoneId: string;
-  address: string;
-  status: KycStatus;
+  role?: string;
+  nationalId?: string;
+  passportNo?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  freezoneId?: string;
+  address?: string;
+  kyc: KycStatus;
+  kycRejectReason?: string;
   submittedAt: string;
-  reviewedAt?: string;
-  rejectNote?: string;
 };
 
 type KycState = {
   requests: KycRequest[];
-  submitRequest: (data: Omit<KycRequest, "status" | "submittedAt">) => void;
-  approveRequest: (uid: string) => void;
-  rejectRequest: (uid: string, note?: string) => void;
+  loading: boolean;
+  loaded: boolean;
+
+  load: (status?: KycStatus | "ALL") => Promise<void>;
+  approveRequest: (uid: string) => Promise<void>;
+  rejectRequest: (uid: string, reason: string) => Promise<void>;
   getRequestByUid: (uid: string) => KycRequest | undefined;
 };
 
-const SLICE = "kyc";
+export const useKycStore = create<KycState>()((set, get) => ({
+  requests: [],
+  loading: false,
+  loaded: false,
 
-type KycSnapshot = Pick<KycState, "requests">;
+  load: async (status = "PENDING") => {
+    set({ loading: true });
+    try {
+      const { list } = await api.get<{ list: KycRequest[] }>(
+        `/admin/kyc${query({ status })}`,
+      );
+      set({ requests: list, loaded: true });
+    } catch {
+      set({ requests: [], loaded: true });
+    } finally {
+      set({ loading: false });
+    }
+  },
 
-function snapshot(s: KycState): KycSnapshot {
-  return { requests: s.requests };
-}
+  approveRequest: async (uid) => {
+    await api.post(`/admin/kyc/${uid}`, { action: "approve" });
+    set({
+      requests: get().requests.map((r) => (r.uid === uid ? { ...r, kyc: "APPROVED" } : r)),
+    });
+    pingReload(SLICE);
+  },
 
-export const useKycStore = create<KycState>()(
-  persist(
-    (set, get) => ({
-      requests: [],
-      submitRequest: (data) => {
-        const existing = get().requests.find((r) => r.uid === data.uid);
-        if (existing) {
-          set({
-            requests: get().requests.map((r) =>
-              r.uid === data.uid
-                ? { ...r, ...data, status: "PENDING", submittedAt: new Date().toISOString(), reviewedAt: undefined, rejectNote: undefined }
-                : r
-            ),
-          });
-        } else {
-          set({
-            requests: [
-              ...get().requests,
-              { ...data, status: "PENDING", submittedAt: new Date().toISOString() },
-            ],
-          });
-        }
-        broadcast(SLICE, snapshot(get()));
-      },
-      approveRequest: (uid) => {
-        set({
-          requests: get().requests.map((r) =>
-            r.uid === uid
-              ? { ...r, status: "APPROVED", reviewedAt: new Date().toISOString() }
-              : r
-          ),
-        });
-        broadcast(SLICE, snapshot(get()));
-      },
-      rejectRequest: (uid, note) => {
-        set({
-          requests: get().requests.map((r) =>
-            r.uid === uid
-              ? { ...r, status: "REJECTED", reviewedAt: new Date().toISOString(), rejectNote: note }
-              : r
-          ),
-        });
-        broadcast(SLICE, snapshot(get()));
-      },
-      getRequestByUid: (uid) => get().requests.find((r) => r.uid === uid),
-    }),
-    { name: "afa-demo:kyc", version: 1 }
-  )
-);
+  rejectRequest: async (uid, reason) => {
+    await api.post(`/admin/kyc/${uid}`, { action: "reject", reason });
+    set({
+      requests: get().requests.map((r) =>
+        r.uid === uid ? { ...r, kyc: "REJECTED", kycRejectReason: reason } : r,
+      ),
+    });
+    pingReload(SLICE);
+  },
 
-if (typeof window !== "undefined") {
-  subscribeBroadcast(SLICE, (payload) => {
-    if (!payload || typeof payload !== "object") return;
-    useKycStore.setState(payload as Partial<KycState>, false);
-  });
-}
+  getRequestByUid: (uid) => get().requests.find((r) => r.uid === uid),
+}));
+
+onReload(SLICE, () => useKycStore.getState().load());

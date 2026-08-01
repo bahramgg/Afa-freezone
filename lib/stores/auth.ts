@@ -1,109 +1,119 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { broadcast, subscribeBroadcast } from "./_broadcast";
-import { seedUser } from "../mock/fixtures";
+import { api } from "../api/client";
+import { onReload, pingReload } from "./_sync";
 import type { User } from "../types";
-
-type AuthState = {
-  user: User | null;
-  isAuthed: boolean;
-  isAdmin: boolean;
-  hasProfile: boolean;
-  hasPassedKyc: boolean;
-  loginPhone: (phone: string) => void;
-  loginGoogle: () => void;
-  loginAdmin: () => void;
-  completeProfile: (patch: Partial<User>) => void;
-  markKycApproved: () => void;
-  updateProfile: (patch: Partial<User>) => void;
-  logout: () => void;
-  logoutAdmin: () => void;
-};
 
 const SLICE = "auth";
 
-function deriveFlags(user: User | null): { hasProfile: boolean; hasPassedKyc: boolean } {
-  if (!user) return { hasProfile: false, hasPassedKyc: false };
+type SessionPayload = {
+  user: (User & { role?: string }) | null;
+  hasProfile?: boolean;
+  hasPassedKyc?: boolean;
+};
+
+type AuthState = {
+  user: User | null;
+  role: string | null;
+  isAuthed: boolean;
+  isAdmin: boolean;
+  isBank: boolean;
+  hasProfile: boolean;
+  hasPassedKyc: boolean;
+  /** False until the first /me call resolves, so guards don't redirect early. */
+  ready: boolean;
+
+  load: () => Promise<void>;
+  requestOtp: (phone: string) => Promise<{ expiresAt: string; devCode?: string }>;
+  verifyOtp: (phone: string, code: string) => Promise<void>;
+  loginPassword: (
+    email: string,
+    password: string,
+    portal: "foreign" | "admin" | "bank",
+  ) => Promise<void>;
+  register: (input: {
+    fullName: string;
+    email: string;
+    password: string;
+    passportNo?: string;
+    country?: string;
+    phone?: string;
+  }) => Promise<void>;
+  updateProfile: (patch: Partial<User>) => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+const EMPTY = {
+  user: null,
+  role: null,
+  isAuthed: false,
+  isAdmin: false,
+  isBank: false,
+  hasProfile: false,
+  hasPassedKyc: false,
+} as const;
+
+function fromPayload(payload: SessionPayload) {
+  const role = payload.user?.role ?? null;
   return {
-    hasProfile: !!(user.fullName && user.nationalId),
-    hasPassedKyc: user.kyc === "APPROVED",
+    user: payload.user,
+    role,
+    isAuthed: !!payload.user,
+    isAdmin: role === "ADMIN",
+    isBank: role === "BANK",
+    hasProfile: payload.hasProfile ?? false,
+    hasPassedKyc: payload.hasPassedKyc ?? false,
   };
 }
 
-type AuthSnapshot = Pick<
-  AuthState,
-  "user" | "isAuthed" | "isAdmin" | "hasProfile" | "hasPassedKyc"
->;
+export const useAuthStore = create<AuthState>()((set) => ({
+  ...EMPTY,
+  ready: false,
 
-function snapshot(s: AuthState): AuthSnapshot {
-  return {
-    user: s.user,
-    isAuthed: s.isAuthed,
-    isAdmin: s.isAdmin,
-    hasProfile: s.hasProfile,
-    hasPassedKyc: s.hasPassedKyc,
-  };
-}
+  load: async () => {
+    try {
+      const data = await api.get<SessionPayload>("/auth/me");
+      set({ ...fromPayload(data), ready: true });
+    } catch {
+      // A failed lookup is indistinguishable from being signed out, and the
+      // guards treat both the same way.
+      set({ ...EMPTY, ready: true });
+    }
+  },
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      isAuthed: false,
-      isAdmin: false,
-      hasProfile: false,
-      hasPassedKyc: false,
-      loginPhone: (phone) => {
-        const user = get().user ?? { ...seedUser(), phone };
-        set({ isAuthed: true, user, ...deriveFlags(user) });
-        broadcast(SLICE, snapshot(get()));
-      },
-      loginGoogle: () => {
-        const user = get().user ?? seedUser();
-        set({ isAuthed: true, user, ...deriveFlags(user) });
-        broadcast(SLICE, snapshot(get()));
-      },
-      loginAdmin: () => {
-        set({ isAdmin: true });
-        broadcast(SLICE, snapshot(get()));
-      },
-      completeProfile: (patch) => {
-        const base = get().user ?? seedUser();
-        set({
-          user: { ...base, ...patch },
-          hasProfile: true,
-        });
-        broadcast(SLICE, snapshot(get()));
-      },
-      markKycApproved: () => {
-        const u = get().user ?? seedUser();
-        set({ user: { ...u, kyc: "APPROVED" }, hasPassedKyc: true });
-        broadcast(SLICE, snapshot(get()));
-      },
-      updateProfile: (patch) => {
-        const u = get().user;
-        if (!u) return;
-        set({ user: { ...u, ...patch } });
-        broadcast(SLICE, snapshot(get()));
-      },
-      logout: () => {
-        set({ isAuthed: false, hasProfile: false, hasPassedKyc: false });
-        broadcast(SLICE, snapshot(get()));
-      },
-      logoutAdmin: () => {
-        set({ isAdmin: false });
-        broadcast(SLICE, snapshot(get()));
-      },
-    }),
-    { name: "afa-demo:auth", version: 1 },
-  ),
-);
+  requestOtp: (phone) =>
+    api.post<{ expiresAt: string; devCode?: string }>("/auth/otp/request", { phone }),
 
-if (typeof window !== "undefined") {
-  subscribeBroadcast(SLICE, (payload) => {
-    if (!payload || typeof payload !== "object") return;
-    useAuthStore.setState(payload as Partial<AuthState>, false);
-  });
-}
+  verifyOtp: async (phone, code) => {
+    const data = await api.post<SessionPayload>("/auth/otp/verify", { phone, code });
+    set({ ...fromPayload(data), ready: true });
+    pingReload(SLICE);
+  },
+
+  loginPassword: async (email, password, portal) => {
+    const data = await api.post<SessionPayload>("/auth/login", { email, password, portal });
+    set({ ...fromPayload(data), ready: true });
+    pingReload(SLICE);
+  },
+
+  register: async (input) => {
+    const data = await api.post<SessionPayload>("/auth/register", input);
+    set({ ...fromPayload(data), ready: true });
+    pingReload(SLICE);
+  },
+
+  updateProfile: async (patch) => {
+    const data = await api.patch<SessionPayload>("/profile", patch);
+    set(fromPayload(data));
+    pingReload(SLICE);
+  },
+
+  logout: async () => {
+    await api.post("/auth/logout");
+    set({ ...EMPTY, ready: true });
+    pingReload(SLICE);
+  },
+}));
+
+onReload(SLICE, () => useAuthStore.getState().load());

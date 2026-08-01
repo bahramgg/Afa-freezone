@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useAuthStore } from "@/lib/stores/auth";
 import { useForeignStore } from "@/lib/stores/foreign";
 import { useHydrated } from "@/lib/stores/hydration";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -11,7 +12,8 @@ export function ForeignAuthGuard({ children }: { children: React.ReactNode }) {
   const hasProfile = useForeignStore((s) => s.hasProfile);
   const hasPassedKyc = useForeignStore((s) => s.hasPassedKyc);
   const router = useRouter();
-  const hydrated = useHydrated();
+  const ready = useAuthStore((s) => s.ready);
+  const hydrated = useHydrated() && ready;
 
   useEffect(() => {
     if (!hydrated) return;

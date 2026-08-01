@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/shared/Logo";
 import { Button } from "@/components/ui/Button";
-import { useBankStore } from "@/lib/stores/bank";
+import { useAuthStore } from "@/lib/stores/auth";
 import { cn } from "@/lib/cn";
 
 export const BANK_NAV = [
@@ -29,7 +29,7 @@ export const BANK_NAV = [
 export function BankSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const logout = useBankStore((s) => s.logoutBank);
+  const logout = useAuthStore((s) => s.logout);
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 border-s border-white/10 bg-emerald-950 text-emerald-50 sticky top-0 h-screen">

@@ -1,37 +1,71 @@
 @AGENTS.md
 
-# `frontend-demo/` — Local Agent Guide
+# AFA — Agent Guide
 
-> The click-through demo for **منطقه آزاد گلستان**. Mocked end-to-end. No backend, no chain, no real auth.
-> The authoritative context lives in `../claude-code/` — read it first.
+Currency payment gateway for **منطقه آزاد گلستان**. Real backend, real database,
+real chain reads. Read `README.md` first for setup and the security model.
 
-## Read in this order
+## Shape of the codebase
 
-1. `../CLAUDE.md` — workspace overview.
-2. `../claude-code/README.md` — how the memory system works.
-3. `../claude-code/PROJECT_OVERVIEW.md` — what this product is.
-4. `../claude-code/CONVENTIONS.md` — coding rules (RTL, Persian, mock-data discipline).
-5. `../claude-code/decisions/001-frontend-demo-stack.md` — why we picked the stack.
-6. **`../claude-code/plans/frontend-demo.md`** — the phased build plan you'll execute.
-7. **`../claude-code/progress/frontend-demo.md`** — the running log of what's been done.
-8. `../docs/demo-requirements.md` — Persian product spec (the source of truth for behavior).
+```
+app/
+  page.tsx           landing page (public)
+  (user)/            Iranian merchant panel
+  foreign/           foreign merchant panel
+  admin/             free-zone admin panel
+  bank/              settlement bank panel
+  api/               route handlers — the whole server
+lib/
+  server/            server-only: db, env, auth, http, chain, serializers
+  stores/            Zustand stores; thin caches over the API
+  api/client.ts      fetch wrapper, {ok, data|error} envelope
+  generated/prisma/  generated client — do not edit, do not commit
+prisma/
+  schema.prisma      domain model
+  seed.ts            bootstrap accounts + bank wallets
+```
 
-## Working rules in this app
+## Rules
 
-- **Never** add `fetch`, `axios`, `ethers`, `viem`, `web3`, or any wallet connector. The demo is fully mocked.
-- **Persian fa-IR + RTL.** All user-facing strings are Persian. Code/comments are English.
-- **State:** Zustand stores in `lib/stores/` with `persist` + `BroadcastChannel('afa-demo')`.
-- **Dates:** ISO in state, Jalali (شمسی) at render via `dayjs` + `jalaliday`.
-- **Components:** shadcn/ui primitives in `components/ui/`, feature components elsewhere.
-- **Path alias:** `@/*` from the `frontend-demo/` root.
+- **Persian fa-IR + RTL** for every user-facing string. Code and comments in
+  English. Latin identifiers (addresses, hashes) go in `<Ltr>`, never
+  `dir="ltr"` on a table cell — that breaks column alignment.
+- **Dates:** ISO in state and the database, Jalali at render via
+  `formatJalali` / `<JalaliDate>`. Both emit Persian digits.
+- **Money:** `Decimal` in the database, `formatToken` / `<MoneyText>` at render.
+  Never format an amount by hand.
+- **Server files** import `server-only` and live under `lib/server/`. Nothing
+  there may be imported from a client component.
+- **Every state transition** goes through the flow's `/transition` route, which
+  checks the caller's role *and* the record's current status, and appends a
+  `StatusEvent`. Do not mutate a status anywhere else.
+- **Never trust a client-supplied amount, recipient or tx hash.** Chain facts
+  come from `verifyTransfer`, which reads the receipt from the node.
+- **Query scope comes from the session**, never from a client filter parameter.
+- **No private keys.** Signing happens outside the system; the operator submits
+  a hash and the chain is the proof.
+- **Path alias:** `@/*` from the repo root.
+
+## Working on the UI
+
+- shadcn-style primitives in `components/ui/`, feature components beside their
+  domain (`components/invoice/`, `components/bank/`, …).
+- Tables live inside `overflow-x-auto` and carry a `min-w-*` so columns keep
+  their width and the container scrolls on narrow screens.
+- `Card` is `min-w-0` so a card holding a wide table can shrink inside a grid.
+- Stores start empty; `DataBootstrap` in each layout loads what that persona
+  needs. A new store needs a loader added there, not a fetch in the page.
 
 ## Before declaring a task done
 
-- [ ] Updated `../claude-code/plans/frontend-demo.md` if scope/approach changed.
-- [ ] Appended a dated entry to `../claude-code/progress/frontend-demo.md`.
-- [ ] Ticked the matching checkbox in the plan.
-- [ ] If a non-obvious decision was made: wrote a new ADR in `../claude-code/decisions/`.
+- [ ] `npx tsc --noEmit` is clean.
+- [ ] `npm run build` succeeds.
+- [ ] If routes or flows changed, walk them in a browser — not just unit-level.
+- [ ] No page-level horizontal scroll at 390px.
 
-## Heads-up about Next.js 16
+## Heads-up about the versions
 
-This project uses Next.js 16 + React 19 + Tailwind v4. Some APIs differ from older training data — when in doubt, consult `node_modules/next/dist/docs/` over recall.
+Next.js 16 + React 19 + Tailwind v4 + Prisma 7. Several APIs differ from older
+training data — notably Prisma 7 moved the datasource URL into
+`prisma.config.ts` and requires a driver adapter. When in doubt, consult
+`node_modules/<pkg>/` over recall.

@@ -21,7 +21,9 @@ import {
 } from "@/components/ui/Dialog";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { MoneyText } from "@/components/shared/MoneyText";
-import { seedAdminUsers } from "@/lib/mock/fixtures";
+import { useAdminUsersStore } from "@/lib/stores/adminUsers";
+import { useKycStore } from "@/lib/stores/kyc";
+import { useLoad } from "@/lib/stores/useLoad";
 import { toPersianDigits, truncateAddress } from "@/lib/format";
 import type { AdminUserRecord } from "@/lib/types";
 
@@ -29,8 +31,11 @@ type KycFilter = "ALL" | "APPROVED" | "PENDING" | "REJECTED";
 type TypeFilter = "ALL" | "IRANIAN" | "FOREIGN";
 
 export default function AdminUsersPage() {
-  const initialUsers = useMemo(() => seedAdminUsers(), []);
-  const [users, setUsers] = useState<AdminUserRecord[]>(initialUsers);
+  const users = useAdminUsersStore((s) => s.list);
+  const reloadUsers = useAdminUsersStore((s) => s.load);
+  const approveRequest = useKycStore((s) => s.approveRequest);
+  const rejectRequest = useKycStore((s) => s.rejectRequest);
+  useLoad(reloadUsers);
   const [kycFilter, setKycFilter] = useState<KycFilter>("ALL");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
   const [search, setSearch] = useState("");
@@ -55,22 +60,32 @@ export default function AdminUsersPage() {
     });
   }, [users, kycFilter, typeFilter, search]);
 
-  function approveKyc(uid: string) {
-    setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, kyc: "APPROVED", kycRejectReason: undefined } : u)));
-    toast.success(`KYC کاربر ${uid} تأیید شد`);
-    setSelected((s) => (s ? { ...s, kyc: "APPROVED", kycRejectReason: undefined } : s));
+  async function approveKyc(uid: string) {
+    try {
+      await approveRequest(uid);
+      await reloadUsers();
+      toast.success(`KYC کاربر ${uid} تأیید شد`);
+      setSelected((s) => (s ? { ...s, kyc: "APPROVED", kycRejectReason: undefined } : s));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تأیید ناموفق بود");
+    }
   }
 
-  function rejectKyc() {
+  async function rejectKyc() {
     if (!selected || !rejectReason.trim()) {
       toast.error("دلیل رد را وارد کنید");
       return;
     }
-    setUsers((prev) => prev.map((u) => (u.uid === selected.uid ? { ...u, kyc: "REJECTED", kycRejectReason: rejectReason } : u)));
-    toast.error(`KYC کاربر ${selected.uid} رد شد`);
-    setSelected({ ...selected, kyc: "REJECTED", kycRejectReason: rejectReason });
-    setRejectMode(false);
-    setRejectReason("");
+    try {
+      await rejectRequest(selected.uid, rejectReason);
+      await reloadUsers();
+      toast.error(`KYC کاربر ${selected.uid} رد شد`);
+      setSelected({ ...selected, kyc: "REJECTED", kycRejectReason: rejectReason });
+      setRejectMode(false);
+      setRejectReason("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "رد کردن ناموفق بود");
+    }
   }
 
   return (

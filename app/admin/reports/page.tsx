@@ -24,7 +24,9 @@ import { JalaliDate } from "@/components/shared/JalaliDate";
 import { useInvoicesStore } from "@/lib/stores/invoices";
 import { useSendStore } from "@/lib/stores/send";
 import { useSettlementsStore } from "@/lib/stores/settlements";
-import { adminVolumeSeries, seedAdminUsers } from "@/lib/mock/fixtures";
+import { adminVolumeSeries } from "@/lib/mock/fixtures";
+import { useAdminUsersStore } from "@/lib/stores/adminUsers";
+import { useLoad } from "@/lib/stores/useLoad";
 import { toPersianDigits } from "@/lib/format";
 
 const STATUS_COLORS = ["oklch(0.55 0.2 145)", "oklch(0.75 0.18 80)", "oklch(0.55 0.22 25)"];
@@ -41,7 +43,8 @@ export default function AdminReportsPage() {
     settle: [380, 520, 440, 620, 680, 790][i] ?? 0,
   }));
 
-  const users = useMemo(() => seedAdminUsers(), []);
+  const users = useAdminUsersStore((s) => s.list);
+  useLoad(useAdminUsersStore.getState().load);
   const iranian = users.filter((u) => u.type === "IRANIAN").length;
   const foreign = users.filter((u) => u.type === "FOREIGN").length;
   const pendingKyc = users.filter((u) => u.kyc === "PENDING").length;

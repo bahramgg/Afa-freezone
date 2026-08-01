@@ -2,14 +2,15 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useBankStore } from "@/lib/stores/bank";
+import { useAuthStore } from "@/lib/stores/auth";
 import { useHydrated } from "@/lib/stores/hydration";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 export function BankAuthGuard({ children }: { children: React.ReactNode }) {
-  const isAuthed = useBankStore((s) => s.isBankAuthed);
+  const isAuthed = useAuthStore((s) => s.isBank);
   const router = useRouter();
-  const hydrated = useHydrated();
+  const ready = useAuthStore((s) => s.ready);
+  const hydrated = useHydrated() && ready;
 
   useEffect(() => {
     if (!hydrated) return;

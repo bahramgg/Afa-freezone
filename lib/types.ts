@@ -116,15 +116,22 @@ export type Settlement = {
 };
 
 export type Wallet = {
+  /** Server-side row id; the address alone is not unique across users. */
+  id: string;
   address: string;
   label: string;
   network: "BSC";
   verified: boolean;
   verifiedAt: string;
+  createdAt?: string;
 };
 
+export type Role = "IRANIAN" | "FOREIGN" | "ADMIN" | "BANK";
+
 export type User = {
+  id?: string;
   uid: string;
+  role?: Role;
   type?: UserType;
   fullName: string;
   nationalId: string;
@@ -134,7 +141,9 @@ export type User = {
   email?: string;
   joinedAt: string;
   kyc: "APPROVED" | "PENDING" | "REJECTED";
+  kycRejectReason?: string;
   avatarColor: string;
+  disabled?: boolean;
 };
 
 export type ForeignUser = {
@@ -171,6 +180,7 @@ export type AdminUserRecord = {
 export type BankWalletKind = "SEND" | "RECEIVE" | "SHARED";
 
 export type BankWallet = {
+  id: string;
   address: string;
   label: string;
   network: "BSC";
@@ -210,6 +220,9 @@ export type Notification = {
 export type Transaction = {
   id: string;
   trxId?: string;
+  /** Present once the deposit is matched to a record. */
+  matched?: boolean;
+  blockNumber?: string;
   invoiceId?: string;
   direction: InvoiceDirection;
   amount: number;
@@ -217,7 +230,7 @@ export type Transaction = {
   counterpartyUid?: string;
   counterpartyName?: string;
   txHash: string;
-  status: "CONFIRMED" | "PENDING" | "FAILED" | "UNMATCHED";
+  status: "CONFIRMED" | "CONFIRMING" | "SEEN" | "PENDING" | "FAILED" | "UNMATCHED";
   createdAt: string;
   fromAddress: string;
   toAddress: string;

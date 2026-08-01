@@ -1,63 +1,56 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { broadcast, subscribeBroadcast } from "./_broadcast";
-import { seedNotifications } from "../mock/fixtures";
-import type { Notification, NotificationKind } from "../types";
-
-type NotificationsState = {
-  list: Notification[];
-  push: (n: Omit<Notification, "id" | "createdAt" | "read"> & { read?: boolean }) => void;
-  markRead: (id: string) => void;
-  markAllRead: () => void;
-  unreadCount: () => number;
-};
+import { api } from "../api/client";
+import { onReload, pingReload } from "./_sync";
+import type { Notification } from "../types";
 
 const SLICE = "notifications";
 
-export const useNotificationsStore = create<NotificationsState>()(
-  persist(
-    (set, get) => ({
-      list: seedNotifications(),
-      push: (n) => {
-        const item: Notification = {
-          id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          createdAt: new Date().toISOString(),
-          read: n.read ?? false,
-          ...n,
-        };
-        set({ list: [item, ...get().list] });
-        broadcast(SLICE, { list: get().list });
-      },
-      markRead: (id) => {
-        set({
-          list: get().list.map((n) => (n.id === id ? { ...n, read: true } : n)),
-        });
-        broadcast(SLICE, { list: get().list });
-      },
-      markAllRead: () => {
-        set({ list: get().list.map((n) => ({ ...n, read: true })) });
-        broadcast(SLICE, { list: get().list });
-      },
-      unreadCount: () => get().list.filter((n) => !n.read).length,
-    }),
-    { name: "afa-demo:notifications", version: 1 },
-  ),
-);
+type NotificationsState = {
+  list: Notification[];
+  unread: number;
+  loaded: boolean;
 
-if (typeof window !== "undefined") {
-  subscribeBroadcast(SLICE, (payload) => {
-    if (!payload || typeof payload !== "object") return;
-    useNotificationsStore.setState(payload as Partial<NotificationsState>, false);
-  });
-}
+  load: () => Promise<void>;
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  unreadCount: () => number;
+};
 
-export function pushNotification(
-  kind: NotificationKind,
-  title: string,
-  body: string,
-  href?: string,
-) {
-  useNotificationsStore.getState().push({ kind, title, body, href });
-}
+export const useNotificationsStore = create<NotificationsState>()((set, get) => ({
+  list: [],
+  unread: 0,
+  loaded: false,
+
+  load: async () => {
+    try {
+      const data = await api.get<{ list: Notification[]; unread: number }>("/notifications");
+      set({ list: data.list, unread: data.unread, loaded: true });
+    } catch {
+      // Signed-out visitors have no notifications; leaving the list empty is
+      // the correct outcome, not an error worth surfacing.
+      set({ list: [], unread: 0, loaded: true });
+    }
+  },
+
+  markRead: async (id) => {
+    // Optimistic: the badge should drop the moment the item is opened.
+    set({
+      list: get().list.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      unread: Math.max(0, get().unread - 1),
+    });
+    await api.post("/notifications", { id });
+    pingReload(SLICE);
+  },
+
+  markAllRead: async () => {
+    set({ list: get().list.map((n) => ({ ...n, read: true })), unread: 0 });
+    await api.post("/notifications", { all: true });
+    pingReload(SLICE);
+  },
+
+  unreadCount: () => get().unread,
+}));
+
+onReload(SLICE, () => useNotificationsStore.getState().load());

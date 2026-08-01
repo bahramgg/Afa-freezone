@@ -14,7 +14,7 @@ import { ADMIN_NAV } from "./AdminSidebar";
 export function AdminMobileNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const logoutAdmin = useAuthStore((s) => s.logoutAdmin);
+  const logoutAdmin = useAuthStore((s) => s.logout);
   const [open, setOpen] = useState(false);
 
   return (

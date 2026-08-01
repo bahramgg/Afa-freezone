@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AFA — درگاه پرداخت ارزی منطقه آزاد گلستان
 
-## Getting Started
+سامانهٔ دریافت، ارسال و تسویهٔ وجوه ارزی برای بازرگانان منطقه آزاد، با پرداخت
+روی شبکهٔ BSC و تسویهٔ ریالی از طریق بانک عامل.
 
-First, run the development server:
+## Stack
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Prisma 7 +
+PostgreSQL · viem (BSC) · Zustand · Radix UI · Recharts
+
+## چهار درگاه
+
+| مسیر         | نقش            | کارها                                             |
+| ------------ | -------------- | ------------------------------------------------- |
+| `/`          | لندینگ عمومی   | ورود به هر چهار پنل                               |
+| `/dashboard` | بازرگان ایرانی | صدور فاکتور، درخواست ارسال، درخواست تسویه، والت‌ها |
+| `/foreign`   | بازرگان خارجی  | پرداخت فاکتور، تأیید درخواست دریافت                |
+| `/admin`     | ادمین سازمان   | احراز هویت، تأیید تراکنش‌ها، گزارش، تنظیمات        |
+| `/bank`      | بانک عامل      | قفل نرخ، کیف پول‌ها، ثبت تراکنش، تسویهٔ ریالی      |
+
+## راه‌اندازی
 
 ```bash
+# ۱) وابستگی‌ها
+npm install
+
+# ۲) پیکربندی — .env.example را کپی و مقادیر را پر کنید
+cp .env.example .env
+
+# ۳) دیتابیس
+npm run db:migrate      # ساخت جدول‌ها
+npm run db:seed         # ساخت حساب ادمین و بانک + کیف پول‌های بانک
+
+# ۴) بررسی اتصال زنجیره (اختیاری ولی توصیه‌شده)
+npm run check:chain
+
+# ۵) اجرا
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### متغیرهای الزامی
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| متغیر                      | توضیح                                                        |
+| -------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`             | رشتهٔ اتصال PostgreSQL                                       |
+| `AUTH_SECRET`              | حداقل ۳۲ کاراکتر — `openssl rand -base64 48`                 |
+| `SEED_ADMIN_PASSWORD`      | رمز اولین حساب ادمین (فقط هنگام seed)                        |
+| `SEED_BANK_PASSWORD`       | رمز اولین حساب بانک (فقط هنگام seed)                         |
+| `SEED_BANK_RECEIVE_WALLET` | بدون آن هیچ فاکتوری قابل تأیید نیست — آدرسی برای پرداخت ندارد |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+بقیهٔ متغیرها پیش‌فرض دارند و در `.env.example` توضیح داده شده‌اند.
 
-## Learn More
+## شبکه
 
-To learn more about Next.js, take a look at the following resources:
+پیش‌فرض **BSC Testnet** (`CHAIN_ID=97`). برای مین‌نت فقط این چهار متغیر عوض
+می‌شوند — هیچ تغییری در کد لازم نیست:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+CHAIN_ID=56
+CHAIN_RPC_URL="<یک RPC کلیددار>"
+CHAIN_EXPLORER_URL="https://bscscan.com"
+USDT_CONTRACT_ADDRESS="0x55d398326f99059fF775485246999027B3197955"
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### رصدگر واریزی
 
-## Deploy on Vercel
+`POST /api/chain/watch` با هدر `Authorization: Bearer $CHAIN_WATCHER_TOKEN`
+لاگ‌های `Transfer` را اسکن می‌کند، واریزها را با فاکتورهای باز تطبیق می‌دهد و
+تأییدیه‌ها را می‌شمارد. آن را هر ۱۵ تا ۳۰ ثانیه با یک زمان‌بند صدا بزنید:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+*/1 * * * * curl -fsS -X POST https://<host>/api/chain/watch \
+  -H "Authorization: Bearer $CHAIN_WATCHER_TOKEN" >/dev/null
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> **نکته:** اسکن لاگ (`eth_getLogs`) روی RPCهای عمومی رایگان محدود یا مسدود
+> است. بدون یک RPC کلیددار (Alchemy، QuickNode، NodeReal، …) رصد خودکار کار
+> نمی‌کند و پاسخ رصدگر `scanSkipped: true` برمی‌گرداند. در این حالت سامانه
+> همچنان کامل کار می‌کند: پرداخت‌ها با ثبت دستی هش تأیید می‌شوند و همان
+> راستی‌آزمایی روی زنجیره اعمال می‌شود.
+
+## امنیت
+
+- **هیچ کلید خصوصی‌ای در سامانه نگهداری نمی‌شود.** اپراتور بانک انتقال را بیرون
+  از سامانه امضا می‌کند و فقط هش را ثبت می‌کند؛ سامانه مبلغ، گیرنده و موفقیت
+  تراکنش را مستقیماً از زنجیره می‌خواند.
+- رمزها و کدهای OTP با Argon2id هش می‌شوند. نشست‌ها توکن تصادفی‌اند و فقط
+  خلاصهٔ SHA-256 آن‌ها ذخیره می‌شود.
+- هر انتقال وضعیت، هم نقش فراخوان و هم وضعیت فعلی رکورد را سمت سرور بررسی
+  می‌کند؛ یک کلاینت کهنه نمی‌تواند مرحله‌ای را تکرار یا رد کند.
+- دامنهٔ دادهٔ هر کوئری از نشست استخراج می‌شود، نه از پارامتر کلاینت.
+- هر تغییر وضعیت در `StatusEvent` با عامل، زمان و دلیل ثبت می‌شود.
+
+## اسکریپت‌ها
+
+| فرمان                 | کار                                  |
+| --------------------- | ------------------------------------ |
+| `npm run dev`         | اجرای محیط توسعه                     |
+| `npm run build`       | تولید کلاینت Prisma + بیلد production |
+| `npm run db:migrate`  | اعمال مایگریشن‌ها                    |
+| `npm run db:seed`     | ساخت حساب‌ها و کیف پول‌های اولیه      |
+| `npm run db:studio`   | مرورگر دیتابیس                       |
+| `npm run check:chain` | بررسی RPC و قرارداد USDT             |
+| `npm run lint`        | ESLint                               |

@@ -38,6 +38,8 @@ const SETTLEMENT_LABELS: Record<SettlementStatus, { label: string; tone: Tone }>
 const TX_LABELS: Record<Transaction["status"], { label: string; tone: Tone }> = {
   CONFIRMED: { label: "موفق — واریز شد", tone: "success" },
   PENDING: { label: "در انتظار تأیید شبکه", tone: "warning" },
+  SEEN: { label: "مشاهده شد — در انتظار تأییدیه", tone: "info" },
+  CONFIRMING: { label: "در حال تأیید روی شبکه", tone: "info" },
   FAILED: { label: "ناموفق", tone: "destructive" },
   // A deposit seen on-chain that no invoice claims yet — not a failure.
   UNMATCHED: { label: "بدون فاکتور متناظر", tone: "neutral" },

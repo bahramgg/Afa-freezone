@@ -2,10 +2,11 @@
 
 import { usePathname } from "next/navigation";
 import { ForeignSidebar } from "@/components/foreign/ForeignSidebar";
+import { DataBootstrap } from "@/components/layout/DataBootstrap";
 import { ForeignHeader } from "@/components/foreign/ForeignHeader";
 import { ForeignAuthGuard } from "@/components/foreign/ForeignAuthGuard";
 
-const BARE = ["/foreign/login", "/foreign/profile", "/foreign/kyc-waiting"];
+const BARE = ["/foreign/login", "/foreign/register", "/foreign/profile", "/foreign/kyc-waiting"];
 
 export default function ForeignLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,6 +16,7 @@ export default function ForeignLayout({ children }: { children: React.ReactNode 
 
   return (
     <ForeignAuthGuard>
+      <DataBootstrap scope="foreign" />
       <div className="flex min-h-screen bg-background">
         <ForeignSidebar />
         <div className="flex-1 min-w-0 flex flex-col">

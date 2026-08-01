@@ -81,6 +81,23 @@ const KYC_FA: Record<string, string> = {
   REJECTED: "رد شده",
 };
 
+const ACCOUNT_FA: Record<string, string> = {
+  DEPOSIT_HELD: "نزد آدرس‌های واریز",
+  BANK_HELD: "نزد خزانه بانک",
+  MERCHANT_PAYABLE: "بدهی به تاجران",
+  GATEWAY_SHARE: "سهم درگاه",
+  FREEZONE_SHARE: "سهم سازمان منطقه آزاد",
+  BANK_SPREAD: "حاشیه صرافی بانک",
+};
+
+const KIND_FA: Record<string, string> = {
+  INVOICE_PAID: "پرداخت فاکتور",
+  DEPOSIT_SWEPT: "برداشت به خزانه",
+  SETTLEMENT_FUNDED: "دریافت کریپتو برای تسویه",
+  SETTLEMENT_SETTLED: "پرداخت ریال به تاجر",
+  SEND_COMPLETED: "تحویل ارز به گیرنده",
+};
+
 const status = (value: string | null | undefined) => (value ? (STATUS_FA[value] ?? value) : "—");
 const text = (value: unknown) => (value == null || value === "" ? "—" : String(value));
 const money = (value: Prisma.Decimal | null | undefined) => (value == null ? "—" : value.toString());
@@ -149,6 +166,7 @@ const DATASETS = {
         { header: "مبلغ مبنای ریال", width: 18, value: (r) => money(r.netAmount) },
         { header: "نرخ (ریال)", width: 16, value: (r) => money(r.exchangeRate) },
         { header: "معادل ریالی", width: 20, value: (r) => money(r.rialAmount) },
+        { header: "حاشیه بانک (ریال)", width: 20, value: (r) => money(r.bankSpreadRial) },
         { header: "وضعیت", width: 20, value: (r) => status(r.status) },
         { header: "حساب واریز ریال", width: 30, value: (r) => text(r.depositAccount) },
         { header: "شماره رسید", width: 16, value: (r) => text(r.rialReceiptNo) },
@@ -187,6 +205,7 @@ const DATASETS = {
         { header: "مبلغ مبنای ریال", width: 18, value: (r) => money(r.netAmount) },
         { header: "نرخ (ریال)", width: 16, value: (r) => money(r.exchangeRate) },
         { header: "معادل ریالی", width: 20, value: (r) => money(r.rialAmount) },
+        { header: "حاشیه بانک (ریال)", width: 20, value: (r) => money(r.bankSpreadRial) },
         { header: "وضعیت", width: 20, value: (r) => status(r.status) },
         { header: "منشأ", width: 18, value: (r) => (r.sourceInvoice ? r.sourceInvoice.ref : "درخواست تاجر") },
         { header: "والت مبدأ", width: 46, value: (r) => text(r.walletAddress) },
@@ -228,6 +247,33 @@ const DATASETS = {
         },
         { header: "تاریخ مشاهده", width: 20, value: (r) => when(r.seenAt) },
         { header: "تاریخ تأیید", width: 20, value: (r) => when(r.confirmedAt) },
+      ],
+    },
+  ),
+
+  ledger: dataset(
+    () =>
+      db.ledgerEntry.findMany({
+        include: { user: { select: { uid: true, fullName: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
+    {
+      sheet: "دفتر کل",
+      file: "ledger",
+      roles: ["ADMIN", "BANK"],
+      columns: [
+        { header: "تاریخ", width: 20, value: (r) => when(r.createdAt) },
+        { header: "حساب", width: 24, value: (r) => ACCOUNT_FA[r.account] ?? r.account },
+        { header: "رویداد", width: 22, value: (r) => KIND_FA[r.kind] ?? r.kind },
+        { header: "مبلغ", width: 20, value: (r) => r.amount.toString() },
+        { header: "واحد", width: 9, value: (r) => text(r.unit) },
+        { header: "مرجع", width: 46, value: (r) => text(r.subjectRef) },
+        {
+          header: "تاجر",
+          width: 24,
+          value: (r) => (r.user ? `${r.user.fullName} (${r.user.uid})` : "—"),
+        },
+        { header: "توضیح", width: 32, value: (r) => text(r.note) },
       ],
     },
   ),

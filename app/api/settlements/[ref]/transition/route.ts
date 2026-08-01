@@ -15,7 +15,9 @@ import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import { toRial } from "@/lib/server/money";
-import { assertRateWithinTolerance } from "@/lib/server/rates";
+import { assertRateWithinTolerance, referenceRate } from "@/lib/server/rates";
+import { bankSpread } from "@/lib/server/ledger";
+import { postSettlementFunded, postSettlementSettled } from "@/lib/server/postings";
 import { SETTLEMENT_INCLUDE } from "../../route";
 import type { Actor, Prisma, SettlementStatus } from "@/lib/generated/prisma/client";
 
@@ -58,6 +60,9 @@ export const POST = handler(
     let actor: Actor;
     let data: Prisma.SettlementUpdateInput = {};
     let note: string | null = null;
+    // Set where the event moves value, so the books are written after the
+    // status commits rather than in the middle of the switch.
+    let funded = false;
 
     switch (body.action) {
       case "setPayoutAccount": {
@@ -108,6 +113,14 @@ export const POST = handler(
           throw badRequest("آدرس کیف پول بانک معتبر نیست");
         }
         await assertRateWithinTolerance(body.rate, settlement.currency);
+        // Buying currency from an exporter, the bank earns by locking a rate
+        // below the reference. Recorded here because it exists nowhere else.
+        const spread = bankSpread({
+          side: "buy",
+          lockedRate: body.rate,
+          referenceRate: await referenceRate(settlement.currency),
+          tokenAmount: settlement.netAmount ?? settlement.amount,
+        });
 
         to = "BANK_RATE_LOCKED";
         actor = "BANK";
@@ -115,6 +128,7 @@ export const POST = handler(
           exchangeRate: body.rate.toString(),
           rateLocked: true,
           rateLockedAt: new Date(),
+          bankSpreadRial: spread,
           // The rial follows the merchant's side of the ledger, which already
           // has the gateway fee taken off it.
           rialAmount: toRial(body.rate, settlement.netAmount ?? settlement.amount),
@@ -158,6 +172,7 @@ export const POST = handler(
         to = verified.confirmed ? "CRYPTO_CONFIRMED" : "CRYPTO_RECEIVED";
         actor = "USER";
         data = { chainTx: { connect: { id: chainTx.id } } };
+        funded = true;
         note = `تراکنش ${verified.hash} با ${verified.confirmations} تأییدیه ثبت شد`;
         break;
       }
@@ -225,6 +240,28 @@ export const POST = handler(
       });
       return next;
     });
+
+    if (funded) {
+      await postSettlementFunded({
+        id: updated.id,
+        ref: updated.ref,
+        ownerId: updated.ownerId,
+        currency: updated.currency,
+        amount: updated.amount,
+        feeAmount: updated.feeAmount ?? 0,
+        netAmount: updated.netAmount ?? updated.amount,
+      });
+    }
+    if (to === "SETTLED") {
+      await postSettlementSettled({
+        id: updated.id,
+        ref: updated.ref,
+        ownerId: updated.ownerId,
+        currency: updated.currency,
+        netAmount: updated.netAmount ?? updated.amount,
+        spreadRial: updated.bankSpreadRial,
+      });
+    }
 
     await announce(updated, to);
 

@@ -26,7 +26,9 @@ export async function raisePayoutSettlement(invoice: {
   currency: Prisma.SettlementCreateInput["currency"];
   goodsTitle: string;
   netAmount: Prisma.Decimal | null;
+  feeAmount?: Prisma.Decimal | null;
   amount: Prisma.Decimal;
+  receivedAmount?: Prisma.Decimal | null;
 }): Promise<{ ref: string } | null> {
   // One invoice, one payout. The unique index backs this up if two callers race
   // — the watcher and a manually submitted hash can both land on the same

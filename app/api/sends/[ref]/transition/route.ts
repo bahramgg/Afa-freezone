@@ -15,7 +15,9 @@ import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { recordChainTx, verifyTransfer, ChainVerificationError } from "@/lib/server/chain/verify";
 import { toRial } from "@/lib/server/money";
-import { assertRateWithinTolerance } from "@/lib/server/rates";
+import { assertRateWithinTolerance, referenceRate } from "@/lib/server/rates";
+import { bankSpread } from "@/lib/server/ledger";
+import { postSendCompleted } from "@/lib/server/postings";
 import { SEND_INCLUDE } from "../../route";
 import type { Actor, Prisma, SendStatus } from "@/lib/generated/prisma/client";
 
@@ -111,6 +113,14 @@ export const POST = handler(
         if (!body.rate) throw badRequest("نرخ ارز الزامی است");
         if (!body.depositAccount) throw badRequest("شماره حساب واریز ریالی الزامی است");
         await assertRateWithinTolerance(body.rate, send.currency);
+        // Selling currency to an importer, the bank earns by locking a rate
+        // above the reference — the mirror of the settlement side.
+        const spread = bankSpread({
+          side: "sell",
+          lockedRate: body.rate,
+          referenceRate: await referenceRate(send.currency),
+          tokenAmount: send.netAmount ?? send.amount,
+        });
 
         to = "BANK_RATE_LOCKED";
         actor = "BANK";
@@ -118,6 +128,7 @@ export const POST = handler(
           exchangeRate: body.rate.toString(),
           rateLocked: true,
           rateLockedAt: new Date(),
+          bankSpreadRial: spread,
           // The merchant pays for the amount the counterparty receives plus the
           // gateway fee, which netAmount already carries.
           rialAmount: toRial(body.rate, send.netAmount ?? send.amount),
@@ -206,6 +217,17 @@ export const POST = handler(
       });
       return next;
     });
+
+    // The fee and the bank's margin are earned when the currency is delivered.
+    if (to === "PAID") {
+      await postSendCompleted({
+        id: updated.id,
+        ref: updated.ref,
+        currency: updated.currency,
+        feeAmount: updated.feeAmount,
+        spreadRial: updated.bankSpreadRial,
+      });
+    }
 
     await announce(updated, to);
 

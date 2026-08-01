@@ -81,5 +81,6 @@ export function seedSettings(): Settings {
     dailySettlementLimit: 10000,
     minTxAmount: 10,
     rateTolerancePercent: 10,
+    freezoneSharePercent: 50,
   };
 }

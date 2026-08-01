@@ -65,7 +65,7 @@ export default function AdminReportsPage() {
         description="تحلیل عملکرد ادمین و کلیت سیستم"
         actions={
           <ExportExcelButton
-            datasets={["invoices", "sends", "settlements", "transactions", "users"]}
+            datasets={["invoices", "sends", "settlements", "transactions", "ledger", "users"]}
           />
         }
       />

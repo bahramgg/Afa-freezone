@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowDownToLine,
   Banknote,
   Building2,
   Home,
@@ -21,7 +22,8 @@ export const BANK_NAV = [
   { href: "/bank/dashboard", label: "داشبورد", icon: Home },
   { href: "/bank/send", label: "ارسال وجه", icon: Send },
   { href: "/bank/settlement", label: "تسویه", icon: Banknote },
-  { href: "/bank/wallets", label: "کیف پول‌های بانک", icon: WalletIcon },
+    { href: "/bank/deposits", label: "آدرس‌های واریز", icon: ArrowDownToLine },
+{ href: "/bank/wallets", label: "کیف پول‌های بانک", icon: WalletIcon },
   { href: "/bank/reports", label: "گزارشات", icon: LineChart },
   { href: "/bank/settings", label: "تنظیمات", icon: SettingsIcon },
 ] as const;

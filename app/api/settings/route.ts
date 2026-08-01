@@ -29,6 +29,7 @@ const Body = z.object({
   dailySettlementLimit: z.number().min(0).optional(),
   minTxAmount: z.number().min(0).optional(),
   rateTolerancePercent: z.number().min(0).max(100).optional(),
+  freezoneSharePercent: z.number().min(0).max(100).optional(),
 });
 
 export const PATCH = handler(async (request: Request) => {

@@ -3,6 +3,13 @@ import { db } from "./db";
 import { badRequest } from "./http";
 import type { Currency } from "@/lib/generated/prisma/client";
 
+/** The reference rate a bank-locked rate is judged against, and priced from. */
+export async function referenceRate(currency: Currency): Promise<number> {
+  const settings = await db.settings.findUnique({ where: { id: 1 } });
+  if (!settings) return 0;
+  return Number(currency === "BNB" ? settings.bnbRate : settings.usdtRate);
+}
+
 /**
  * Guards the exchange rate a bank operator types by hand.
  *

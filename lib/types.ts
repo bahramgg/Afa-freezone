@@ -71,6 +71,8 @@ export type SendRequest = {
   depositAccount?: string;
   feeAmount?: number;
   netAmount?: number;
+  /** The bank's exchange margin on this request, in rial. */
+  bankSpreadRial?: number;
   rialReceiptNo?: string;
   rialDepositAt?: string;
   bankWalletAddress?: string;
@@ -106,6 +108,8 @@ export type Settlement = {
   sourceInvoiceId?: string;
   feeAmount?: number;
   netAmount?: number;
+  /** The bank's exchange margin on this settlement, in rial. */
+  bankSpreadRial?: number;
   status: SettlementStatus;
   createdAt: string;
   updatedAt: string;
@@ -263,4 +267,5 @@ export type Settings = {
   dailySettlementLimit: number;
   minTxAmount: number;
   rateTolerancePercent: number;
+  freezoneSharePercent: number;
 };

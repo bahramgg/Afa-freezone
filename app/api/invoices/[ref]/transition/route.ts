@@ -17,6 +17,7 @@ import { notify } from "@/lib/server/notify";
 import { allocateDepositAddress } from "@/lib/server/gateway";
 import { feeFor } from "@/lib/server/fees";
 import { raisePayoutSettlement } from "@/lib/server/payout";
+import { postInvoicePaid } from "@/lib/server/postings";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import type { Actor, InvoiceStatus, Prisma } from "@/lib/generated/prisma/client";
 
@@ -131,13 +132,16 @@ export const POST = handler(
         const chainTx = await recordChainTx(verified, "IN");
         if (chainTx.matchedAt) throw conflict("این تراکنش قبلاً برای فاکتور دیگری ثبت شده است");
 
-        const { fee, net } = await feeFor(Number(invoice.amount));
+        // Credit what actually arrived rather than what was invoiced, so an
+        // overpayment reaches the merchant instead of being kept.
+        const { fee, net } = await feeFor(Number(verified.amount));
 
         to = "PAID";
         actor = "COUNTERPARTY";
         data = {
           chainTx: { connect: { id: chainTx.id } },
           paidAt: new Date(),
+          receivedAmount: verified.amount,
           feeAmount: fee.toFixed(8),
           netAmount: net.toFixed(8),
         };
@@ -184,9 +188,20 @@ export const POST = handler(
       await notify(invoice.ownerId, { ...recipientNote, href: `/receive/${invoice.ref}` });
     }
 
-    // A paid invoice is only half the journey: the money is at the bank, not
-    // with the merchant. Raising the payout is what finishes it.
-    if (to === "PAID") await raisePayoutSettlement(updated);
+    // A paid invoice is only half the journey: the money is at the gateway, not
+    // with the merchant. The books record it, then the payout carries it on.
+    if (to === "PAID") {
+      await postInvoicePaid({
+        id: updated.id,
+        ref: updated.ref,
+        ownerId: updated.ownerId,
+        currency: updated.currency,
+        receivedAmount: updated.receivedAmount ?? updated.amount,
+        feeAmount: updated.feeAmount ?? 0,
+        netAmount: updated.netAmount ?? updated.amount,
+      });
+      await raisePayoutSettlement(updated);
+    }
 
     return jsonOk({ invoice: serializeInvoice(updated) });
   },

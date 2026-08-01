@@ -37,7 +37,7 @@ export class ChainVerificationError extends Error {}
  */
 export async function verifyTransfer(
   hashInput: string,
-  expect?: { to?: string; currency?: Currency; minAmount?: string },
+  expect?: { to?: string; from?: string; currency?: Currency; minAmount?: string },
 ): Promise<VerifiedTransfer> {
   const hash = hashInput.trim().toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(hash)) {
@@ -103,6 +103,11 @@ export async function verifyTransfer(
   if (expect?.currency && expect.currency !== transfer.currency) {
     throw new ChainVerificationError(
       `ارز تراکنش ${transfer.currency} است، اما ${expect.currency} انتظار می‌رفت`,
+    );
+  }
+  if (expect?.from && normalizeAddress(expect.from) !== transfer.from) {
+    throw new ChainVerificationError(
+      `فرستنده این تراکنش ${transfer.from} است و با آدرس انتظاری نمی‌خواند`,
     );
   }
   if (expect?.to && normalizeAddress(expect.to) !== transfer.to) {

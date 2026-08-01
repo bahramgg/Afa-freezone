@@ -115,6 +115,7 @@ export function serializeSend(s: SendWithParties) {
     rialAmount: num(s.rialAmount),
     feeAmount: num(s.feeAmount),
     netAmount: num(s.netAmount),
+    bankSpreadRial: num(s.bankSpreadRial),
     depositAccount: s.depositAccount ?? undefined,
     rialReceiptNo: s.rialReceiptNo ?? undefined,
     rialDepositAt: iso(s.rialDepositAt),
@@ -151,6 +152,7 @@ export function serializeSettlement(s: Settlement & WithOwner & WithChainTx) {
     rialAmount: num(s.rialAmount),
     feeAmount: num(s.feeAmount),
     netAmount: num(s.netAmount),
+    bankSpreadRial: num(s.bankSpreadRial),
     bankWalletAddress: s.bankWalletAddress ?? undefined,
     bankResponseAt: iso(s.bankResponseAt),
     bankResponseNote: s.bankResponseNote ?? undefined,
@@ -211,5 +213,6 @@ export function serializeSettings(s: Settings) {
     dailySettlementLimit: Number(s.dailySettlementLimit),
     minTxAmount: Number(s.minTxAmount),
     rateTolerancePercent: Number(s.rateTolerancePercent),
+    freezoneSharePercent: Number(s.freezoneSharePercent),
   };
 }

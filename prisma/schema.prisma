@@ -70,6 +70,7 @@ model User {
   notifications Notification[]
   statusEvents  StatusEvent[]
 
+  ledgerEntries      LedgerEntry[]
   invoices           Invoice[]     @relation("InvoiceOwner")
   sendRequests       SendRequest[] @relation("SendOwner")
   sendCounterparties SendRequest[] @relation("SendCounterparty")
@@ -321,6 +322,9 @@ model SendRequest {
    */
   netAmount Decimal? @db.Decimal(38, 18)
 
+  /** The bank's exchange margin on this request, in rial. */
+  bankSpreadRial Decimal? @db.Decimal(24, 2)
+
   /** Bank account the merchant must deposit the rial into. Named by the bank. */
   depositAccount String?
   rialReceiptNo  String?
@@ -387,6 +391,8 @@ model Settlement {
   feeAmount Decimal? @db.Decimal(38, 18)
   /** The token amount the rial leg is computed from: amount less the fee. */
   netAmount Decimal? @db.Decimal(38, 18)
+  /** The bank's exchange margin on this settlement, in rial. */
+  bankSpreadRial Decimal? @db.Decimal(24, 2)
 
   /**
    * Set when this settlement was raised automatically from a paid invoice. The
@@ -416,6 +422,71 @@ model Settlement {
 
   @@index([ownerId, status])
   @@index([status, createdAt])
+}
+
+// ─────────────────────────── Ledger ───────────────────────────
+
+/**
+ * Where value sits, or who has a claim on it.
+ *
+ * The bank's wallet holds one pile of tokens with several owners: money still
+ * owed to merchants, fee the gateway has earned, and the bank's own. Without
+ * naming those claims the balance is a single number nobody can reconcile.
+ */
+enum LedgerAccount {
+  /** Arrived at a per-invoice deposit address, not yet swept. */
+  DEPOSIT_HELD
+  /** Swept into the bank's treasury wallet. */
+  BANK_HELD
+  /** Owed to merchants and not yet paid out in rial. */
+  MERCHANT_PAYABLE
+  /** The gateway's share of the fee. */
+  GATEWAY_SHARE
+  /** The Free Zone Organization's share of the same fee. */
+  FREEZONE_SHARE
+  /** The bank's exchange margin, in rial. */
+  BANK_SPREAD
+}
+
+enum LedgerUnit {
+  USDT
+  BNB
+  IRR
+}
+
+/**
+ * Append-only record of every movement of value.
+ *
+ * Balances are the sum of the entries for an account, never a stored total, so
+ * a wrong figure can always be traced to the entry that caused it rather than
+ * being silently overwritten.
+ */
+model LedgerEntry {
+  id      String        @id @default(cuid())
+  account LedgerAccount
+  /** Positive adds to the account, negative takes from it. */
+  amount  Decimal       @db.Decimal(38, 18)
+  unit    LedgerUnit
+
+  /** What happened: INVOICE_PAID, DEPOSIT_SWEPT, SETTLEMENT_SETTLED, ... */
+  kind String
+
+  /** "invoice" | "send" | "settlement" | "deposit" */
+  subject    String?
+  subjectId  String?
+  /** The human-facing reference, so a report reads without a join. */
+  subjectRef String?
+
+  /** Whose claim this is, where the account is per-merchant. */
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([account, createdAt])
+  @@index([subject, subjectId])
+  @@index([userId, account])
 }
 
 // ─────────────────────────── Chain ───────────────────────────
@@ -544,6 +615,8 @@ model Settings {
 
   /** Rate a bank-locked exchange rate may deviate from the reference, percent. */
   rateTolerancePercent Decimal @db.Decimal(6, 3) @default(10)
+  /** The Free Zone Organization's cut of the gateway fee, percent of the fee. */
+  freezoneSharePercent Decimal @db.Decimal(6, 3) @default(50)
 
   updatedAt DateTime @updatedAt
 }

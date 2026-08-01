@@ -19,13 +19,20 @@ import {
  * and the scope cannot be widened from here.
  */
 
-export type ExportDataset = "invoices" | "sends" | "settlements" | "transactions" | "users";
+export type ExportDataset =
+  | "invoices"
+  | "sends"
+  | "settlements"
+  | "transactions"
+  | "ledger"
+  | "users";
 
 const LABELS: Record<ExportDataset, string> = {
   invoices: "فاکتورها",
   sends: "درخواست‌های ارسال",
   settlements: "درخواست‌های تسویه",
   transactions: "تراکنش‌های زنجیره",
+  ledger: "دفتر کل",
   users: "کاربران",
 };
 

@@ -59,7 +59,7 @@ export default function BankReportsPage() {
       <PageHeader
         title="گزارشات بانک"
         description="تحلیل عملکرد مالی و عملیاتی"
-        actions={<ExportExcelButton datasets={["sends", "settlements", "transactions"]} />}
+        actions={<ExportExcelButton datasets={["sends", "settlements", "transactions", "ledger"]} />}
       />
 
       <Tabs defaultValue="overall">

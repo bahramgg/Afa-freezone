@@ -30,6 +30,7 @@ export default function AdminSettingsPage() {
   const minAmount = field("invoiceMinAmount");
   const maxAmount = field("invoiceMaxAmount");
   const rateTolerance = field("rateTolerancePercent");
+  const freezoneShare = field("freezoneSharePercent");
 
   const setFeeBasePercent = (v: number) => edit("feeBasePercent", v);
   const setFeeMin = (v: number) => edit("feeMin", v);
@@ -38,10 +39,17 @@ export default function AdminSettingsPage() {
   const setMinAmount = (v: number) => edit("invoiceMinAmount", v);
   const setMaxAmount = (v: number) => edit("invoiceMaxAmount", v);
   const setRateTolerance = (v: number) => edit("rateTolerancePercent", v);
+  const setFreezoneShare = (v: number) => edit("freezoneSharePercent", v);
 
   async function saveFee() {
     try {
-      await update({ feeBasePercent, feeMin, feeMax, rateTolerancePercent: rateTolerance });
+      await update({
+        feeBasePercent,
+        feeMin,
+        feeMax,
+        rateTolerancePercent: rateTolerance,
+        freezoneSharePercent: freezoneShare,
+      });
       setDraft({});
       toast.success("تنظیمات کارمزد ذخیره شد");
     } catch (error) {
@@ -93,6 +101,19 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
               <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label>سهم سازمان از کارمزد (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={freezoneShare}
+                    onChange={(e) => setFreezoneShare(Number(e.target.value))}
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    کارمزد در همان لحظه بین درگاه و سازمان تقسیم و در دفتر کل ثبت می‌شود.
+                  </p>
+                </div>
                 <div className="space-y-1.5">
                   <Label>حد مجاز اختلاف نرخ (%)</Label>
                   <Input

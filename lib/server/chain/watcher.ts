@@ -13,6 +13,7 @@ import { notify } from "../notify";
 import { feeFor } from "../fees";
 import { openDepositAddresses } from "../gateway";
 import { raisePayoutSettlement } from "../payout";
+import { postInvoicePaid, postSendCompleted } from "../postings";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type WatcherReport = {
@@ -364,7 +365,17 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     href: `/receive/${invoice.ref}`,
   });
 
-  // The money is at the bank now; the payout carries it on to the merchant.
+  await postInvoicePaid({
+    id: invoice.id,
+    ref: invoice.ref,
+    ownerId: invoice.ownerId,
+    currency: invoice.currency,
+    receivedAmount: total,
+    feeAmount: fee.toFixed(8),
+    netAmount: net.toFixed(8),
+  });
+
+  // The money is here now; the payout carries it on to the merchant.
   await raisePayoutSettlement({ ...invoice, netAmount: net.toFixed(8) as unknown as Prisma.Decimal });
 
   return true;
@@ -436,6 +447,14 @@ async function promoteSend(chainTxId: string) {
       },
     }),
   ]);
+
+  await postSendCompleted({
+    id: send.id,
+    ref: send.ref,
+    currency: send.currency,
+    feeAmount: send.feeAmount,
+    spreadRial: send.bankSpreadRial,
+  });
 
   await notify(send.ownerId, {
     kind: "SEND_COMPLETED",

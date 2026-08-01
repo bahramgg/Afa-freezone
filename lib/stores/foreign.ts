@@ -40,6 +40,9 @@ type ForeignState = {
   absorbWallet: (wallet: Wallet) => void;
   removeWallet: (id: string) => Promise<void>;
 
+  /** Re-reads the shared session into this store's foreign-shaped view. */
+  syncSession: () => void;
+
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
   unreadCount: () => number;
@@ -61,6 +64,7 @@ export const useForeignStore = create<ForeignState>()((set, get) => {
   }
 
   return {
+    syncSession: syncFromAuth,
     user: null,
     isForeignAuthed: false,
     hasProfile: false,
@@ -154,5 +158,20 @@ export const useForeignStore = create<ForeignState>()((set, get) => {
     unreadCount: () => get().notifications.filter((n) => !n.read).length,
   };
 });
+
+/**
+ * Keeps this store in step with the shared session for the whole session's
+ * life, not just at the moment someone signs in.
+ *
+ * ForeignAuthGuard reads `isForeignAuthed` to decide whether to render, and it
+ * renders the DataBootstrap that used to be the only thing calling `load()` —
+ * so on a reload the guard waited on state that only the code behind it could
+ * produce, and bounced every returning merchant to the login screen.
+ */
+useAuthStore.subscribe(() => useForeignStore.getState().syncSession());
+
+// The session may already have resolved before this module was loaded, in
+// which case no further auth change is coming to trigger the subscription.
+useForeignStore.getState().syncSession();
 
 onReload(SLICE, () => useForeignStore.getState().load());

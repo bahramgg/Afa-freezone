@@ -14,6 +14,7 @@ import { serializeSettlement } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
+import { narrow, settlementScope } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -33,25 +34,10 @@ export const GET = handler(async (request: Request) => {
   const user = await requireUser();
   const { status, take } = readQuery(request, Query);
 
-  const where: Prisma.SettlementWhereInput = {};
-  if (user.role === "IRANIAN") where.ownerId = user.id;
-  else if (user.role === "FOREIGN") where.ownerId = "__none__";
-  else if (user.role === "BANK") {
-    where.status = {
-      in: [
-        "AWAITING_BANK",
-        "BANK_RATE_LOCKED",
-        "CRYPTO_RECEIVED",
-        "CRYPTO_CONFIRMED",
-        "BANK_APPROVED",
-        "SETTLED",
-        "REJECTED",
-      ],
-    };
-  }
-  if (status !== "ALL") {
-    where.status = status as Prisma.SettlementWhereInput["status"];
-  }
+  const where = narrow(
+    settlementScope(user),
+    status === "ALL" ? null : { status: status as Prisma.SettlementWhereInput["status"] },
+  );
 
   const list = await db.settlement.findMany({
     where,

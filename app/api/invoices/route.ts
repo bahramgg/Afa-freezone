@@ -14,6 +14,7 @@ import { serializeInvoice } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
+import { invoiceScope, narrow } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -40,19 +41,20 @@ export const GET = handler(async (request: Request) => {
   const user = await requireUser();
   const { status, search, take } = readQuery(request, Query);
 
-  const where: Prisma.InvoiceWhereInput = {};
-  if (user.role === "IRANIAN") where.ownerId = user.id;
-  else if (user.role !== "ADMIN") where.ownerId = "__none__";
-
-  if (status !== "ALL") where.status = status;
-  if (search) {
-    where.OR = [
-      { ref: { contains: search, mode: "insensitive" } },
-      { trxRef: { contains: search, mode: "insensitive" } },
-      { senderName: { contains: search, mode: "insensitive" } },
-      { owner: { fullName: { contains: search, mode: "insensitive" } } },
-    ];
-  }
+  const where = narrow(
+    invoiceScope(user),
+    status === "ALL" ? null : { status },
+    search
+      ? {
+          OR: [
+            { ref: { contains: search, mode: "insensitive" } },
+            { trxRef: { contains: search, mode: "insensitive" } },
+            { senderName: { contains: search, mode: "insensitive" } },
+            { owner: { fullName: { contains: search, mode: "insensitive" } } },
+          ],
+        }
+      : null,
+  );
 
   const list = await db.invoice.findMany({
     where,

@@ -6,13 +6,10 @@ import {
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
-  Download,
   Filter,
-  Loader2,
   Search,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -32,13 +29,13 @@ import { MoneyText } from "@/components/shared/MoneyText";
 import { InvoiceStatusBadge, SettlementStatusBadge } from "@/components/shared/StatusBadge";
 import { TransactionDetailModal } from "@/components/shared/TransactionDetailModal";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { MonthlyVolumeChart } from "@/components/charts/MonthlyVolumeChart";
 import { RatioPieChart } from "@/components/charts/RatioPieChart";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { useTxStore } from "@/lib/stores/transactions";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useHydrated } from "@/lib/stores/hydration";
-import { TIMINGS } from "@/lib/mock/timings";
 import { toPersianDigits, truncateHash } from "@/lib/format";
 import type { Transaction, Currency } from "@/lib/types";
 
@@ -57,7 +54,6 @@ export default function ReportsPage() {
   const [maxAmount, setMaxAmount] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [exporting, setExporting] = useState(false);
   const [openTx, setOpenTx] = useState<Transaction | null>(null);
 
   const filtered = useMemo(() => {
@@ -103,30 +99,7 @@ export default function ReportsPage() {
     setQuery("");
   }
 
-  async function exportExcel() {
-    setExporting(true);
-    toast.info("در حال آماده‌سازی فایل...");
-    await new Promise((r) => setTimeout(r, TIMINGS.EXCEL_PREP_MS));
-    const headers = ["شماره فاکتور", "نوع", "مبلغ", "ارز", "TX hash", "تاریخ"];
-    const rows = filtered.map((t) => [
-      t.invoiceId ?? t.id,
-      t.direction === "RECEIVE" ? "دریافت" : "ارسال",
-      t.amount,
-      t.currency,
-      t.txHash,
-      t.createdAt,
-    ]);
-    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `afa-report-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setExporting(false);
-    toast.success("فایل با موفقیت دانلود شد");
-  }
+
 
   return (
     <div className="space-y-6">
@@ -134,10 +107,7 @@ export default function ReportsPage() {
         title="گزارشات مالی"
         description="فیلتر، تحلیل و خروجی تمام فعالیت‌ها"
         actions={
-          <Button variant="outline" onClick={exportExcel} disabled={exporting}>
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            خروجی Excel
-          </Button>
+          <ExportExcelButton datasets={["invoices", "sends", "settlements"]} />
         }
       />
 

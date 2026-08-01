@@ -13,6 +13,7 @@ import { nextRef } from "@/lib/server/refs";
 import { serializeSend } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
+import { narrow, sendScope } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -38,19 +39,10 @@ export const GET = handler(async (request: Request) => {
   const user = await requireUser();
   const { status, take } = readQuery(request, Query);
 
-  const where: Prisma.SendRequestWhereInput = {};
-  if (user.role === "IRANIAN") where.ownerId = user.id;
-  else if (user.role === "FOREIGN") {
-    where.OR = [{ counterpartyId: user.id }, { counterpartyUid: user.uid }];
-  } else if (user.role === "BANK") {
-    // The bank only ever sees requests admin has already cleared.
-    where.status = {
-      in: ["AWAITING_BANK_REVIEW", "BANK_RATE_LOCKED", "RIAL_RECEIVED", "CRYPTO_SENT", "PAID", "REJECTED"],
-    };
-  }
-  if (status !== "ALL") {
-    where.status = status as Prisma.SendRequestWhereInput["status"];
-  }
+  const where = narrow(
+    sendScope(user),
+    status === "ALL" ? null : { status: status as Prisma.SendRequestWhereInput["status"] },
+  );
 
   const list = await db.sendRequest.findMany({
     where,

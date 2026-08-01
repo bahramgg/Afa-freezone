@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -54,7 +55,11 @@ export default function ForeignReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="گزارشات" description="تاریخچه کامل دریافت‌های شما" />
+      <PageHeader
+        title="گزارشات"
+        description="تاریخچه کامل دریافت‌های شما"
+        actions={<ExportExcelButton datasets={["sends"]} />}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>

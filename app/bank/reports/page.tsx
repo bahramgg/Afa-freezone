@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { StatCard } from "@/components/shared/StatCard";
@@ -55,7 +56,11 @@ export default function BankReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="گزارشات بانک" description="تحلیل عملکرد مالی و عملیاتی" />
+      <PageHeader
+        title="گزارشات بانک"
+        description="تحلیل عملکرد مالی و عملیاتی"
+        actions={<ExportExcelButton datasets={["sends", "settlements", "transactions"]} />}
+      />
 
       <Tabs defaultValue="overall">
         <TabsList>

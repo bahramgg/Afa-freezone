@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { StatCard } from "@/components/shared/StatCard";
@@ -59,7 +60,15 @@ export default function AdminReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="گزارشات سیستم" description="تحلیل عملکرد ادمین و کلیت سیستم" />
+      <PageHeader
+        title="گزارشات سیستم"
+        description="تحلیل عملکرد ادمین و کلیت سیستم"
+        actions={
+          <ExportExcelButton
+            datasets={["invoices", "sends", "settlements", "transactions", "users"]}
+          />
+        }
+      />
 
       <Tabs defaultValue="overall">
         <TabsList>

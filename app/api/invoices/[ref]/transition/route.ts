@@ -75,7 +75,7 @@ export const POST = handler(
         // Derived at approval, so an unapproved invoice never advertises
         // somewhere to send money — and derived per invoice, so whatever lands
         // there can only belong to this one.
-        data = { paymentAddress: await allocateDepositAddress(invoice.id) };
+        data = { paymentAddress: await allocateDepositAddress(invoice.id, invoice.ref) };
         recipientNote = {
           kind: "INVOICE_APPROVED",
           title: "فاکتور تأیید شد",

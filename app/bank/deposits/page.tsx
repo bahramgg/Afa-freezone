@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { ArrowDownToLine, Loader2, Undo2, Wallet } from "lucide-react";
+import { Loader2, Undo2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +14,10 @@ import { Ltr } from "@/components/shared/Ltr";
 import { api, ApiClientError } from "@/lib/api/client";
 import { useLoad } from "@/lib/stores/useLoad";
 import type { Refund } from "@/lib/types";
+import { ReleaseButton } from "@/components/bank/ReleaseButton";
+
+/** Public chain id, safe in the bundle — it identifies a network, not a secret. */
+const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 56);
 import { truncateAddress, truncateHash, toPersianDigits, formatAmount } from "@/lib/format";
 
 /**
@@ -26,6 +30,8 @@ import { truncateAddress, truncateHash, toPersianDigits, formatAmount } from "@/
  * books are written from.
  */
 
+type Split = { gateway: number | string; freezone: number | string; bank: number | string };
+
 type Deposit = {
   id: string;
   index: number;
@@ -33,9 +39,14 @@ type Deposit = {
   invoiceRef?: string;
   currency: string;
   receivedAmount: number;
-  swept: boolean;
-  sweptAt?: string;
-  sweepTxHash?: string;
+  released: boolean;
+  releasedAt?: string;
+  txHash?: string;
+  terms?: unknown;
+  /** What the contract would pay out, worked out the way it does. */
+  preview?: Split;
+  /** What it actually paid, read back from its own event. */
+  split?: Split;
 };
 
 export default function DepositsPage() {
@@ -44,35 +55,21 @@ export default function DepositsPage() {
   const [hash, setHash] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
+  const [factory, setFactory] = useState<string | undefined>();
+
   const load = useCallback(async () => {
     const [deposits, pending] = await Promise.all([
-      api.get<{ list: Deposit[] }>("/deposits").catch(() => null),
+      api.get<{ list: Deposit[]; factory?: string }>("/deposits").catch(() => null),
       api.get<{ list: Refund[] }>("/refunds").catch(() => null),
     ]);
-    if (deposits) setList(deposits.list);
+    if (deposits) {
+      setList(deposits.list);
+      setFactory(deposits.factory);
+    }
     if (pending) setRefunds(pending.list.filter((r) => r.status === "APPROVED"));
   }, []);
 
   useLoad(load);
-
-  async function sweep(id: string) {
-    const txHash = (hash[id] ?? "").trim();
-    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
-      toast.error("هش تراکنش معتبر نیست");
-      return;
-    }
-    setBusy(id);
-    try {
-      await api.post("/deposits", { id, txHash });
-      toast.success("برداشت ثبت شد و در دفتر کل نوشته شد");
-      setHash((h) => ({ ...h, [id]: "" }));
-      await load();
-    } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : "ثبت برداشت انجام نشد");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function sendRefund(ref: string) {
     const txHash = (hash[ref] ?? "").trim();
@@ -93,7 +90,7 @@ export default function DepositsPage() {
     }
   }
 
-  const pending = list.filter((d) => !d.swept && d.receivedAmount > 0);
+  const pending = list.filter((d) => !d.released && d.receivedAmount > 0);
   const total = pending.reduce((sum, d) => sum + d.receivedAmount, 0);
 
   return (
@@ -110,15 +107,16 @@ export default function DepositsPage() {
               <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">در انتظار برداشت</div>
+              <div className="text-xs text-muted-foreground">در انتظار تسویه</div>
               <div className="text-lg font-semibold">
                 {toPersianDigits(formatAmount(total))} USDT
               </div>
             </div>
           </div>
           <p className="max-w-md text-xs text-muted-foreground">
-            انتقال را با کیف پول خودتان انجام دهید — سامانه کلید هیچ‌کدام از این آدرس‌ها را
-            ندارد — سپس هش را اینجا ثبت کنید تا روی زنجیره بررسی شود.
+            هر تسویه یک تراکنش است که همان‌جا سه سهم را پرداخت می‌کند: کارمزد درگاه، سهم سازمان،
+            و باقی به خزانهٔ بانک. مقصدها را خودِ آدرس تعیین می‌کند و قابل تغییر نیستند — شما فقط
+            آن را با کیف پول خودتان امضا می‌کنید.
           </p>
         </CardContent>
       </Card>
@@ -178,14 +176,15 @@ export default function DepositsPage() {
                   <th className="text-start font-medium px-4 py-3">فاکتور</th>
                   <th className="text-start font-medium px-4 py-3">آدرس</th>
                   <th className="text-start font-medium px-4 py-3">موجودی</th>
+                  <th className="text-start font-medium px-4 py-3">تقسیم</th>
                   <th className="text-start font-medium px-4 py-3">وضعیت</th>
-                  <th className="text-start font-medium px-4 py-3">برداشت</th>
+                  <th className="text-start font-medium px-4 py-3">اقدام</th>
                 </tr>
               </thead>
               <tbody>
                 {list.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
                       هنوز آدرس واریزی ساخته نشده است
                     </td>
                   </tr>
@@ -202,45 +201,50 @@ export default function DepositsPage() {
                       <td className="px-4 py-3">
                         {toPersianDigits(formatAmount(d.receivedAmount))} {d.currency}
                       </td>
+                      <td className="px-4 py-3 text-xs">
+                        {(() => {
+                          const s = d.split ?? d.preview;
+                          if (!s) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <div className="space-y-0.5 whitespace-nowrap">
+                              <div>درگاه {toPersianDigits(formatAmount(Number(s.gateway)))}</div>
+                              <div>سازمان {toPersianDigits(formatAmount(Number(s.freezone)))}</div>
+                              <div>بانک {toPersianDigits(formatAmount(Number(s.bank)))}</div>
+                              {!d.split ? (
+                                <div className="text-[10px] text-muted-foreground">پیش‌بینی</div>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3">
-                        {d.swept ? (
+                        {d.released ? (
                           <div className="space-y-1">
-                            <Badge tone="success">برداشت شد</Badge>
-                            {d.sweepTxHash ? (
+                            <Badge tone="success">تقسیم شد</Badge>
+                            {d.txHash ? (
                               <Ltr className="block font-mono text-[10px] text-muted-foreground">
-                                {truncateHash(d.sweepTxHash)}
+                                {truncateHash(d.txHash)}
                               </Ltr>
                             ) : null}
+                            <span className="block text-[10px] text-muted-foreground">
+                              <JalaliDate iso={d.releasedAt ?? ""} />
+                            </span>
                           </div>
                         ) : d.receivedAmount > 0 ? (
-                          <Badge tone="warning">در انتظار برداشت</Badge>
+                          <Badge tone="warning">آمادهٔ تسویه</Badge>
                         ) : (
                           <Badge tone="info">در انتظار پرداخت</Badge>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {d.swept ? (
-                          <span className="text-xs text-muted-foreground">
-                            <JalaliDate iso={d.sweptAt ?? ""} />
-                          </span>
-                        ) : d.receivedAmount > 0 ? (
-                          <div className="flex gap-2">
-                            <Input
-                              value={hash[d.id] ?? ""}
-                              onChange={(e) => setHash((h) => ({ ...h, [d.id]: e.target.value }))}
-                              placeholder="0x…"
-                              dir="ltr"
-                              className="h-8 w-44 font-mono text-xs"
-                            />
-                            <Button size="sm" onClick={() => sweep(d.id)} disabled={busy === d.id}>
-                              {busy === d.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <ArrowDownToLine className="h-3.5 w-3.5" />
-                              )}
-                              ثبت
-                            </Button>
-                          </div>
+                        {!d.released && d.receivedAmount > 0 ? (
+                          <ReleaseButton
+                            depositId={d.id}
+                            factory={factory}
+                            terms={d.terms}
+                            chainId={CHAIN_ID}
+                            onReleased={load}
+                          />
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

@@ -1,20 +1,25 @@
 import "server-only";
 import { db } from "./db";
 import { ApiError } from "./http";
-import { deriveDepositAddress } from "./chain/hd";
+import {
+  currentTerms,
+  depositAddressFor,
+  GatewayContractError,
+  serializeTerms,
+} from "./chain/gateway-contract";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 /**
  * Allocates the address an approved invoice is to be paid into.
  *
- * Every invoice gets its own, derived at its own index. That is what makes a
- * deposit unambiguous: invoices used to share a handful of bank wallets, so the
- * watcher had to guess which one a payment belonged to from its amount — a 1000
- * USDT payment settled a 500 USDT invoice that happened to be older, and the
- * difference vanished into the bank's wallet.
+ * The address comes from the settlement contract, derived from the terms of
+ * this invoice alone. Two things follow from that and both matter: whatever
+ * arrives there belongs to this invoice and nothing else, and the split between
+ * the gateway, the organization and the bank is fixed the moment the buyer is
+ * given the address — not decided later by whoever happens to run the payout.
  *
- * Indexes come from a Postgres sequence, so two concurrent approvals can never
- * be handed the same one.
+ * Nobody holds a key to it. The money does not rest there; releasing forwards
+ * it in three directions in a single transaction.
  */
 const SEQUENCE = "afa_deposit_index_seq";
 
@@ -28,31 +33,37 @@ async function nextIndex(client: Prisma.TransactionClient): Promise<number> {
 
 export async function allocateDepositAddress(
   invoiceId: string,
+  invoiceRef: string,
   client: Prisma.TransactionClient = db,
 ): Promise<string> {
   // Re-approving must not move an address a buyer may already be holding.
   const existing = await client.depositAddress.findUnique({ where: { invoiceId } });
   if (existing) return existing.address;
 
-  let index: number;
   let address: string;
+  let terms;
   try {
-    index = await nextIndex(client);
-    address = deriveDepositAddress(index);
+    terms = await currentTerms(invoiceRef);
+    address = await depositAddressFor(terms);
   } catch (error) {
     console.error("[gateway] could not derive a deposit address", error);
     throw new ApiError(
       503,
-      "no_gateway_xpub",
-      "آدرس پرداخت ساخته نشد — پیکربندی درگاه ناقص است، با پشتیبانی تماس بگیرید",
+      "gateway_contract_unavailable",
+      error instanceof GatewayContractError
+        ? "قرارداد تسویه پیکربندی نشده است — با پشتیبانی تماس بگیرید"
+        : "آدرس پرداخت ساخته نشد — اتصال به شبکه برقرار نیست",
     );
   }
 
-  await client.depositAddress.create({ data: { index, address, invoiceId } });
+  const index = await nextIndex(client);
+  await client.depositAddress.create({
+    data: { index, address, invoiceId, terms: serializeTerms(terms) },
+  });
   return address;
 }
 
-/** Every address the watcher must still scan: allocated and not yet swept. */
+/** Every address the watcher must still scan: allocated and not yet released. */
 export async function openDepositAddresses(): Promise<string[]> {
   const rows = await db.depositAddress.findMany({
     where: { sweptAt: null },

@@ -1,8 +1,16 @@
 import { z } from "zod";
+import { decodeEventLog } from "viem";
 import { db } from "@/lib/server/db";
 import { badRequest, handler, jsonOk, notFound, readJson, requireRole } from "@/lib/server/http";
-import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
-import { postDepositSwept } from "@/lib/server/postings";
+import { publicClient, toHuman } from "@/lib/server/chain/client";
+import {
+  DEPOSIT_ABI,
+  factoryAddress,
+  FACTORY_ABI,
+  parseTerms,
+  previewSplit,
+} from "@/lib/server/chain/gateway-contract";
+import { postDepositReleased } from "@/lib/server/postings";
 import { Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -11,10 +19,10 @@ export const dynamic = "force-dynamic";
 /**
  * The deposit addresses and what is sitting in them.
  *
- * Buyers pay into an address derived for their invoice alone, so the money
- * arrives spread across as many addresses as there were payments. This is the
- * operator's view of that: what is here, and what has already been moved into
- * the bank's treasury.
+ * Each belongs to one invoice. Releasing one pays the gateway, the free zone
+ * organization and the bank in a single transaction, in the proportions that
+ * address was derived from — so this screen shows what will happen before it
+ * happens, and what did happen afterwards.
  */
 export const GET = handler(async () => {
   await requireRole("BANK", "ADMIN");
@@ -26,83 +34,154 @@ export const GET = handler(async () => {
     take: 200,
   });
 
+  const decimals = 18;
   return jsonOk({
-    list: rows.map((d) => ({
-      id: d.id,
-      index: d.index,
-      address: d.address,
-      invoiceRef: d.invoice?.ref,
-      currency: d.invoice?.currency ?? "USDT",
-      receivedAmount: Number(d.receivedAmount),
-      swept: d.sweptAt !== null,
-      sweptAt: d.sweptAt?.toISOString(),
-      sweepTxHash: d.sweepTxHash ?? undefined,
-      createdAt: d.createdAt.toISOString(),
-    })),
+    factory: (() => {
+      try {
+        return factoryAddress();
+      } catch {
+        return undefined;
+      }
+    })(),
+    list: rows.map((d) => {
+      const received = new Prisma.Decimal(d.receivedAmount);
+      let preview: { gateway: string; freezone: string; bank: string } | undefined;
+      try {
+        if (d.terms && received.gt(0)) {
+          const split = previewSplit(
+            parseTerms(d.terms),
+            BigInt(received.mul(new Prisma.Decimal(10).pow(decimals)).toFixed(0)),
+          );
+          preview = {
+            gateway: toHuman(split.gateway, "USDT"),
+            freezone: toHuman(split.freezone, "USDT"),
+            bank: toHuman(split.bank, "USDT"),
+          };
+        }
+      } catch {
+        // Terms that cannot be read are shown without a preview rather than
+        // failing the whole screen.
+      }
+
+      return {
+        id: d.id,
+        index: d.index,
+        address: d.address,
+        invoiceRef: d.invoice?.ref,
+        currency: d.invoice?.currency ?? "USDT",
+        receivedAmount: Number(d.receivedAmount),
+        released: d.sweptAt !== null,
+        releasedAt: d.sweptAt?.toISOString(),
+        txHash: d.sweepTxHash ?? undefined,
+        terms: d.terms ?? undefined,
+        preview,
+        split: d.gatewayAmount
+          ? {
+              gateway: Number(d.gatewayAmount),
+              freezone: Number(d.freezoneAmount ?? 0),
+              bank: Number(d.bankAmount ?? 0),
+            }
+          : undefined,
+        createdAt: d.createdAt.toISOString(),
+      };
+    }),
   });
 });
 
-const SweepBody = z.object({
+const ReleaseBody = z.object({
   id: z.string().min(1),
   txHash: z.string().trim(),
 });
 
 /**
- * Records that the operator swept a deposit address into the treasury.
+ * Records a release that has already happened on chain.
  *
- * The gateway holds no key to these addresses, so the move happens in the
- * operator's own wallet and what makes it real here is the chain agreeing: the
- * transfer must have come from this address and landed in a bank wallet.
+ * The transaction is sent by the operator's own wallet — nothing here holds a
+ * key, and nothing here could redirect the money if it did, because the
+ * destinations are fixed by the deposit address itself. What this endpoint does
+ * is read the contract's own `Released` event back off the chain, so the books
+ * record what the contract actually paid rather than what we expected it to.
  */
 export const POST = handler(async (request: Request) => {
   await requireRole("BANK");
-  const { id, txHash } = await readJson(request, SweepBody);
+  const { id, txHash } = await readJson(request, ReleaseBody);
+
+  if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw badRequest("هش تراکنش معتبر نیست");
 
   const deposit = await db.depositAddress.findUnique({
     where: { id },
     include: { invoice: { select: { ref: true, currency: true } } },
   });
   if (!deposit) throw notFound("آدرس واریز یافت نشد");
-  if (deposit.sweptAt) throw badRequest("این آدرس قبلاً برداشت شده است");
-  if (new Prisma.Decimal(deposit.receivedAmount).lte(0)) {
-    throw badRequest("موجودی این آدرس صفر است");
+  if (deposit.sweptAt) throw badRequest("این آدرس قبلاً تسویه شده است");
+
+  const receipt = await publicClient()
+    .getTransactionReceipt({ hash: txHash as `0x${string}` })
+    .catch(() => null);
+  if (!receipt) throw badRequest("تراکنش روی شبکه پیدا نشد — ممکن است هنوز ثبت نشده باشد");
+  if (receipt.status !== "success") throw badRequest("تراکنش روی شبکه ناموفق بوده است");
+
+  // The event has to come from this deposit's own address, so a hash belonging
+  // to some other release cannot be used to close this one.
+  let released: { total: bigint; gateway: bigint; freezone: bigint; bank: bigint } | null = null;
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== deposit.address.toLowerCase()) continue;
+    try {
+      const decoded = decodeEventLog({ abi: DEPOSIT_ABI, data: log.data, topics: log.topics });
+      if (decoded.eventName !== "Released") continue;
+      const args = decoded.args as unknown as {
+        total: bigint;
+        gatewayAmount: bigint;
+        freezoneAmount: bigint;
+        bankAmount: bigint;
+      };
+      released = {
+        total: args.total,
+        gateway: args.gatewayAmount,
+        freezone: args.freezoneAmount,
+        bank: args.bankAmount,
+      };
+      break;
+    } catch {
+      // Not the event we are after.
+    }
   }
 
-  const treasury = await db.wallet.findMany({
-    where: { ownerKind: "BANK", active: true },
-    select: { address: true },
-  });
-  if (treasury.length === 0) throw badRequest("کیف پول خزانه بانک تعریف نشده است");
-
-  let verified;
-  try {
-    verified = await verifyTransfer(txHash, {
-      from: deposit.address,
-      currency: deposit.invoice?.currency ?? "USDT",
-      minAmount: deposit.receivedAmount.toString(),
-    });
-  } catch (error) {
-    if (error instanceof ChainVerificationError) throw badRequest(error.message);
-    throw error;
+  if (!released) {
+    throw badRequest("این تراکنش تسویه‌ای برای این آدرس ثبت نکرده است");
   }
 
-  if (!treasury.some((w) => w.address === verified.to)) {
-    throw badRequest("مقصد این تراکنش هیچ‌کدام از کیف پول‌های بانک نیست");
-  }
-
-  await recordChainTx(verified, "OUT");
-
+  const currency = deposit.invoice?.currency ?? "USDT";
   const updated = await db.depositAddress.update({
     where: { id },
-    data: { sweptAt: new Date(), sweepTxHash: verified.hash },
+    data: {
+      sweptAt: new Date(),
+      sweepTxHash: txHash.toLowerCase(),
+      gatewayAmount: toHuman(released.gateway, currency),
+      freezoneAmount: toHuman(released.freezone, currency),
+      bankAmount: toHuman(released.bank, currency),
+    },
   });
 
-  await postDepositSwept({
+  await postDepositReleased({
     id: updated.id,
     address: updated.address,
-    currency: deposit.invoice?.currency ?? "USDT",
-    amount: updated.receivedAmount,
+    currency,
+    total: toHuman(released.total, currency),
+    gateway: toHuman(released.gateway, currency),
+    freezone: toHuman(released.freezone, currency),
+    bank: toHuman(released.bank, currency),
   });
 
-  return jsonOk({ swept: true, address: updated.address, txHash: verified.hash });
+  return jsonOk({
+    released: true,
+    address: updated.address,
+    split: {
+      gateway: toHuman(released.gateway, currency),
+      freezone: toHuman(released.freezone, currency),
+      bank: toHuman(released.bank, currency),
+    },
+  });
 });
+
+export { FACTORY_ABI };

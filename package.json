@@ -14,8 +14,8 @@
     "db:studio": "prisma studio",
     "check:chain": "tsx --conditions=react-server scripts/check-chain.ts",
     "watch:chain": "tsx --conditions=react-server scripts/watch-chain.ts",
-    "gen:xpub": "tsx scripts/gen-xpub.ts",
-    "contracts:build": "tsx scripts/compile-contracts.ts"
+    "contracts:build": "tsx scripts/compile-contracts.ts",
+    "contracts:deploy": "tsx scripts/deploy-gateway.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

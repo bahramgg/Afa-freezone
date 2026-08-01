@@ -558,6 +558,10 @@ enum LedgerAccount {
   BANK_SPREAD
   /** Returned to a buyer after a trade fell through. */
   REFUNDED
+  /** The gateway's fee, actually received on chain. */
+  GATEWAY_PAID
+  /** The organization's share, actually received on chain. */
+  FREEZONE_PAID
 }
 
 enum LedgerUnit {
@@ -661,9 +665,18 @@ model ChainTx {
  */
 model DepositAddress {
   id String @id @default(cuid())
-  /** BIP-44 index under the configured account node. Allocated from a sequence. */
+  /** Sequence number, kept only so the operator has something short to quote. */
   index   Int    @unique
   address String @unique
+
+  /**
+   * The split this address is bound to, as the contract received it.
+   *
+   * Releasing needs exactly these terms — the address is their hash — so they
+   * are kept beside it rather than re-read from the factory, whose current
+   * terms will have moved on by then.
+   */
+  terms Json?
 
   invoiceId String?  @unique
   invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
@@ -671,9 +684,13 @@ model DepositAddress {
   /** Everything seen at this address so far, summed across deposits. */
   receivedAmount Decimal @db.Decimal(38, 18) @default(0)
 
-  /** Set once the operator moved the balance to the bank's treasury wallet. */
+  /** Set once the contract split the balance three ways. */
   sweptAt     DateTime?
   sweepTxHash String?
+  /** What the contract actually paid out, read back from its own event. */
+  gatewayAmount  Decimal? @db.Decimal(38, 18)
+  freezoneAmount Decimal? @db.Decimal(38, 18)
+  bankAmount     Decimal? @db.Decimal(38, 18)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

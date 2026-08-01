@@ -56,26 +56,44 @@ export async function postInvoicePaid(invoice: {
   );
 }
 
-/** The operator moved a deposit address's balance into the bank's treasury. */
-export async function postDepositSwept(deposit: {
+/**
+ * The contract split a deposit three ways.
+ *
+ * The figures come from the contract's own event, not from repeating its
+ * arithmetic here: the chain is what actually moved the money, so it is what
+ * the books record. Our earlier estimate of the fee is replaced by what was
+ * really taken, which is the only way the two can be guaranteed to agree.
+ */
+export async function postDepositReleased(deposit: {
   id: string;
   address: string;
   currency: Currency;
-  amount: Prisma.Decimal | string | number;
+  total: string;
+  gateway: string;
+  freezone: string;
+  bank: string;
 }): Promise<void> {
-  if (await alreadyPosted("DEPOSIT_SWEPT", deposit.id)) return;
+  if (await alreadyPosted("DEPOSIT_RELEASED", deposit.id)) return;
 
   const unit = unitFor(deposit.currency);
+  const negate = (v: string) => new Prisma.Decimal(v).negated();
+
   await post(
     {
-      kind: "DEPOSIT_SWEPT",
+      kind: "DEPOSIT_RELEASED",
       subject: "deposit",
       subjectId: deposit.id,
       subjectRef: deposit.address,
     },
     [
-      { account: "DEPOSIT_HELD", amount: new Prisma.Decimal(deposit.amount).negated(), unit },
-      { account: "BANK_HELD", amount: deposit.amount, unit },
+      // What was held at the address has left it, in three directions.
+      { account: "DEPOSIT_HELD", amount: negate(deposit.total), unit },
+      { account: "BANK_HELD", amount: deposit.bank, unit, note: "سهم بانک روی زنجیره" },
+      { account: "GATEWAY_PAID", amount: deposit.gateway, unit, note: "کارمزد درگاه پرداخت شد" },
+      { account: "FREEZONE_PAID", amount: deposit.freezone, unit, note: "سهم سازمان پرداخت شد" },
+      // The claims the payment created are now settled in money, not on paper.
+      { account: "GATEWAY_SHARE", amount: negate(deposit.gateway), unit },
+      { account: "FREEZONE_SHARE", amount: negate(deposit.freezone), unit },
     ],
   );
 }

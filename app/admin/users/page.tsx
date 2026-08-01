@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -107,7 +108,7 @@ export default function AdminUsersPage() {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-xs text-muted-foreground">
                   <th className="text-start font-medium px-4 py-3">UID</th>
@@ -131,8 +132,8 @@ export default function AdminUsersPage() {
                         {u.type === "IRANIAN" ? "ایرانی" : "خارجی"}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs" dir="ltr">
-                      {u.type === "IRANIAN" ? u.nationalId : u.passportNo}
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                      <Ltr>{u.type === "IRANIAN" ? u.nationalId : u.passportNo}</Ltr>
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={u.kyc === "APPROVED" ? "success" : u.kyc === "PENDING" ? "warning" : "destructive"}>

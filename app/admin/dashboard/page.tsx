@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
         <CardHeader><CardTitle>آخرین فعالیت‌های سیستم</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted-foreground">
                   <th className="text-start font-medium py-2">زمان</th>

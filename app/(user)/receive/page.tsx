@@ -55,7 +55,7 @@ export default function ReceivePage() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
         <div className="overflow-x-auto scrollbar-thin">
-          <TabsList className="flex flex-nowrap whitespace-nowrap">
+          <TabsList className="w-full">
             {TABS.map((t) => (
               <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
                 <span>{t.label}</span>

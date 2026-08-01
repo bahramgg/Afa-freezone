@@ -1,7 +1,7 @@
 "use client";
 
 import { useHydrated } from "@/lib/stores/hydration";
-import { formatJalali, fromNow, toPersianDigits } from "@/lib/format";
+import { formatJalali, fromNow } from "@/lib/format";
 
 export function JalaliDate({
   iso,
@@ -14,6 +14,6 @@ export function JalaliDate({
 }) {
   const hydrated = useHydrated();
   if (!hydrated) return <span className="opacity-0">—</span>;
-  const out = relative ? fromNow(iso) : toPersianDigits(formatJalali(iso, withTime));
-  return <span>{out}</span>;
+  const out = relative ? fromNow(iso) : formatJalali(iso, withTime);
+  return <span className="whitespace-nowrap tabular-nums">{out}</span>;
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -69,7 +70,7 @@ export default function AdminKycPage() {
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead className="bg-muted/50">
                   <tr className="text-xs text-muted-foreground">
                     <th className="text-start font-medium px-4 py-3">UID</th>
@@ -89,7 +90,7 @@ export default function AdminKycPage() {
                       <td className="px-4 py-3 font-medium">{req.fullName}</td>
                       <td className="px-4 py-3 text-muted-foreground font-mono">{req.nationalId}</td>
                       <td className="px-4 py-3 text-muted-foreground font-mono">{req.freezoneId}</td>
-                      <td className="px-4 py-3 text-muted-foreground" dir="ltr">{req.phone}</td>
+                      <td className="px-4 py-3 text-muted-foreground"><Ltr>{req.phone}</Ltr></td>
                       <td className="px-4 py-3 text-muted-foreground">
                         <JalaliDate iso={req.submittedAt} />
                       </td>

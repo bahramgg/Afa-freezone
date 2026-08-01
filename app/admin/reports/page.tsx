@@ -148,8 +148,8 @@ export default function AdminReportsPage() {
         <TabsContent value="receive" className="mt-4">
           <Card>
             <CardHeader><CardTitle>{toPersianDigits(invoices.length)} فاکتور دریافت</CardTitle></CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
+            <CardContent className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
                     <th className="text-start py-2">TRX</th>
@@ -176,8 +176,8 @@ export default function AdminReportsPage() {
         <TabsContent value="send" className="mt-4">
           <Card>
             <CardHeader><CardTitle>{toPersianDigits(sends.length)} درخواست ارسال</CardTitle></CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
+            <CardContent className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
                     <th className="text-start py-2">TRX</th>
@@ -209,8 +209,8 @@ export default function AdminReportsPage() {
                 <MoneyText amount={settled.reduce((a, s) => a + s.amount, 0)} currency="USDT" />
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
+            <CardContent className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
                     <th className="text-start py-2">TRX</th>
@@ -243,8 +243,8 @@ export default function AdminReportsPage() {
           </div>
           <Card>
             <CardHeader><CardTitle>فعال‌ترین کاربران</CardTitle></CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
+            <CardContent className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
                     <th className="text-start py-2">UID</th>

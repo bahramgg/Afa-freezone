@@ -26,7 +26,7 @@ import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useBankStore } from "@/lib/stores/bank";
 import { useHydrated } from "@/lib/stores/hydration";
 import { bankVolumeSeries, usdtRateSeries } from "@/lib/mock/fixtures";
-import { toPersianDigits, formatAmount } from "@/lib/format";
+import { toPersianDigits, formatAmount, formatToken } from "@/lib/format";
 
 export default function BankDashboardPage() {
   const sends = useSendStore((s) => s.list);
@@ -82,12 +82,14 @@ export default function BankDashboardPage() {
           label="ارسال وجه در انتظار"
           value={hydrated ? toPersianDigits(pendingSend) : "—"}
           icon={Send}
+          tone="success"
           hint="نیاز به بررسی"
         />
         <StatCard
           label="تسویه در انتظار"
           value={hydrated ? toPersianDigits(pendingSettlement) : "—"}
           icon={Banknote}
+          tone="success"
           hint="نیاز به بررسی"
         />
         <StatCard
@@ -96,12 +98,14 @@ export default function BankDashboardPage() {
           delta="+۲۲٪"
           trend="up"
           icon={TrendingUp}
+          tone="success"
         />
         <StatCard
           label="موجودی USDT"
-          value={<MoneyText amount={totalUsdt} currency="USDT" />}
+          value={hydrated ? formatToken(totalUsdt, "USDT") : "—"}
           icon={Wallet}
-          hint={hydrated ? `${toPersianDigits(totalBnb.toFixed(2))} BNB` : ""}
+          tone="success"
+          hint={hydrated ? formatToken(totalBnb, "BNB") : ""}
         />
       </div>
 
@@ -185,7 +189,7 @@ export default function BankDashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted-foreground">
                   <th className="text-start font-medium py-2">نوع</th>

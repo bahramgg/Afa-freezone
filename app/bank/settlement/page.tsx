@@ -79,7 +79,7 @@ export default function BankSettlementPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="flex w-full overflow-x-auto">
+        <TabsList className="w-full">
           {TABS.map((t) => {
             const n = t.value !== "ALL" ? counts[t.value as SettlementStatus] : visible.length;
             return (
@@ -95,7 +95,7 @@ export default function BankSettlementPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[46rem] text-sm">
                   <thead className="bg-muted/50">
                     <tr className="text-xs text-muted-foreground">
                       <th className="text-start font-medium px-4 py-3">TRX</th>

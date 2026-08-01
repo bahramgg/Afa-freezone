@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -112,7 +113,7 @@ export default function AdminInvoicesPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="flex w-full overflow-x-auto">
+        <TabsList className="w-full">
           {TABS.map((t) => {
             const allowed = ADMIN_STATUSES_FOR[t.value];
             const n = allowed === "ALL"
@@ -133,7 +134,7 @@ export default function AdminInvoicesPage() {
                 <div className="p-8 text-center text-muted-foreground">رکوردی نیست</div>
               ) : (
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[46rem] text-sm">
                     <thead className="bg-muted/50">
                       <tr className="text-xs text-muted-foreground">
                         <th className="text-start font-medium px-4 py-3">TRX</th>
@@ -157,8 +158,8 @@ export default function AdminInvoicesPage() {
                             <div className="text-[10px] text-muted-foreground">{inv.userUid ?? ""}</div>
                           </td>
                           <td className="px-4 py-3"><MoneyText amount={inv.amount} currency={inv.currency} /></td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground" dir="ltr">
-                            {inv.walletAddress ? truncateAddress(inv.walletAddress) : "—"}
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                            <Ltr>{inv.walletAddress ? truncateAddress(inv.walletAddress) : "—"}</Ltr>
                           </td>
                           <td className="px-4 py-3 truncate max-w-[160px] text-muted-foreground">{inv.description ?? "—"}</td>
                           <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={inv.createdAt} relative /></td>

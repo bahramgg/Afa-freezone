@@ -6,7 +6,9 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        "rounded-lg border border-border bg-card text-card-foreground shadow-sm",
+        // min-w-0 so a card holding a wide table can shrink inside a grid or
+        // flex parent and let the table scroll, instead of widening the page.
+        "min-w-0 rounded-lg border border-border bg-card text-card-foreground shadow-sm",
         className,
       )}
       {...props}

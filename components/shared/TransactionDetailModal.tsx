@@ -35,7 +35,7 @@ export function TransactionDetailModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>جزئیات تراکنش {tx.invoiceId ?? tx.id}</DialogTitle>
+          <DialogTitle>جزئیات تراکنش {tx.trxId ?? tx.invoiceId ?? tx.id}</DialogTitle>
           <DialogDescription>
             وضعیت کامل و اطلاعات بلاکچین این تراکنش
           </DialogDescription>

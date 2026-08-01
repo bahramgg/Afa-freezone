@@ -14,7 +14,7 @@ export function MoneyText({
   sign?: "+" | "-";
 }) {
   return (
-    <span className={cn("tabular-nums font-medium", className)}>
+    <span className={cn("whitespace-nowrap font-medium tabular-nums", className)}>
       {sign}
       {formatCurrency(amount, currency)}
     </span>

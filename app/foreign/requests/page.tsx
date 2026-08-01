@@ -66,7 +66,7 @@ export default function ForeignRequestsPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList className="flex w-full">
+        <TabsList className="w-full">
           <TabsTrigger value="WAITING_ME" className="text-xs gap-1.5">
             در انتظار تأیید من
             {hydrated && waiting.length > 0 ? (
@@ -83,7 +83,7 @@ export default function ForeignRequestsPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[46rem] text-sm">
                   <thead className="bg-muted/50">
                     <tr className="text-xs text-muted-foreground">
                       <th className="text-start font-medium px-4 py-3">TRX</th>

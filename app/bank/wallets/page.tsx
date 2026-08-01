@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Power, Wallet as WalletIcon } from "lucide-react";
+import { Coins, Plus, Power, TrendingUp, Wallet as WalletIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/Dialog";
 import { useBankStore } from "@/lib/stores/bank";
 import { useSettingsStore } from "@/lib/stores/settings";
-import { truncateAddress, formatAmount, toPersianDigits } from "@/lib/format";
+import { truncateAddress, formatAmount, formatToken, toPersianDigits } from "@/lib/format";
 import type { BankWalletKind } from "@/lib/types";
 
 const KIND_LABEL: Record<BankWalletKind, string> = {
@@ -112,25 +112,29 @@ export default function BankWalletsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="موجودی USDT"
-          value={<MoneyText amount={totalUsdt} currency="USDT" />}
+          value={formatToken(totalUsdt, "USDT")}
           icon={WalletIcon}
-          hint={`${toPersianDigits(formatAmount(usdtRial))} ت`}
+          tone="success"
+          hint={`${formatAmount(usdtRial)} ت`}
         />
         <StatCard
           label="موجودی BNB"
-          value={`${toPersianDigits(totalBnb.toFixed(2))} BNB`}
-          icon={WalletIcon}
-          hint={`${toPersianDigits(formatAmount(bnbRial))} ت`}
+          value={formatToken(totalBnb, "BNB")}
+          icon={Coins}
+          tone="success"
+          hint={`${formatAmount(bnbRial)} ت`}
         />
         <StatCard
           label="تعداد کیف پول‌ها"
           value={toPersianDigits(wallets.length)}
           icon={WalletIcon}
+          tone="success"
         />
         <StatCard
           label="نرخ روز USDT"
-          value={`${toPersianDigits(formatAmount(settings.usdtRate))} ت`}
-          icon={Power}
+          value={`${formatAmount(settings.usdtRate)} ت`}
+          icon={TrendingUp}
+          tone="success"
         />
       </div>
 
@@ -140,7 +144,7 @@ export default function BankWalletsPage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-xs text-muted-foreground">
                   <th className="text-start font-medium px-4 py-3">نام</th>
@@ -165,13 +169,22 @@ export default function BankWalletsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs">{w.network}</td>
                     <td className="px-4 py-3"><Badge tone="info">{KIND_LABEL[w.kind]}</Badge></td>
-                    <td className="px-4 py-3 text-xs">{toPersianDigits(w.usdtBalance)} USDT</td>
-                    <td className="px-4 py-3 text-xs">{toPersianDigits(w.bnbBalance)} BNB</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs tabular-nums">
+                      {formatToken(w.usdtBalance, "USDT")}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs tabular-nums">
+                      {formatToken(w.bnbBalance, "BNB")}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge tone={w.active ? "success" : "neutral"}>{w.active ? "فعال" : "غیرفعال"}</Badge>
                     </td>
                     <td className="px-4 py-3 text-end">
-                      <Button size="sm" variant="ghost" onClick={() => toggle(w.address)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="whitespace-nowrap"
+                        onClick={() => toggle(w.address)}
+                      >
                         <Power className="h-3.5 w-3.5" />
                         {w.active ? "غیرفعال‌سازی" : "فعال‌سازی"}
                       </Button>

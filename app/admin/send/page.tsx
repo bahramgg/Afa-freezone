@@ -112,7 +112,7 @@ export default function AdminSendPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="flex w-full overflow-x-auto">
+        <TabsList className="w-full">
           {TABS.map((t) => {
             const n = (counts as Record<string, number | undefined>)[t.value] ?? (t.value === "ALL" ? sends.length : 0);
             return (
@@ -127,7 +127,7 @@ export default function AdminSendPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[46rem] text-sm">
                   <thead className="bg-muted/50">
                     <tr className="text-xs text-muted-foreground">
                       <th className="text-start font-medium px-4 py-3">TRX</th>

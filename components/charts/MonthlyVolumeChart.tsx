@@ -10,6 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  CHART_AXIS_TICK,
+  CHART_GRID,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+} from "./theme";
 import { toPersianDigits } from "@/lib/format";
 
 const DATA = [
@@ -26,16 +32,12 @@ export function MonthlyVolumeChart() {
     <div className="h-64 w-full" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={DATA} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 260)" />
-          <XAxis dataKey="month" tick={{ fontSize: 11 }} reversed />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => toPersianDigits(v)} width={50} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
+          <XAxis dataKey="month" tick={CHART_AXIS_TICK} reversed />
+          <YAxis tick={CHART_AXIS_TICK} tickFormatter={(v) => toPersianDigits(v)} width={50} />
           <Tooltip
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid oklch(0.92 0.01 260)",
-              fontFamily: "var(--font-vazirmatn)",
-              direction: "rtl",
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
             formatter={((v: unknown, n: unknown) => [
               toPersianDigits(Number(v)),
               n === "received" ? "دریافتی" : "پرداختی",

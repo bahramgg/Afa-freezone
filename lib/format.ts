@@ -1,4 +1,5 @@
 import { dayjs } from "./jalali";
+import type { Currency } from "./types";
 
 const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 
@@ -25,9 +26,17 @@ export function formatAmount(n: number): string {
   }).format(n);
 }
 
+/**
+ * Token amounts always carry two decimals and Persian separators, so a balance
+ * rendered in a table matches the same number rendered in a stat card.
+ */
+export function formatToken(amount: number, currency: Currency): string {
+  return `${formatAmount(amount)} ${currency}`;
+}
+
 export function formatJalali(iso: string | Date, withTime = false): string {
   const d = dayjs(iso).calendar("jalali").locale("fa");
-  return withTime ? d.format("YYYY/MM/DD — HH:mm") : d.format("YYYY/MM/DD");
+  return toPersianDigits(withTime ? d.format("YYYY/MM/DD — HH:mm") : d.format("YYYY/MM/DD"));
 }
 
 export function fromNow(iso: string | Date): string {

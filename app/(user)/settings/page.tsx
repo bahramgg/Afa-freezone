@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Lock, Plus, ShieldCheck, Trash2, Loader2, Wallet as WalletIcon, Bell, Check } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -33,17 +33,16 @@ export default function SettingsPage() {
   const addWallet = useWalletsStore((s) => s.add);
   const removeWallet = useWalletsStore((s) => s.remove);
 
-  const [editing, setEditing] = useState(false);
-  const [address, setAddress] = useState("");
-
-  useEffect(() => {
-    if (user) setAddress(user.address);
-  }, [user]);
+  // The draft only exists while editing; otherwise the store is the source of
+  // truth, so there is no effect syncing one piece of state into another.
+  const [draftAddress, setDraftAddress] = useState<string | null>(null);
+  const editing = draftAddress !== null;
+  const address = draftAddress ?? user?.address ?? "";
 
   function saveProfile() {
     updateProfile({ address });
     toast.success("اطلاعات با موفقیت ذخیره شد");
-    setEditing(false);
+    setDraftAddress(null);
   }
 
   return (
@@ -54,7 +53,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="profile">پروفایل</TabsTrigger>
           <TabsTrigger value="wallets">مدیریت والت‌ها</TabsTrigger>
-          <TabsTrigger value="kyc">KYC و وضعیت</TabsTrigger>
+          <TabsTrigger value="kyc">وضعیت KYC</TabsTrigger>
           <TabsTrigger value="security">امنیت و اعلان‌ها</TabsTrigger>
         </TabsList>
 
@@ -78,19 +77,21 @@ export default function SettingsPage() {
                   id="address"
                   value={address}
                   disabled={!editing}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => setDraftAddress(e.target.value)}
                 />
               </div>
-              <div className="sm:col-span-2 flex justify-end gap-2">
+              <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
                 {editing ? (
                   <>
-                    <Button variant="outline" onClick={() => { setEditing(false); setAddress(user?.address ?? ""); }}>
+                    <Button variant="outline" onClick={() => setDraftAddress(null)}>
                       انصراف
                     </Button>
                     <Button onClick={saveProfile}>ذخیره</Button>
                   </>
                 ) : (
-                  <Button onClick={() => setEditing(true)}>ویرایش پروفایل</Button>
+                  <Button onClick={() => setDraftAddress(user?.address ?? "")}>
+                    ویرایش پروفایل
+                  </Button>
                 )}
               </div>
             </CardContent>

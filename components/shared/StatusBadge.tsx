@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
-import type { InvoiceStatus, SendStatus, SettlementStatus } from "@/lib/types";
+import type { InvoiceStatus, SendStatus, SettlementStatus, Transaction } from "@/lib/types";
 
 type Tone = "neutral" | "primary" | "success" | "warning" | "destructive" | "info";
 
@@ -35,16 +35,19 @@ const SETTLEMENT_LABELS: Record<SettlementStatus, { label: string; tone: Tone }>
   REJECTED: { label: "رد شده", tone: "destructive" },
 };
 
-const HIGH_LEVEL_TONE: Record<Tone, string> = {
-  neutral: "خاکستری",
-  primary: "آبی",
-  success: "سبز",
-  warning: "زرد",
-  destructive: "قرمز",
-  info: "آبی",
+const TX_LABELS: Record<Transaction["status"], { label: string; tone: Tone }> = {
+  CONFIRMED: { label: "موفق — واریز شد", tone: "success" },
+  PENDING: { label: "در انتظار تأیید شبکه", tone: "warning" },
+  FAILED: { label: "ناموفق", tone: "destructive" },
+  // A deposit seen on-chain that no invoice claims yet — not a failure.
+  UNMATCHED: { label: "بدون فاکتور متناظر", tone: "neutral" },
 };
 
-void HIGH_LEVEL_TONE;
+export function TransactionStatusBadge({ status }: { status: Transaction["status"] }) {
+  const meta = TX_LABELS[status];
+  if (!meta) return <Badge tone="neutral">{status}</Badge>;
+  return <Badge tone={meta.tone}>{meta.label}</Badge>;
+}
 
 export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   const { label, tone } = INVOICE_LABELS[status];

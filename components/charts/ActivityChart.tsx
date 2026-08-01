@@ -10,6 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  CHART_AXIS_TICK,
+  CHART_GRID,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+} from "./theme";
 import { activitySeries } from "@/lib/mock/fixtures";
 import { formatJalali, toPersianDigits } from "@/lib/format";
 
@@ -37,16 +43,12 @@ export function ActivityChart() {
               <stop offset="95%" stopColor="oklch(0.42 0.22 275)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 260)" />
-          <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={4} />
-          <YAxis tick={{ fontSize: 10 }} width={50} tickFormatter={(v) => toPersianDigits(v)} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
+          <XAxis dataKey="label" tick={CHART_AXIS_TICK} interval={4} />
+          <YAxis tick={CHART_AXIS_TICK} width={50} tickFormatter={(v) => toPersianDigits(v)} />
           <Tooltip
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid oklch(0.92 0.01 260)",
-              fontFamily: "var(--font-vazirmatn)",
-              direction: "rtl",
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
             formatter={((v: unknown, name: unknown) => [
               toPersianDigits(Number(v)) + " USDT",
               name === "received" ? "دریافتی" : "پرداختی",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDownLeft, Inbox, Wallet, ShieldCheck } from "lucide-react";
+import { ArrowDownLeft, ChevronLeft, Inbox, Wallet, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -61,13 +61,16 @@ export default function ForeignDashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>آخرین درخواست‌ها</CardTitle>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/foreign/requests">مشاهده همه</Link>
+            <Button asChild variant="ghost" size="sm" className="shrink-0">
+              <Link href="/foreign/requests" className="gap-1">
+                مشاهده همه
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
             </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
                     <th className="text-start font-medium py-2">TRX</th>

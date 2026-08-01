@@ -1,6 +1,10 @@
 "use client";
 
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+} from "./theme";
 
 export function RatioPieChart({ data }: { data: { name: string; value: number; color: string }[] }) {
   return (
@@ -23,12 +27,8 @@ export function RatioPieChart({ data }: { data: { name: string; value: number; c
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid oklch(0.92 0.01 260)",
-              fontFamily: "var(--font-vazirmatn)",
-              direction: "rtl",
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
           />
           <Legend />
         </PieChart>

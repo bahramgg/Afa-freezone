@@ -143,7 +143,7 @@ export default function ReportsPage() {
 
       <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }}>
         <div className="overflow-x-auto scrollbar-thin">
-          <TabsList className="flex flex-nowrap whitespace-nowrap">
+          <TabsList className="w-full">
             <TabsTrigger value="all">همه تراکنش‌ها</TabsTrigger>
             <TabsTrigger value="received">دریافت‌ها</TabsTrigger>
             <TabsTrigger value="sent">پرداخت‌ها</TabsTrigger>
@@ -262,7 +262,7 @@ export default function ReportsPage() {
                   ) : (
                     <>
                       <div className="overflow-x-auto scrollbar-thin">
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[46rem] text-sm">
                           <thead className="bg-muted/50">
                             <tr className="text-xs text-muted-foreground">
                               <th className="text-start font-medium px-4 py-3">شماره</th>
@@ -342,7 +342,7 @@ function SettlementsTab({ list }: { list: ReturnType<typeof useSettlementsStore.
           <div className="p-8"><EmptyState title="درخواست تسویه‌ای ثبت نشده" /></div>
         ) : (
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-xs text-muted-foreground">
                   <th className="text-start font-medium px-4 py-3">شماره</th>

@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Input } from "@/components/ui/Input";
@@ -105,7 +106,7 @@ export default function ForeignReportsPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[46rem] text-sm">
                   <thead className="bg-muted/50">
                     <tr className="text-xs text-muted-foreground">
                       <th className="text-start font-medium px-4 py-3">TRX</th>
@@ -128,8 +129,8 @@ export default function ForeignReportsPage() {
                           <td className="px-4 py-3 font-mono text-xs">{s.trxId}</td>
                           <td className="px-4 py-3">{s.userName ?? s.userUid ?? "—"}</td>
                           <td className="px-4 py-3"><MoneyText amount={s.amount} currency={s.currency} /></td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground" dir="ltr">
-                            {s.recipientWalletAddress ? truncateAddress(s.recipientWalletAddress) : "—"}
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                            <Ltr>{s.recipientWalletAddress ? truncateAddress(s.recipientWalletAddress) : "—"}</Ltr>
                           </td>
                           <td className="px-4 py-3 font-mono text-xs">
                             {s.txHashFromBank ? (

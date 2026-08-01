@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Check, ExternalLink, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -110,7 +111,7 @@ export default function AdminSettlementsPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="flex w-full overflow-x-auto">
+        <TabsList className="w-full">
           {TABS.map((t) => {
             const n = (counts as Record<string, number | undefined>)[t.value] ?? (t.value === "ALL" ? list.length : 0);
             return (
@@ -126,7 +127,7 @@ export default function AdminSettlementsPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[46rem] text-sm">
                   <thead className="bg-muted/50">
                     <tr className="text-xs text-muted-foreground">
                       <th className="text-start font-medium px-4 py-3">TRX</th>
@@ -156,7 +157,7 @@ export default function AdminSettlementsPage() {
                           </td>
                           <td className="px-4 py-3 truncate max-w-[160px]">{s.goodsTitle}</td>
                           <td className="px-4 py-3"><MoneyText amount={s.amount} currency={s.currency} /></td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground" dir="ltr">{s.bankAccount}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground"><Ltr>{s.bankAccount}</Ltr></td>
                           <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={s.createdAt} /></td>
                           <td className="px-4 py-3"><SettlementStatusBadge status={s.status} /></td>
                           <td className="px-4 py-3">

@@ -30,6 +30,20 @@ const schema = z.object({
     .default("0x55d398326f99059fF775485246999027B3197955"),
   USDT_DECIMALS: z.coerce.number().int().min(0).max(36).default(18),
   /**
+   * Extended PUBLIC key the per-payment deposit addresses are derived from.
+   *
+   * Generate it with `npm run gen:xpub`, which prints a mnemonic and its xpub.
+   * The mnemonic belongs in the bank operator's own wallet and must never reach
+   * this file — only the xpub does, which derives addresses without being able
+   * to spend from any of them.
+   */
+  GATEWAY_XPUB: z
+    .string()
+    .regex(/^(xpub|tpub)[1-9A-HJ-NP-Za-km-z]{50,}$/, "GATEWAY_XPUB must be an extended public key")
+    .optional(),
+  /** BIP-44 account path the xpub was exported from, recorded for the operator. */
+  GATEWAY_DERIVATION_PATH: z.string().default("m/44'/60'/0'/0"),
+  /**
    * How a deposit is judged irreversible.
    *
    * `finalized` asks the node for its finalised head — correct on BSC, whose

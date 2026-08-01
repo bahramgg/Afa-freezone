@@ -56,7 +56,10 @@ export function PaymentScreen({ invoice }: { invoice: Invoice }) {
   }
 
   async function shareGateway() {
-    const url = typeof window !== "undefined" ? `${window.location.origin}/receive/${invoice.id}` : `/receive/${invoice.id}`;
+    // The buyer's link is the public checkout, not this page — this one is
+    // behind the merchant's own login.
+    const path = `/pay/${invoice.id}`;
+    const url = typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
     const title = `درگاه پرداخت ${invoice.id}`;
     const text = `پرداخت ${formatAmount(invoice.amount)} ${invoice.currency} — ${invoice.trxId}`;
     try {

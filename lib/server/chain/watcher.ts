@@ -11,6 +11,7 @@ import {
 } from "./client";
 import { notify } from "../notify";
 import { feeFor } from "../fees";
+import { openDepositAddresses } from "../gateway";
 import { raisePayoutSettlement } from "../payout";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -22,6 +23,7 @@ export type WatcherReport = {
   invoicesPaid: number;
   settlementsConfirmed: number;
   confirmationsUpdated: number;
+  invoicesExpired: number;
   /** Set when log scanning was unavailable this pass; see scanError. */
   scanSkipped?: boolean;
   scanError?: string;
@@ -62,10 +64,13 @@ export async function runWatcher(): Promise<WatcherReport> {
     invoicesPaid: 0,
     settlementsConfirmed: 0,
     confirmationsUpdated: 0,
+    invoicesExpired: 0,
   };
 
   if (fromBlock > toBlock) {
     report.confirmationsUpdated = await refreshConfirmations(finalized);
+    report.invoicesPaid += await retryUnmatchedDeposits();
+    report.invoicesExpired = await expireStaleInvoices();
     return report;
   }
 
@@ -87,6 +92,8 @@ export async function runWatcher(): Promise<WatcherReport> {
       report.scanError =
         error instanceof Error ? error.message.split("\n")[0] : "log scan failed";
       report.confirmationsUpdated = await refreshConfirmations(finalized);
+      report.invoicesPaid += await retryUnmatchedDeposits();
+      report.invoicesExpired = await expireStaleInvoices();
       return report;
     }
     report.transfersSeen = logs.length;
@@ -137,7 +144,75 @@ export async function runWatcher(): Promise<WatcherReport> {
   });
 
   report.confirmationsUpdated = await refreshConfirmations(finalized);
+  report.invoicesPaid += await retryUnmatchedDeposits();
+  report.invoicesExpired = await expireStaleInvoices();
   return report;
+}
+
+/**
+ * Tries again on confirmed deposits that never found an invoice.
+ *
+ * A deposit can arrive before its invoice is approved, or fall short of the
+ * amount and be left waiting for the rest. Matching only ever ran at the moment
+ * a transfer was first seen, so either case sat there confirmed and unmatched
+ * with nobody looking at it again. This gives every one of them another pass.
+ */
+async function retryUnmatchedDeposits(): Promise<number> {
+  const pending = await db.chainTx.findMany({
+    where: { status: "CONFIRMED", matchedAt: null, direction: "IN" },
+    orderBy: { seenAt: "asc" },
+    take: 100,
+  });
+
+  let matched = 0;
+  for (const tx of pending) {
+    if (await matchInvoice(tx)) matched += 1;
+  }
+  return matched;
+}
+
+/**
+ * Closes invoices whose window has passed without any payment.
+ *
+ * `expire` was an admin action nobody was ever going to remember to take, so
+ * expired invoices stayed open indefinitely: their address kept being scanned,
+ * and a payment arriving weeks late was still credited against a request the
+ * seller had long written off. One that has received something is left alone —
+ * money already arrived and a human has to decide what happens to it.
+ */
+async function expireStaleInvoices(): Promise<number> {
+  const stale = await db.invoice.findMany({
+    where: {
+      status: { in: ["PENDING", "APPROVED", "PAYMENT_PENDING"] },
+      expiresAt: { lt: new Date() },
+      OR: [{ receivedAmount: null }, { receivedAmount: { lte: 0 } }],
+    },
+    select: { id: true, ref: true, ownerId: true, status: true },
+    take: 200,
+  });
+
+  for (const invoice of stale) {
+    await db.$transaction([
+      db.invoice.update({ where: { id: invoice.id }, data: { status: "EXPIRED" } }),
+      db.statusEvent.create({
+        data: {
+          subject: "invoice",
+          subjectId: invoice.id,
+          fromStatus: invoice.status,
+          toStatus: "EXPIRED",
+          actor: "SYSTEM",
+          note: "مهلت پرداخت بدون دریافت وجه به پایان رسید",
+        },
+      }),
+    ]);
+    await notify(invoice.ownerId, {
+      kind: "INVOICE_EXPIRED",
+      title: "فاکتور منقضی شد",
+      body: `مهلت پرداخت فاکتور ${invoice.ref} به پایان رسید`,
+      href: `/receive/${invoice.ref}`,
+    });
+  }
+  return stale.length;
 }
 
 /**
@@ -189,43 +264,73 @@ async function fetchTransferLogs(
 }
 
 async function watchedAddresses(): Promise<Set<string>> {
-  const [bankWallets, openInvoices] = await Promise.all([
+  const [bankWallets, deposits] = await Promise.all([
     db.wallet.findMany({
       where: { ownerKind: "BANK", active: true, bankKind: { in: ["RECEIVE", "SHARED"] } },
       select: { address: true },
     }),
-    db.invoice.findMany({
-      where: { status: { in: ["APPROVED", "PAYMENT_PENDING"] }, paymentAddress: { not: null } },
-      select: { paymentAddress: true },
-    }),
+    // Every allocated deposit address until it is swept — including expired and
+    // already-paid invoices, because a late or duplicate payment still has to
+    // be seen rather than silently absorbed.
+    openDepositAddresses(),
   ]);
 
   const set = new Set<string>();
   for (const w of bankWallets) set.add(w.address);
-  for (const i of openInvoices) if (i.paymentAddress) set.add(i.paymentAddress);
+  for (const address of deposits) set.add(address);
   return set;
 }
 
 /**
- * Credits the oldest open invoice quoting this address whose amount the deposit
- * covers. Unmatched deposits stay in ChainTx for an admin to reconcile — money
- * is never silently discarded.
+ * Credits the invoice that owns this address.
+ *
+ * The address identifies the invoice on its own, so there is no guessing from
+ * the amount and no way for one buyer's payment to settle another's invoice.
+ * What arrives is added up: a buyer who pays in two goes is credited for both,
+ * one who underpays leaves the invoice open at the same address so they can top
+ * it up, and one who overpays is credited for what they actually sent.
  */
 async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.Decimal }) {
-  const invoice = await db.invoice.findFirst({
-    where: {
-      status: { in: ["APPROVED", "PAYMENT_PENDING"] },
-      paymentAddress: tx.toAddress,
-      currency: "USDT",
-      amount: { lte: tx.amount },
-      chainTxId: null,
-    },
-    orderBy: { createdAt: "asc" },
-    include: { owner: { select: { id: true } } },
+  const deposit = await db.depositAddress.findUnique({
+    where: { address: tx.toAddress },
+    include: { invoice: { include: { owner: { select: { id: true } } } } },
   });
-  if (!invoice) return false;
+  if (!deposit?.invoice) return false;
 
-  const { fee, net } = await feeFor(Number(invoice.amount));
+  const invoice = deposit.invoice;
+
+  // Sum what this address has now seen rather than trusting one transfer.
+  const received = (await db.chainTx.aggregate({
+    where: { toAddress: tx.toAddress, status: "CONFIRMED", currency: invoice.currency },
+    _sum: { amount: true },
+  }))._sum.amount;
+  const total = received ?? tx.amount;
+
+  await db.depositAddress.update({
+    where: { id: deposit.id },
+    data: { receivedAmount: total },
+  });
+
+  if (invoice.status === "PAID" || invoice.status === "REJECTED") return false;
+
+  if (total.lessThan(invoice.amount)) {
+    // Short. The invoice stays open on the same address so the buyer can finish.
+    await db.invoice.update({
+      where: { id: invoice.id },
+      data: { status: "PAYMENT_PENDING", receivedAmount: total },
+    });
+    await notify(invoice.ownerId, {
+      kind: "PAYMENT_PARTIAL",
+      title: "پرداخت ناقص دریافت شد",
+      body: `برای فاکتور ${invoice.ref} تاکنون ${total} از ${invoice.amount} دریافت شده است`,
+      href: `/receive/${invoice.ref}`,
+    });
+    return false;
+  }
+
+  // The merchant is credited for what actually arrived, so an overpayment is
+  // passed on rather than kept.
+  const { fee, net } = await feeFor(Number(total));
 
   await db.$transaction([
     db.invoice.update({
@@ -234,6 +339,7 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
         status: "PAID",
         paidAt: new Date(),
         chainTxId: tx.id,
+        receivedAmount: total,
         feeAmount: fee.toFixed(8),
         netAmount: net.toFixed(8),
       },

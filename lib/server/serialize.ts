@@ -75,6 +75,7 @@ export function serializeInvoice(i: Invoice & WithOwner & WithChainTx) {
     senderName: i.senderName,
     status: i.status,
     paymentAddress: i.paymentAddress ?? "",
+    receivedAmount: num(i.receivedAmount),
     walletAddress: i.walletAddress ?? undefined,
     feeAmount: num(i.feeAmount),
     fee: num(i.feeAmount),

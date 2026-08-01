@@ -2,6 +2,7 @@ import { db } from "@/lib/server/db";
 import { forbidden, handler, jsonOk, notFound, requireUser } from "@/lib/server/http";
 import { serializeInvoice } from "@/lib/server/serialize";
 import { history } from "@/lib/server/statusEvents";
+import { env } from "@/lib/server/env";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -36,8 +37,19 @@ export const GET = handler(
       throw forbidden("این فاکتور در دسترس نیست");
     }
 
+    const { CHAIN_ID, USDT_CONTRACT_ADDRESS, USDT_DECIMALS, CHAIN_EXPLORER_URL } = env();
+
     return jsonOk({
       invoice: serializeInvoice(invoice),
+      // Everything the buyer's browser needs to build the transfer itself.
+      // All of it is public chain configuration, not a secret.
+      chain: {
+        id: CHAIN_ID,
+        // Deliberately no RPC URL: ours carries a provider key, and the buyer's
+        // wallet brings its own node anyway.
+        explorerUrl: CHAIN_EXPLORER_URL,
+        token: { address: USDT_CONTRACT_ADDRESS, decimals: USDT_DECIMALS, symbol: "USDT" },
+      },
       // The audit trail is internal; buyers only get the invoice itself.
       history: isOwner || isStaff ? await history("invoice", invoice.id) : undefined,
     });

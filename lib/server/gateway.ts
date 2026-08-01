@@ -1,41 +1,62 @@
 import "server-only";
 import { db } from "./db";
 import { ApiError } from "./http";
+import { deriveDepositAddress } from "./chain/hd";
+import type { Prisma } from "@/lib/generated/prisma/client";
 
 /**
- * Picks the bank receive wallet an approved invoice should be paid into.
+ * Allocates the address an approved invoice is to be paid into.
  *
- * Deposits are matched by (address, amount), so spreading invoices across the
- * available receive wallets reduces the chance of two open invoices for the
- * same amount sitting on one address. The wallet with the fewest open invoices
- * wins.
+ * Every invoice gets its own, derived at its own index. That is what makes a
+ * deposit unambiguous: invoices used to share a handful of bank wallets, so the
+ * watcher had to guess which one a payment belonged to from its amount — a 1000
+ * USDT payment settled a 500 USDT invoice that happened to be older, and the
+ * difference vanished into the bank's wallet.
+ *
+ * Indexes come from a Postgres sequence, so two concurrent approvals can never
+ * be handed the same one.
  */
-export async function pickGatewayAddress(): Promise<string> {
-  const wallets = await db.wallet.findMany({
-    where: { ownerKind: "BANK", active: true, bankKind: { in: ["RECEIVE", "SHARED"] } },
-    select: { address: true },
-    orderBy: { createdAt: "asc" },
-  });
+const SEQUENCE = "afa_deposit_index_seq";
 
-  if (wallets.length === 0) {
+async function nextIndex(client: Prisma.TransactionClient): Promise<number> {
+  await client.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS "${SEQUENCE}" START WITH 1`);
+  const rows = await client.$queryRawUnsafe<{ nextval: bigint }[]>(
+    `SELECT nextval('"${SEQUENCE}"') AS nextval`,
+  );
+  return Number(rows[0]!.nextval);
+}
+
+export async function allocateDepositAddress(
+  invoiceId: string,
+  client: Prisma.TransactionClient = db,
+): Promise<string> {
+  // Re-approving must not move an address a buyer may already be holding.
+  const existing = await client.depositAddress.findUnique({ where: { invoiceId } });
+  if (existing) return existing.address;
+
+  let index: number;
+  let address: string;
+  try {
+    index = await nextIndex(client);
+    address = deriveDepositAddress(index);
+  } catch (error) {
+    console.error("[gateway] could not derive a deposit address", error);
     throw new ApiError(
       503,
-      "no_gateway_wallet",
-      "هیچ کیف پول دریافت فعالی تعریف نشده است — با پشتیبانی تماس بگیرید",
+      "no_gateway_xpub",
+      "آدرس پرداخت ساخته نشد — پیکربندی درگاه ناقص است، با پشتیبانی تماس بگیرید",
     );
   }
 
-  const open = await db.invoice.groupBy({
-    by: ["paymentAddress"],
-    where: {
-      status: { in: ["APPROVED", "PAYMENT_PENDING"] },
-      paymentAddress: { in: wallets.map((w) => w.address) },
-    },
-    _count: { _all: true },
-  });
+  await client.depositAddress.create({ data: { index, address, invoiceId } });
+  return address;
+}
 
-  const load = new Map(open.map((o) => [o.paymentAddress ?? "", o._count._all]));
-  return wallets.reduce((best, w) =>
-    (load.get(w.address) ?? 0) < (load.get(best.address) ?? 0) ? w : best,
-  ).address;
+/** Every address the watcher must still scan: allocated and not yet swept. */
+export async function openDepositAddresses(): Promise<string[]> {
+  const rows = await db.depositAddress.findMany({
+    where: { sweptAt: null },
+    select: { address: true },
+  });
+  return rows.map((r) => r.address);
 }

@@ -25,6 +25,8 @@ export type Invoice = {
   createdAt: string;
   updatedAt: string;
   paymentAddress: string;
+  /** What actually arrived, which may be short of or beyond the amount. */
+  receivedAmount?: number;
   walletAddress?: string;
   txHash?: string;
   counterpartyUid?: string;
@@ -214,7 +216,8 @@ export type NotificationKind =
   | "SEND_COMPLETED"
   | "FOREIGN_RECEIVE_REQUEST"
   | "FOREIGN_CRYPTO_RECEIVED"
-  | "SETTLEMENT_FROM_INVOICE";
+  | "SETTLEMENT_FROM_INVOICE"
+  | "PAYMENT_PARTIAL";
 
 export type Notification = {
   id: string;

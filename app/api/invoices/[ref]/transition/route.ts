@@ -14,7 +14,7 @@ import { currentUser } from "@/lib/server/auth/session";
 import { serializeInvoice } from "@/lib/server/serialize";
 import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
-import { pickGatewayAddress } from "@/lib/server/gateway";
+import { allocateDepositAddress } from "@/lib/server/gateway";
 import { feeFor } from "@/lib/server/fees";
 import { raisePayoutSettlement } from "@/lib/server/payout";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
@@ -71,13 +71,14 @@ export const POST = handler(
         assertTransition(from, ["PENDING"], "تأیید فاکتور");
         to = "APPROVED";
         actor = "ADMIN";
-        // The address is assigned at approval, so an unapproved invoice never
-        // advertises somewhere to send money.
-        data = { paymentAddress: await pickGatewayAddress() };
+        // Derived at approval, so an unapproved invoice never advertises
+        // somewhere to send money — and derived per invoice, so whatever lands
+        // there can only belong to this one.
+        data = { paymentAddress: await allocateDepositAddress(invoice.id) };
         recipientNote = {
           kind: "INVOICE_APPROVED",
           title: "فاکتور تأیید شد",
-          body: `فاکتور ${invoice.ref} توسط ادمین تأیید شد`,
+          body: `فاکتور ${invoice.ref} تأیید شد — لینک پرداخت را برای خریدار بفرستید`,
         };
         break;
       }

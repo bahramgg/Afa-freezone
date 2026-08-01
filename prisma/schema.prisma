@@ -243,8 +243,14 @@ model Invoice {
 
   status InvoiceStatus @default(PENDING)
 
-  /** Gateway address the foreign buyer must pay into. */
+  /**
+   * Gateway address the foreign buyer must pay into — derived for this invoice
+   * alone, so whatever arrives there belongs to it and nothing else.
+   */
   paymentAddress String?
+  depositAddress DepositAddress?
+  /** What actually arrived, which may differ from `amount`. */
+  receivedAmount Decimal? @db.Decimal(38, 18)
   /** Merchant wallet that receives the settled funds. */
   walletAddress  String?
 
@@ -461,6 +467,35 @@ model ChainTx {
 
   @@index([toAddress, status])
   @@index([status, blockNumber])
+}
+
+/**
+ * A deposit address derived for one payment.
+ *
+ * Held so the watcher knows which addresses to scan, and so the operator can
+ * see what is sitting where before sweeping. The system never holds the key to
+ * any of these — see lib/server/chain/hd.ts.
+ */
+model DepositAddress {
+  id String @id @default(cuid())
+  /** BIP-44 index under the configured account node. Allocated from a sequence. */
+  index   Int    @unique
+  address String @unique
+
+  invoiceId String?  @unique
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  /** Everything seen at this address so far, summed across deposits. */
+  receivedAmount Decimal @db.Decimal(38, 18) @default(0)
+
+  /** Set once the operator moved the balance to the bank's treasury wallet. */
+  sweptAt     DateTime?
+  sweepTxHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sweptAt])
 }
 
 /// Bookmark for the deposit watcher, so a restart resumes where it left off.

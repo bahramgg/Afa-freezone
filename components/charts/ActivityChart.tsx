@@ -1,0 +1,74 @@
+"use client";
+
+import { useMemo } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { activitySeries } from "@/lib/mock/fixtures";
+import { formatJalali, toPersianDigits } from "@/lib/format";
+
+export function ActivityChart() {
+  const data = useMemo(
+    () =>
+      activitySeries(30).map((d) => ({
+        ...d,
+        label: formatJalali(d.date).slice(5), // MM/DD
+      })),
+    [],
+  );
+
+  return (
+    <div className="h-72 w-full" dir="ltr">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 12, left: 12, bottom: 0 }}>
+          <defs>
+            <linearGradient id="grad-rec" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="oklch(0.65 0.18 155)" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="oklch(0.65 0.18 155)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="grad-sent" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="oklch(0.42 0.22 275)" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="oklch(0.42 0.22 275)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 260)" />
+          <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={4} />
+          <YAxis tick={{ fontSize: 10 }} width={50} tickFormatter={(v) => toPersianDigits(v)} />
+          <Tooltip
+            contentStyle={{
+              borderRadius: 8,
+              border: "1px solid oklch(0.92 0.01 260)",
+              fontFamily: "var(--font-vazirmatn)",
+              direction: "rtl",
+            }}
+            formatter={((v: unknown, name: unknown) => [
+              toPersianDigits(Number(v)) + " USDT",
+              name === "received" ? "دریافتی" : "پرداختی",
+            ]) as never}
+            labelFormatter={(l) => `تاریخ: ${l}`}
+          />
+          <Area
+            type="monotone"
+            dataKey="received"
+            stroke="oklch(0.65 0.18 155)"
+            fill="url(#grad-rec)"
+            strokeWidth={2}
+          />
+          <Area
+            type="monotone"
+            dataKey="sent"
+            stroke="oklch(0.42 0.22 275)"
+            fill="url(#grad-sent)"
+            strokeWidth={2}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

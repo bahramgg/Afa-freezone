@@ -1,0 +1,32 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useForeignStore } from "@/lib/stores/foreign";
+import { useHydrated } from "@/lib/stores/hydration";
+import { Skeleton } from "@/components/ui/Skeleton";
+
+export function ForeignAuthGuard({ children }: { children: React.ReactNode }) {
+  const isAuthed = useForeignStore((s) => s.isForeignAuthed);
+  const hasProfile = useForeignStore((s) => s.hasProfile);
+  const hasPassedKyc = useForeignStore((s) => s.hasPassedKyc);
+  const router = useRouter();
+  const hydrated = useHydrated();
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!isAuthed) router.replace("/foreign/login");
+    else if (!hasProfile) router.replace("/foreign/profile");
+    else if (!hasPassedKyc) router.replace("/foreign/kyc-waiting");
+  }, [hydrated, isAuthed, hasProfile, hasPassedKyc, router]);
+
+  if (!hydrated || !isAuthed || !hasProfile || !hasPassedKyc) {
+    return (
+      <div className="p-8 space-y-3">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
+  return <>{children}</>;
+}

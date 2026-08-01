@@ -1,0 +1,241 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Check, X } from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input, Textarea } from "@/components/ui/Input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog";
+import { Label } from "@/components/ui/Label";
+import { JalaliDate } from "@/components/shared/JalaliDate";
+import { MoneyText } from "@/components/shared/MoneyText";
+import { CopyButton } from "@/components/shared/CopyButton";
+import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
+import { useInvoicesStore } from "@/lib/stores/invoices";
+import { useHydrated } from "@/lib/stores/hydration";
+import { truncateAddress, toPersianDigits } from "@/lib/format";
+import type { Invoice, InvoiceStatus } from "@/lib/types";
+
+type AdminTabKey = "ALL" | "PENDING" | "APPROVED_OR_PENDING_PAYMENT" | "PAID" | "EXPIRED" | "REJECTED";
+
+const TABS: { value: AdminTabKey; label: string }[] = [
+  { value: "PENDING", label: "در انتظار تأیید" },
+  { value: "APPROVED_OR_PENDING_PAYMENT", label: "تأیید شده (در انتظار پرداخت)" },
+  { value: "PAID", label: "موفق" },
+  { value: "EXPIRED", label: "منقضی" },
+  { value: "REJECTED", label: "رد شده" },
+  { value: "ALL", label: "همه" },
+];
+
+const ADMIN_STATUSES_FOR: Record<AdminTabKey, InvoiceStatus[] | "ALL"> = {
+  ALL: "ALL",
+  PENDING: ["PENDING"],
+  APPROVED_OR_PENDING_PAYMENT: ["APPROVED", "PAYMENT_PENDING"],
+  PAID: ["PAID"],
+  EXPIRED: ["EXPIRED"],
+  REJECTED: ["REJECTED"],
+};
+
+export default function AdminInvoicesPage() {
+  const list = useInvoicesStore((s) => s.list);
+  const approve = useInvoicesStore((s) => s.approve);
+  const reject = useInvoicesStore((s) => s.reject);
+  const hydrated = useHydrated();
+
+  const [tab, setTab] = useState<AdminTabKey>("PENDING");
+  const [search, setSearch] = useState("");
+  const [reviewing, setReviewing] = useState<Invoice | null>(null);
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    list.forEach((i) => { c[i.status] = (c[i.status] ?? 0) + 1; });
+    return c;
+  }, [list]);
+
+  const filtered = useMemo(() => {
+    const allowed = ADMIN_STATUSES_FOR[tab];
+    return list.filter((i) => {
+      if (allowed !== "ALL" && !allowed.includes(i.status)) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!i.id.toLowerCase().includes(q) && !i.trxId.toLowerCase().includes(q) && !i.userName?.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [list, tab, search]);
+
+  function handleApprove(inv: Invoice) {
+    approve(inv.id);
+    toast.success(`فاکتور ${inv.trxId} تأیید شد`, {
+      description: "لینک پرداخت برای کاربر صادر شد",
+    });
+    setReviewing(null);
+  }
+
+  function handleReject() {
+    if (!reviewing || !rejectReason.trim()) {
+      toast.error("دلیل رد را وارد کنید");
+      return;
+    }
+    reject(reviewing.id, rejectReason);
+    toast.error(`فاکتور ${reviewing.trxId} رد شد`);
+    setReviewing(null);
+    setRejectMode(false);
+    setRejectReason("");
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="دریافت وجه"
+        description="فاکتورهای دریافتی کاربران ایرانی"
+        actions={
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="جستجو TRX/INV/نام..."
+            className="w-56"
+          />
+        }
+      />
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList className="flex w-full overflow-x-auto">
+          {TABS.map((t) => {
+            const allowed = ADMIN_STATUSES_FOR[t.value];
+            const n = allowed === "ALL"
+              ? list.length
+              : allowed.reduce((acc, s) => acc + (counts[s] ?? 0), 0);
+            return (
+              <TabsTrigger key={t.value} value={t.value} className="text-xs whitespace-nowrap">
+                {t.label}
+                {n ? <span className="ms-1 rounded-full bg-primary/10 px-1.5 text-[10px]">{toPersianDigits(n)}</span> : null}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+        <TabsContent value={tab} className="mt-4">
+          <Card>
+            <CardContent className="p-0">
+              {!hydrated || filtered.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">رکوردی نیست</div>
+              ) : (
+                <div className="overflow-x-auto scrollbar-thin">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr className="text-xs text-muted-foreground">
+                        <th className="text-start font-medium px-4 py-3">TRX</th>
+                        <th className="text-start font-medium px-4 py-3">INV</th>
+                        <th className="text-start font-medium px-4 py-3">کاربر</th>
+                        <th className="text-start font-medium px-4 py-3">مبلغ</th>
+                        <th className="text-start font-medium px-4 py-3">والت گیرنده</th>
+                        <th className="text-start font-medium px-4 py-3">توضیحات</th>
+                        <th className="text-start font-medium px-4 py-3">تاریخ</th>
+                        <th className="text-start font-medium px-4 py-3">وضعیت</th>
+                        <th className="text-start font-medium px-4 py-3">عملیات</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((inv) => (
+                        <tr key={inv.id} className="border-t border-border hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 font-mono text-xs">{inv.trxId}</td>
+                          <td className="px-4 py-3 font-mono text-xs">{inv.id}</td>
+                          <td className="px-4 py-3">
+                            {inv.userName ?? "—"}
+                            <div className="text-[10px] text-muted-foreground">{inv.userUid ?? ""}</div>
+                          </td>
+                          <td className="px-4 py-3"><MoneyText amount={inv.amount} currency={inv.currency} /></td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground" dir="ltr">
+                            {inv.walletAddress ? truncateAddress(inv.walletAddress) : "—"}
+                          </td>
+                          <td className="px-4 py-3 truncate max-w-[160px] text-muted-foreground">{inv.description ?? "—"}</td>
+                          <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={inv.createdAt} relative /></td>
+                          <td className="px-4 py-3"><InvoiceStatusBadge status={inv.status} /></td>
+                          <td className="px-4 py-3">
+                            {inv.status === "PENDING" ? (
+                              <Button size="sm" variant="outline" onClick={() => setReviewing(inv)}>بررسی</Button>
+                            ) : <span className="text-xs text-muted-foreground">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={!!reviewing} onOpenChange={(o) => { if (!o) { setReviewing(null); setRejectMode(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>بررسی فاکتور دریافت — {reviewing?.trxId}</DialogTitle>
+            <DialogDescription>{reviewing?.id}</DialogDescription>
+          </DialogHeader>
+          {reviewing ? (
+            <div className="rounded-md border border-border p-3 text-sm space-y-2">
+              <Row label="کاربر" value={`${reviewing.userName ?? "—"} (${reviewing.userUid ?? "—"})`} />
+              <Row label="ارسال کننده" value={reviewing.senderName || "—"} />
+              <Row label="کالای صادره" value={reviewing.goodsTitle || "—"} />
+              <Row label="مبلغ" value={<MoneyText amount={reviewing.amount} currency={reviewing.currency} />} />
+              <Row label="والت گیرنده" value={reviewing.walletAddress ? (
+                <span className="font-mono text-xs flex items-center gap-2" dir="ltr">
+                  {truncateAddress(reviewing.walletAddress)}
+                  <CopyButton value={reviewing.walletAddress} />
+                </span>
+              ) : "—"} />
+              <Row label="توضیحات" value={reviewing.description || "—"} />
+            </div>
+          ) : null}
+          {rejectMode ? (
+            <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+              <Label>دلیل رد</Label>
+              <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="دلیل رد..." />
+            </div>
+          ) : null}
+          <DialogFooter>
+            {!rejectMode ? (
+              <>
+                <Button variant="destructive" onClick={() => setRejectMode(true)}>
+                  <X className="h-4 w-4" />
+                  رد
+                </Button>
+                <Button variant="success" onClick={() => reviewing && handleApprove(reviewing)}>
+                  <Check className="h-4 w-4" />
+                  تأیید
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={() => setRejectMode(false)}>انصراف</Button>
+                <Button variant="destructive" onClick={handleReject}>تأیید رد</Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}

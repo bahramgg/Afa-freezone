@@ -10,6 +10,7 @@ import {
   usdtAddress,
 } from "./client";
 import { notify } from "../notify";
+import { feeFor } from "../fees";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type WatcherReport = {
@@ -223,14 +224,7 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
   });
   if (!invoice) return false;
 
-  const settings = await db.settings.findUnique({ where: { id: 1 } });
-  const feePercent = Number(settings?.feeBasePercent ?? 2);
-  const gross = Number(invoice.amount);
-  const rawFee = (gross * feePercent) / 100;
-  const fee = Math.min(
-    Math.max(rawFee, Number(settings?.feeMin ?? 0)),
-    Number(settings?.feeMax ?? rawFee),
-  );
+  const { fee, net } = await feeFor(Number(invoice.amount));
 
   await db.$transaction([
     db.invoice.update({
@@ -240,7 +234,7 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
         paidAt: new Date(),
         chainTxId: tx.id,
         feeAmount: fee.toFixed(8),
-        netAmount: (gross - fee).toFixed(8),
+        netAmount: net.toFixed(8),
       },
     }),
     db.chainTx.update({ where: { id: tx.id }, data: { matchedAt: new Date() } }),

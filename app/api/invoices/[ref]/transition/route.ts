@@ -15,6 +15,7 @@ import { serializeInvoice } from "@/lib/server/serialize";
 import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
 import { pickGatewayAddress } from "@/lib/server/gateway";
+import { feeFor } from "@/lib/server/fees";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import type { Actor, InvoiceStatus, Prisma } from "@/lib/generated/prisma/client";
 
@@ -128,13 +129,7 @@ export const POST = handler(
         const chainTx = await recordChainTx(verified, "IN");
         if (chainTx.matchedAt) throw conflict("این تراکنش قبلاً برای فاکتور دیگری ثبت شده است");
 
-        const settings = await db.settings.findUnique({ where: { id: 1 } });
-        const gross = Number(invoice.amount);
-        const rawFee = (gross * Number(settings?.feeBasePercent ?? 2)) / 100;
-        const fee = Math.min(
-          Math.max(rawFee, Number(settings?.feeMin ?? 0)),
-          Number(settings?.feeMax ?? rawFee),
-        );
+        const { fee, net } = await feeFor(Number(invoice.amount));
 
         to = "PAID";
         actor = "COUNTERPARTY";
@@ -142,7 +137,7 @@ export const POST = handler(
           chainTx: { connect: { id: chainTx.id } },
           paidAt: new Date(),
           feeAmount: fee.toFixed(8),
-          netAmount: (gross - fee).toFixed(8),
+          netAmount: net.toFixed(8),
         };
         recipientNote = {
           kind: "PAYMENT_RECEIVED",

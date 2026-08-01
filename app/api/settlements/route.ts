@@ -14,6 +14,7 @@ import { serializeSettlement } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
+import { toRial } from "@/lib/server/money";
 import { narrow, settlementScope } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -100,7 +101,7 @@ export const POST = handler(async (request: Request) => {
         bankAccount: input.bankAccount,
         status: "AWAITING_ADMIN",
         exchangeRate: rate?.toString(),
-        rialAmount: rate ? (rate * input.amount).toFixed(2) : undefined,
+        rialAmount: rate ? toRial(rate, input.amount) : undefined,
       },
       include: SETTLEMENT_INCLUDE,
     });

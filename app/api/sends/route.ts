@@ -13,6 +13,7 @@ import { nextRef } from "@/lib/server/refs";
 import { serializeSend } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
+import { toRial } from "@/lib/server/money";
 import { narrow, sendScope } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -111,7 +112,7 @@ export const POST = handler(async (request: Request) => {
         status: "AWAITING_COUNTERPARTY",
         // An indicative rate only; the binding one is locked later by the bank.
         exchangeRate: rate?.toString(),
-        rialAmount: rate ? (rate * input.amount).toFixed(2) : undefined,
+        rialAmount: rate ? toRial(rate, input.amount) : undefined,
       },
       include: SEND_INCLUDE,
     });

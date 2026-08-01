@@ -14,6 +14,7 @@ import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
+import { toRial } from "@/lib/server/money";
 import { SETTLEMENT_INCLUDE } from "../../route";
 import type { Actor, Prisma, SettlementStatus } from "@/lib/generated/prisma/client";
 
@@ -89,7 +90,7 @@ export const POST = handler(
           exchangeRate: body.rate.toString(),
           rateLocked: true,
           rateLockedAt: new Date(),
-          rialAmount: (body.rate * Number(settlement.amount)).toFixed(2),
+          rialAmount: toRial(body.rate, settlement.amount),
           bankWalletAddress: normalizeAddress(body.bankWalletAddress),
         };
         note = `نرخ ${body.rate} قفل شد و آدرس کیف پول بانک اعلام شد`;

@@ -36,6 +36,8 @@ type ForeignState = {
   logout: () => Promise<void>;
 
   addWallet: (input: { address: string; label?: string }) => Promise<void>;
+  /** Folds in a wallet the ownership-proof flow already created server-side. */
+  absorbWallet: (wallet: Wallet) => void;
   removeWallet: (id: string) => Promise<void>;
 
   markRead: (id: string) => Promise<void>;
@@ -120,6 +122,14 @@ export const useForeignStore = create<ForeignState>()((set, get) => {
         scope: "mine",
       });
       set({ wallets: [...get().wallets, wallet] });
+      pingReload(SLICE);
+    },
+
+    absorbWallet: (wallet) => {
+      // Proving an address already on file updates the row rather than adding one.
+      const wallets = get().wallets;
+      const at = wallets.findIndex((w) => w.id === wallet.id);
+      set({ wallets: at === -1 ? [...wallets, wallet] : wallets.with(at, wallet) });
       pingReload(SLICE);
     },
 

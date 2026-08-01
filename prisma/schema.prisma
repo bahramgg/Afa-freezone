@@ -63,8 +63,9 @@ model User {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  wallets       Wallet[]
-  sessions      Session[]
+  wallets          Wallet[]
+  walletChallenges WalletChallenge[]
+  sessions         Session[]
   otpCodes      OtpCode[]
   notifications Notification[]
   statusEvents  StatusEvent[]
@@ -142,14 +143,39 @@ model Wallet {
   bankKind BankWalletKind?
   active   Boolean         @default(true)
 
+  /** True only once a signature recovered to this address. Never set by hand. */
   verified   Boolean   @default(false)
   verifiedAt DateTime?
+  /** The signature that proved control, kept so the proof stays auditable. */
+  proofSignature String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([address, userId])
   @@index([ownerKind, active])
+}
+
+/**
+ * A nonce the user must sign with their wallet to prove they control it.
+ *
+ * The system holds no keys, so ownership can only be established by asking the
+ * holder to sign something the system chose. The nonce makes a captured
+ * signature useless: it is single-use, short-lived, and bound to one address
+ * and one account.
+ */
+model WalletChallenge {
+  id      String @id @default(cuid())
+  address String
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  nonce      String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, address, createdAt])
 }
 
 // ─────────────────────────── Shared money types ───────────────────────────

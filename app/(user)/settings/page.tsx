@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Plus, ShieldCheck, Trash2, Loader2, Wallet as WalletIcon, Bell, Check } from "lucide-react";
+import { Lock, ShieldCheck, Trash2, Wallet as WalletIcon, Bell, Check } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
@@ -18,19 +18,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/Dialog";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useWalletsStore } from "@/lib/stores/wallets";
-import { TIMINGS } from "@/lib/mock/timings";
+import { WalletOwnershipDialog } from "@/components/wallet/WalletOwnershipDialog";
 import { truncateAddress } from "@/lib/format";
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const wallets = useWalletsStore((s) => s.list);
-  const addWallet = useWalletsStore((s) => s.add);
+  const absorbWallet = useWalletsStore((s) => s.absorb);
   const removeWallet = useWalletsStore((s) => s.remove);
 
   // The draft only exists while editing; otherwise the store is the source of
@@ -109,13 +108,13 @@ export default function SettingsPage() {
                 </CardTitle>
                 <CardDescription>کیف پول‌های BSC تأیید‌شده شما</CardDescription>
               </div>
-              <AddWalletDialog onAdd={addWallet} />
+              <WalletOwnershipDialog onVerified={absorbWallet} />
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {wallets.map((w) => (
                   <div
-                    key={w.address}
+                    key={w.id}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
                   >
                     <div className="flex items-center gap-3">
@@ -131,18 +130,24 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge tone="info">{w.network}</Badge>
-                      <Badge tone="success" className="gap-1">
-                        <Check className="h-3 w-3" />
-                        تأیید شده
-                      </Badge>
-                      <span className="hidden sm:inline text-xs text-muted-foreground">
-                        <JalaliDate iso={w.verifiedAt} />
-                      </span>
+                      {w.verified ? (
+                        <Badge tone="success" className="gap-1">
+                          <Check className="h-3 w-3" />
+                          مالکیت اثبات شده
+                        </Badge>
+                      ) : (
+                        <Badge tone="warning">اثبات نشده</Badge>
+                      )}
+                      {w.verifiedAt && (
+                        <span className="hidden sm:inline text-xs text-muted-foreground">
+                          <JalaliDate iso={w.verifiedAt} />
+                        </span>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         className="text-destructive"
-                        onClick={() => removeWallet(w.address)}
+                        onClick={() => removeWallet(w.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -283,74 +288,3 @@ function ComingSoonButton({ label }: { label: string }) {
   );
 }
 
-function AddWalletDialog({
-  onAdd,
-}: {
-  onAdd: (w: { address: string; label: string }) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [address, setAddress] = useState("");
-  const [label, setLabel] = useState("");
-  const [signing, setSigning] = useState(false);
-
-  async function submit() {
-    if (!address.trim() || !label.trim()) {
-      toast.error("همه فیلدها الزامی است");
-      return;
-    }
-    setSigning(true);
-    await new Promise((r) => setTimeout(r, TIMINGS.WALLET_SIGN_MS));
-    onAdd({ address, label });
-    toast.success("والت با موفقیت تأیید شد");
-    setSigning(false);
-    setAddress("");
-    setLabel("");
-    setOpen(false);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4" />
-          افزودن والت جدید
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>افزودن والت جدید</DialogTitle>
-          <DialogDescription>برای تأیید مالکیت، یک پیام امضا خواهید کرد</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="addr">آدرس والت (BSC)</Label>
-            <Input
-              id="addr"
-              placeholder="0x..."
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="label">نام والت</Label>
-            <Input
-              id="label"
-              placeholder="مثلاً والت اصلی"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            انصراف
-          </Button>
-          <Button onClick={submit} disabled={signing}>
-            {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            تأیید مالکیت با امضا
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

@@ -55,7 +55,9 @@ export function serializeWallet(w: Wallet) {
     bankKind: w.bankKind ?? undefined,
     active: w.active,
     verified: w.verified,
-    verifiedAt: iso(w.verifiedAt) ?? w.createdAt.toISOString(),
+    // Null while unverified — falling back to createdAt would print a
+    // verification date for a wallet nobody has proven they hold.
+    verifiedAt: iso(w.verifiedAt) ?? null,
     createdAt: w.createdAt.toISOString(),
   };
 }

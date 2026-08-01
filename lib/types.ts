@@ -121,8 +121,10 @@ export type Wallet = {
   address: string;
   label: string;
   network: "BSC";
+  /** True only once a signature recovered to this address. */
   verified: boolean;
-  verifiedAt: string;
+  /** Null until ownership has been proven. */
+  verifiedAt: string | null;
   createdAt?: string;
 };
 

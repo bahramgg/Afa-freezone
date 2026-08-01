@@ -1,100 +1,38 @@
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, ShieldCheck, Trash2, Wallet as WalletIcon } from "lucide-react";
+import { ShieldAlert, ShieldCheck, Trash2, Wallet as WalletIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/Dialog";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { JalaliDate } from "@/components/shared/JalaliDate";
+import { Ltr } from "@/components/shared/Ltr";
+import { WalletOwnershipDialog } from "@/components/wallet/WalletOwnershipDialog";
 import { useWalletsStore } from "@/lib/stores/wallets";
-import { TIMINGS } from "@/lib/mock/timings";
 import { truncateAddress } from "@/lib/format";
 
 export default function WalletsPage() {
   const wallets = useWalletsStore((s) => s.list);
-  const add = useWalletsStore((s) => s.add);
+  const absorb = useWalletsStore((s) => s.absorb);
   const remove = useWalletsStore((s) => s.remove);
 
-  const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState("");
-  const [address, setAddress] = useState("");
-  const [signing, setSigning] = useState(false);
-
-  async function handleSign() {
-    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-      toast.error("آدرس BSC معتبر نیست");
-      return;
+  async function handleRemove(id: string) {
+    try {
+      await remove(id);
+      toast.success("والت حذف شد");
+    } catch {
+      toast.error("حذف والت انجام نشد");
     }
-    setSigning(true);
-    await new Promise((r) => setTimeout(r, TIMINGS.WALLET_SIGN_MS));
-    add({ address, label: label || "والت جدید" });
-    toast.success("والت با موفقیت تأیید شد");
-    setSigning(false);
-    setOpen(false);
-    setAddress("");
-    setLabel("");
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="مدیریت والت"
-        description="افزودن، تأیید، و مدیریت والت‌های شخصی برای دریافت و ارسال کریپتو"
-        actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4" />
-                افزودن والت
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>افزودن والت جدید</DialogTitle>
-                <DialogDescription>
-                  برای تأیید مالکیت، با کیف پول خود (مثل MetaMask) یک پیام امضا کنید
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label>نام والت (اختیاری)</Label>
-                  <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="والت اصلی" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>آدرس BSC</Label>
-                  <Input
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="0x..."
-                    dir="ltr"
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => setOpen(false)}>انصراف</Button>
-                <Button onClick={handleSign} disabled={signing}>
-                  {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                  تأیید مالکیت با امضا
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        }
+        description="افزودن و اثبات مالکیت والت‌های شخصی برای دریافت و ارسال کریپتو"
+        actions={<WalletOwnershipDialog onVerified={absorb} />}
       />
 
       <Card>
@@ -121,27 +59,36 @@ export default function WalletsPage() {
                   </tr>
                 ) : (
                   wallets.map((w) => (
-                    <tr key={w.address} className="border-t border-border">
+                    <tr key={w.id} className="border-t border-border">
                       <td className="px-4 py-3 font-medium">{w.label}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs" dir="ltr">{truncateAddress(w.address)}</span>
+                          <Ltr className="font-mono text-xs">{truncateAddress(w.address)}</Ltr>
                           <CopyButton value={w.address} />
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs">{w.network}</td>
                       <td className="px-4 py-3">
-                        <Badge tone="success" className="gap-1">
-                          <ShieldCheck className="h-3 w-3" />
-                          تأیید شده
-                        </Badge>
+                        {w.verified ? (
+                          <Badge tone="success" className="gap-1">
+                            <ShieldCheck className="h-3 w-3" />
+                            مالکیت اثبات شده
+                          </Badge>
+                        ) : (
+                          <Badge tone="warning" className="gap-1">
+                            <ShieldAlert className="h-3 w-3" />
+                            اثبات نشده
+                          </Badge>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={w.verifiedAt} /></td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {w.verifiedAt ? <JalaliDate iso={w.verifiedAt} /> : "—"}
+                      </td>
                       <td className="px-4 py-3 text-end">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => remove(w.address)}
+                          onClick={() => handleRemove(w.id)}
                           className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -157,7 +104,9 @@ export default function WalletsPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        فقط والت‌های <strong>تأییدشده</strong> در فرم ایجاد فاکتور قابل انتخاب هستند.
+        فقط والت‌هایی که <strong>مالکیتشان اثبات شده</strong> در فرم ایجاد فاکتور قابل انتخاب
+        هستند. اثبات مالکیت با امضای یک متن توسط خودِ والت انجام می‌شود؛ کلید خصوصی شما هرگز وارد
+        سامانه نمی‌شود.
       </p>
     </div>
   );

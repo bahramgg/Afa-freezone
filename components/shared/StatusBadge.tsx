@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
-import type { InvoiceStatus, SendStatus, SettlementStatus, Transaction } from "@/lib/types";
+import type { InvoiceStatus, SettlementStatus, Transaction } from "@/lib/types";
 
 type Tone = "neutral" | "primary" | "success" | "warning" | "destructive" | "info";
 
@@ -14,17 +14,6 @@ const INVOICE_LABELS: Record<InvoiceStatus, { label: string; tone: Tone }> = {
   REJECTED: { label: "رد شده", tone: "destructive" },
 };
 
-const SEND_LABELS: Record<SendStatus, { label: string; tone: Tone }> = {
-  AWAITING_COUNTERPARTY: { label: "در انتظار تأیید کاربر خارجی", tone: "warning" },
-  AWAITING_ADMIN: { label: "در انتظار تأیید ادمین", tone: "warning" },
-  AWAITING_BANK_REVIEW: { label: "در انتظار تأمین بانک", tone: "warning" },
-  BANK_RATE_LOCKED: { label: "نرخ اعلام شد — منتظر واریز ریال", tone: "info" },
-  RIAL_RECEIVED: { label: "واریز ریال تأیید شد — در حال ارسال کریپتو", tone: "info" },
-  CRYPTO_SENT: { label: "کریپتو به والت شما ارسال شد", tone: "info" },
-  PAYMENT_PENDING: { label: "منتظر پرداخت", tone: "primary" },
-  PAID: { label: "موفق — کاربر خارجی دریافت کرد", tone: "success" },
-  REJECTED: { label: "رد شده", tone: "destructive" },
-};
 
 const SETTLEMENT_LABELS: Record<SettlementStatus, { label: string; tone: Tone }> = {
   AWAITING_ADMIN: { label: "در انتظار تأیید ادمین", tone: "warning" },
@@ -57,11 +46,6 @@ export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   return <Badge tone={tone}>{label}</Badge>;
 }
 
-export function SendStatusBadge({ status }: { status: SendStatus }) {
-  const meta = SEND_LABELS[status];
-  if (!meta) return <Badge tone="neutral">{status}</Badge>;
-  return <Badge tone={meta.tone}>{meta.label}</Badge>;
-}
 
 export function SettlementStatusBadge({ status }: { status: SettlementStatus }) {
   const meta = SETTLEMENT_LABELS[status];

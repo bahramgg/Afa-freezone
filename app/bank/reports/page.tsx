@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -21,7 +21,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { StatCard } from "@/components/shared/StatCard";
 import { MoneyText } from "@/components/shared/MoneyText";
-import { useSendStore } from "@/lib/stores/send";
+import { api } from "@/lib/api/client";
+import { useLoad } from "@/lib/stores/useLoad";
+import type { Invoice } from "@/lib/types";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { bankVolumeSeries } from "@/lib/mock/fixtures";
 import { toPersianDigits, formatAmount } from "@/lib/format";
@@ -30,18 +32,27 @@ const STATUS_COLORS = ["oklch(0.55 0.2 145)", "oklch(0.75 0.18 80)", "oklch(0.55
 const CURRENCY_COLORS = ["oklch(0.55 0.18 240)", "oklch(0.75 0.18 80)"];
 
 export default function BankReportsPage() {
-  const sends = useSendStore((s) => s.list);
   const settlements = useSettlementsStore((s) => s.list);
+  const [imports, setImports] = useState<Invoice[]>([]);
+
+  const load = useCallback(async () => {
+    const data = await api.get<{ list: Invoice[] }>("/invoices?status=ALL");
+    setImports(data.list.filter((i) => i.tradeDirection === "IMPORT"));
+  }, []);
+  useLoad(load);
 
   const monthVolume = useMemo(() => bankVolumeSeries(6), []);
 
-  const sendVolumeRial = sends
-    .filter((s) => s.status === "PAID")
-    .reduce((a, s) => a + (s.rialAmount ?? 0), 0);
+  // The rial the bank took from importers, against currency it supplied.
+  const sendVolumeRial = imports
+    .filter((i) => i.status === "PAID")
+    .reduce((a, i) => a + (i.rialAmount ?? 0), 0);
   const settleVolumeRial = settlements
     .filter((s) => s.status === "SETTLED")
     .reduce((a, s) => a + (s.rialAmount ?? 0), 0);
-  const cryptoSent = sends.filter((s) => s.status === "PAID" || s.status === "CRYPTO_SENT").reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 280 : 1), 0);
+  const cryptoSent = imports
+    .filter((i) => i.status === "PAID" || i.status === "PAYMENT_PENDING")
+    .reduce((a, i) => a + (i.amount + (i.fee ?? 0)) * (i.currency === "BNB" ? 280 : 1), 0);
   const cryptoReceived = settlements.filter((s) => s.status === "SETTLED" || s.status === "CRYPTO_CONFIRMED").reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 280 : 1), 0);
 
   const statusBreakdown = [
@@ -59,13 +70,13 @@ export default function BankReportsPage() {
       <PageHeader
         title="گزارشات بانک"
         description="تحلیل عملکرد مالی و عملیاتی"
-        actions={<ExportExcelButton datasets={["sends", "settlements", "transactions", "ledger"]} />}
+        actions={<ExportExcelButton datasets={["settlements", "transactions", "ledger"]} />}
       />
 
       <Tabs defaultValue="overall">
         <TabsList>
           <TabsTrigger value="overall">خلاصه کلی</TabsTrigger>
-          <TabsTrigger value="send">ارسال وجه</TabsTrigger>
+          <TabsTrigger value="send">واردات</TabsTrigger>
           <TabsTrigger value="settle">تسویه</TabsTrigger>
           <TabsTrigger value="crypto">جریان کریپتو</TabsTrigger>
           <TabsTrigger value="rial">جریان ریال</TabsTrigger>
@@ -73,9 +84,9 @@ export default function BankReportsPage() {
 
         <TabsContent value="overall" className="mt-4 space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard label="حجم ارسال وجه ماه (ریال)" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} />
+            <StatCard label="حجم واردات ماه (ریال)" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} />
             <StatCard label="حجم تسویه ماه (ریال)" value={`${toPersianDigits(formatAmount(Math.round(settleVolumeRial / 1_000_000)))} م.ت`} />
-            <StatCard label="تعداد ارسال وجه" value={toPersianDigits(sends.filter((s) => s.status === "PAID").length)} />
+            <StatCard label="تعداد واردات تسویه‌شده" value={toPersianDigits(imports.filter((i) => i.status === "PAID").length)} />
             <StatCard label="تعداد تسویه" value={toPersianDigits(settlements.filter((s) => s.status === "SETTLED").length)} />
             <StatCard label="میانگین زمان پاسخ" value="۱.۸ ساعت" />
             <StatCard label="درآمد کارمزد ماه" value="۱۴.۲ م.ت" />
@@ -96,7 +107,7 @@ export default function BankReportsPage() {
                       contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }}
                       formatter={((v: unknown, name: unknown) => [
                         toPersianDigits(Number(v)) + " م.ت",
-                        name === "send" ? "ارسال وجه" : "تسویه",
+                        name === "send" ? "واردات" : "تسویه",
                       ]) as never}
                     />
                     <Line type="monotone" dataKey="send" stroke="oklch(0.55 0.18 240)" strokeWidth={2} />
@@ -166,11 +177,11 @@ export default function BankReportsPage() {
         <TabsContent value="send" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>تمام درخواست‌های ارسال وجه</CardTitle>
+              <CardTitle>تمام فاکتورهای واردات</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {toPersianDigits(sends.length)} درخواست در سیستم. برای فیلتر و بررسی کامل به صفحه «ارسال وجه» مراجعه کنید.
+                {toPersianDigits(imports.length)} فاکتور در سیستم. برای فیلتر و بررسی کامل به صفحه «واردات» مراجعه کنید.
               </p>
             </CardContent>
           </Card>
@@ -194,7 +205,7 @@ export default function BankReportsPage() {
             <StatCard
               label="کل ارسالی از والت بانک"
               value={<MoneyText amount={cryptoSent} currency="USDT" />}
-              hint="ارسال وجه"
+              hint="واردات"
             />
             <StatCard
               label="کل دریافتی به والت بانک"
@@ -229,7 +240,7 @@ export default function BankReportsPage() {
 
         <TabsContent value="rial" className="mt-4 space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard label="کل دریافتی از کاربران" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} hint="ارسال وجه" />
+            <StatCard label="کل دریافتی از کاربران" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} hint="واردات" />
             <StatCard label="کل پرداختی به کاربران" value={`${toPersianDigits(formatAmount(Math.round(settleVolumeRial / 1_000_000)))} م.ت`} hint="تسویه" />
             <StatCard label="خالص ماه" value={`${toPersianDigits(formatAmount(Math.round((sendVolumeRial - settleVolumeRial) / 1_000_000)))} م.ت`} trend={sendVolumeRial >= settleVolumeRial ? "up" : "down"} />
           </div>

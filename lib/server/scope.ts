@@ -30,30 +30,6 @@ export function invoiceScope(user: SessionUser): Prisma.InvoiceWhereInput {
   }
 }
 
-export function sendScope(user: SessionUser): Prisma.SendRequestWhereInput {
-  switch (user.role) {
-    case "ADMIN":
-      return {};
-    case "IRANIAN":
-      return { ownerId: user.id };
-    case "FOREIGN":
-      return { OR: [{ counterpartyId: user.id }, { counterpartyUid: user.uid }] };
-    case "BANK":
-      // The bank only ever sees requests admin has already cleared.
-      return {
-        status: {
-          in: [
-            "AWAITING_BANK_REVIEW",
-            "BANK_RATE_LOCKED",
-            "RIAL_RECEIVED",
-            "CRYPTO_SENT",
-            "PAID",
-            "REJECTED",
-          ],
-        },
-      };
-  }
-}
 
 export function settlementScope(user: SessionUser): Prisma.SettlementWhereInput {
   switch (user.role) {

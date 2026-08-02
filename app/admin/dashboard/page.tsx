@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Banknote, FileCheck2, Send, ShieldAlert, TrendingUp, Users } from "lucide-react";
+import { Banknote, FileCheck2, ShieldAlert, TrendingUp, Users } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -10,7 +10,6 @@ import { MoneyText } from "@/components/shared/MoneyText";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { AdminVolumeChart, UserGrowthChart } from "@/components/charts/AdminCharts";
 import { useInvoicesStore } from "@/lib/stores/invoices";
-import { useSendStore } from "@/lib/stores/send";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useTxStore } from "@/lib/stores/transactions";
 import { useHydrated } from "@/lib/stores/hydration";
@@ -20,13 +19,11 @@ import { useLoad } from "@/lib/stores/useLoad";
 
 export default function AdminDashboardPage() {
   const invoices = useInvoicesStore((s) => s.list);
-  const sends = useSendStore((s) => s.list);
   const settlements = useSettlementsStore((s) => s.list);
   const txs = useTxStore((s) => s.list);
   const hydrated = useHydrated();
 
   const pendingInvoices = invoices.filter((i) => i.status === "PENDING").length;
-  const pendingSends = sends.filter((s) => s.status === "AWAITING_ADMIN").length;
   const pendingSettlements = settlements.filter((s) => s.status === "AWAITING_ADMIN").length;
   const users = useAdminUsersStore((s) => s.list);
   useLoad(useAdminUsersStore.getState().load);
@@ -37,7 +34,6 @@ export default function AdminDashboardPage() {
 
   const recent = [
     ...invoices.slice(0, 2).map((i) => ({ type: "invoice" as const, label: "دریافت وجه جدید", user: i.userName, trx: i.trxId, amount: i.amount, currency: i.currency, createdAt: i.createdAt })),
-    ...sends.slice(0, 2).map((s) => ({ type: "send" as const, label: "ارسال وجه جدید", user: s.userName, trx: s.trxId, amount: s.amount, currency: s.currency, createdAt: s.createdAt })),
     ...settlements.slice(0, 2).map((s) => ({ type: "settle" as const, label: "تسویه جدید", user: s.userName, trx: s.trxId, amount: s.amount, currency: s.currency, createdAt: s.createdAt })),
   ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -57,7 +53,7 @@ export default function AdminDashboardPage() {
         />
         <StatCard
           label="در انتظار تأیید"
-          value={hydrated ? toPersianDigits(pendingInvoices + pendingSends + pendingSettlements) : "—"}
+          value={hydrated ? toPersianDigits(pendingInvoices + pendingSettlements) : "—"}
           icon={FileCheck2}
           hint="نیاز به بررسی"
         />
@@ -76,18 +72,12 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <QueueCard
           title="دریافت وجه در انتظار"
           count={pendingInvoices}
           href="/admin/invoices"
           icon={<FileCheck2 className="h-4 w-4" />}
-        />
-        <QueueCard
-          title="ارسال وجه در انتظار"
-          count={pendingSends}
-          href="/admin/send"
-          icon={<Send className="h-4 w-4" />}
         />
         <QueueCard
           title="تسویه در انتظار"

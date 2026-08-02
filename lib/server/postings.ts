@@ -230,27 +230,5 @@ export async function postSettlementSettled(settlement: {
   );
 }
 
-/** The bank delivered crypto to an importer's supplier and keeps the rial. */
-export async function postSendCompleted(send: {
-  id: string;
-  ref: string;
-  currency: Currency;
-  feeAmount: Prisma.Decimal | string | number | null;
-  spreadRial: Prisma.Decimal | string | number | null;
-}): Promise<void> {
-  if (await alreadyPosted("SEND_COMPLETED", send.id)) return;
-
-  const unit = unitFor(send.currency);
-  const { gateway, freezone } = splitGatewayFee(send.feeAmount ?? 0, await freezonePercent());
-
-  await post(
-    { kind: "SEND_COMPLETED", subject: "send", subjectId: send.id, subjectRef: send.ref },
-    [
-      { account: "GATEWAY_SHARE", amount: gateway, unit, note: "سهم درگاه از کارمزد" },
-      { account: "FREEZONE_SHARE", amount: freezone, unit, note: "سهم سازمان منطقه آزاد" },
-      { account: "BANK_SPREAD", amount: send.spreadRial ?? 0, unit: "IRR" },
-    ],
-  );
-}
 
 export { bankSpread };

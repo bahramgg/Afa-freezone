@@ -7,7 +7,6 @@ import { useForeignStore } from "@/lib/stores/foreign";
 import { useInvoicesStore } from "@/lib/stores/invoices";
 import { useKycStore } from "@/lib/stores/kyc";
 import { useNotificationsStore } from "@/lib/stores/notifications";
-import { useSendStore } from "@/lib/stores/send";
 import { useSettingsStore } from "@/lib/stores/settings";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useTxStore } from "@/lib/stores/transactions";
@@ -31,25 +30,21 @@ const SCOPE_ROLE: Record<Scope, string> = {
 const LOADERS: Record<Scope, (() => Promise<unknown>)[]> = {
   user: [
     () => useInvoicesStore.getState().load(),
-    () => useSendStore.getState().load(),
     () => useSettlementsStore.getState().load(),
     () => useWalletsStore.getState().load(),
     () => useTxStore.getState().load(),
   ],
   foreign: [
     () => useForeignStore.getState().load(),
-    () => useSendStore.getState().load(),
   ],
   admin: [
     () => useInvoicesStore.getState().load(),
-    () => useSendStore.getState().load(),
     () => useSettlementsStore.getState().load(),
     () => useTxStore.getState().load(),
     () => useKycStore.getState().load("ALL"),
     () => useAdminUsersStore.getState().load(),
   ],
   bank: [
-    () => useSendStore.getState().load(),
     () => useSettlementsStore.getState().load(),
     () => useBankStore.getState().load(),
     () => useTxStore.getState().load(),

@@ -23,7 +23,6 @@ import { StatCard } from "@/components/shared/StatCard";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { useInvoicesStore } from "@/lib/stores/invoices";
-import { useSendStore } from "@/lib/stores/send";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { adminVolumeSeries } from "@/lib/mock/fixtures";
 import { useAdminUsersStore } from "@/lib/stores/adminUsers";
@@ -35,7 +34,6 @@ const CURRENCY_COLORS = ["oklch(0.55 0.18 240)", "oklch(0.75 0.18 80)"];
 
 export default function AdminReportsPage() {
   const invoices = useInvoicesStore((s) => s.list);
-  const sends = useSendStore((s) => s.list);
   const settlements = useSettlementsStore((s) => s.list);
 
   const monthly = useMemo(() => adminVolumeSeries(6), []);
@@ -52,10 +50,12 @@ export default function AdminReportsPage() {
   const rejectedKyc = users.filter((u) => u.kyc === "REJECTED").length;
 
   const totalVolume = invoices.reduce((a, i) => a + i.amount * (i.currency === "BNB" ? 600 : 1), 0)
-    + sends.reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 600 : 1), 0)
     + settlements.reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 600 : 1), 0);
   const totalReceive = invoices.filter((i) => i.status === "PAID").reduce((a, i) => a + i.amount * (i.currency === "BNB" ? 600 : 1), 0);
-  const totalSend = sends.filter((s) => s.status === "PAID").reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 600 : 1), 0);
+  const importInvoices = invoices.filter((i) => i.tradeDirection === "IMPORT");
+  const totalImport = importInvoices
+    .filter((i) => i.status === "PAID")
+    .reduce((a, i) => a + i.amount * (i.currency === "BNB" ? 600 : 1), 0);
   const settled = settlements.filter((s) => s.status === "SETTLED");
 
   return (
@@ -65,7 +65,7 @@ export default function AdminReportsPage() {
         description="تحلیل عملکرد ادمین و کلیت سیستم"
         actions={
           <ExportExcelButton
-            datasets={["invoices", "sends", "settlements", "transactions", "ledger", "users"]}
+            datasets={["invoices", "settlements", "transactions", "ledger", "users"]}
           />
         }
       />
@@ -74,7 +74,7 @@ export default function AdminReportsPage() {
         <TabsList>
           <TabsTrigger value="overall">خلاصه کلی</TabsTrigger>
           <TabsTrigger value="receive">دریافت وجه</TabsTrigger>
-          <TabsTrigger value="send">ارسال وجه</TabsTrigger>
+          <TabsTrigger value="send">واردات</TabsTrigger>
           <TabsTrigger value="settle">تسویه</TabsTrigger>
           <TabsTrigger value="users">کاربران</TabsTrigger>
         </TabsList>
@@ -83,9 +83,9 @@ export default function AdminReportsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="کل حجم تراکنش‌ها" value={<MoneyText amount={totalVolume} currency="USDT" />} />
             <StatCard label="کل دریافت وجه" value={<MoneyText amount={totalReceive} currency="USDT" />} />
-            <StatCard label="کل ارسال وجه" value={<MoneyText amount={totalSend} currency="USDT" />} />
+            <StatCard label="کل واردات" value={<MoneyText amount={totalImport} currency="USDT" />} />
             <StatCard label="درآمد کارمزد" value={<MoneyText amount={totalVolume * 0.02} currency="USDT" />} />
-            <StatCard label="تعداد کل تراکنش‌ها" value={toPersianDigits(invoices.length + sends.length + settlements.length)} />
+            <StatCard label="تعداد کل تراکنش‌ها" value={toPersianDigits(invoices.length + settlements.length)} />
             <StatCard label="میانگین مبلغ" value={<MoneyText amount={328} currency="USDT" />} />
           </div>
 
@@ -187,24 +187,24 @@ export default function AdminReportsPage() {
 
         <TabsContent value="send" className="mt-4">
           <Card>
-            <CardHeader><CardTitle>{toPersianDigits(sends.length)} درخواست ارسال</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{toPersianDigits(importInvoices.length)} فاکتور واردات</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto scrollbar-thin">
               <table className="w-full min-w-[46rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
-                    <th className="text-start py-2">TRX</th>
-                    <th className="text-start py-2">کاربر</th>
-                    <th className="text-start py-2">گیرنده</th>
+                    <th className="text-start py-2">شماره</th>
+                    <th className="text-start py-2">فروشنده</th>
+                    <th className="text-start py-2">واردکننده</th>
                     <th className="text-start py-2">مبلغ</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sends.slice(0, 12).map((s) => (
-                    <tr key={s.id} className="border-b border-border last:border-0">
-                      <td className="py-2.5 font-mono text-xs">{s.trxId}</td>
-                      <td className="py-2.5">{s.userName ?? "—"}</td>
-                      <td className="py-2.5">{s.counterpartyName ?? s.counterpartyUid}</td>
-                      <td className="py-2.5"><MoneyText amount={s.amount} currency={s.currency} /></td>
+                  {importInvoices.slice(0, 12).map((i) => (
+                    <tr key={i.id} className="border-b border-border last:border-0">
+                      <td className="py-2.5 font-mono text-xs">{i.id}</td>
+                      <td className="py-2.5">{i.userName ?? "—"}</td>
+                      <td className="py-2.5">{i.counterpartyName ?? i.counterpartyUid}</td>
+                      <td className="py-2.5"><MoneyText amount={i.amount} currency={i.currency} /></td>
                     </tr>
                   ))}
                 </tbody>

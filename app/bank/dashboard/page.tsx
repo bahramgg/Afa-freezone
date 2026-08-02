@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -13,28 +13,39 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Banknote, Building2, Coins, Send, TrendingUp, Wallet } from "lucide-react";
+import { Banknote, Building2, Coins, Receipt, TrendingUp, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/shared/StatCard";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { JalaliDate } from "@/components/shared/JalaliDate";
-import { SendStatusBadge, SettlementStatusBadge } from "@/components/shared/StatusBadge";
-import { useSendStore } from "@/lib/stores/send";
+import { InvoiceStatusBadge, SettlementStatusBadge } from "@/components/shared/StatusBadge";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useBankStore } from "@/lib/stores/bank";
+import { useLoad } from "@/lib/stores/useLoad";
+import { api } from "@/lib/api/client";
 import { useHydrated } from "@/lib/stores/hydration";
 import { bankVolumeSeries, usdtRateSeries } from "@/lib/mock/fixtures";
 import { toPersianDigits, formatAmount, formatToken } from "@/lib/format";
+import type { Invoice } from "@/lib/types";
 
 export default function BankDashboardPage() {
-  const sends = useSendStore((s) => s.list);
+  const [imports, setImports] = useState<Invoice[]>([]);
   const settlements = useSettlementsStore((s) => s.list);
   const wallets = useBankStore((s) => s.wallets);
   const hydrated = useHydrated();
 
-  const pendingSend = sends.filter((s) => s.status === "AWAITING_BANK_REVIEW").length;
+  const loadImports = useCallback(async () => {
+    const data = await api.get<{ list: Invoice[] }>("/invoices?status=ALL");
+    setImports(data.list.filter((i) => i.tradeDirection === "IMPORT"));
+  }, []);
+  useLoad(loadImports);
+
+  // Waiting on the bank specifically: one to price, the other to fund.
+  const pendingImports = imports.filter(
+    (i) => i.status === "APPROVED" || i.status === "RIAL_RECEIVED",
+  ).length;
   const pendingSettlement = settlements.filter((s) => s.status === "AWAITING_BANK").length;
 
   const volumeData = useMemo(() => bankVolumeSeries(6), []);
@@ -45,17 +56,17 @@ export default function BankDashboardPage() {
   const monthRial = 820_000_000;
 
   const recentActivity = [
-    ...sends
-      .filter((s) => ["AWAITING_BANK_REVIEW", "BANK_RATE_LOCKED", "RIAL_RECEIVED", "CRYPTO_SENT", "PAID"].includes(s.status))
+    ...imports
+      .filter((i) => ["APPROVED", "BANK_RATE_LOCKED", "RIAL_RECEIVED", "PAYMENT_PENDING", "PAID"].includes(i.status))
       .slice(0, 3)
-      .map((s) => ({
-        type: "send" as const,
-        trx: s.trxId,
-        user: s.userName,
-        amount: s.amount,
-        currency: s.currency,
-        status: s.status,
-        createdAt: s.createdAt,
+      .map((i) => ({
+        type: "import" as const,
+        trx: i.trxId,
+        user: i.counterpartyName ?? i.userName,
+        amount: i.amount + (i.fee ?? 0),
+        currency: i.currency,
+        status: i.status,
+        createdAt: i.createdAt,
       })),
     ...settlements
       .filter((s) => ["AWAITING_BANK", "BANK_RATE_LOCKED", "CRYPTO_RECEIVED", "CRYPTO_CONFIRMED", "SETTLED"].includes(s.status))
@@ -79,9 +90,9 @@ export default function BankDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="ارسال وجه در انتظار"
-          value={hydrated ? toPersianDigits(pendingSend) : "—"}
-          icon={Send}
+          label="واردات در انتظار"
+          value={hydrated ? toPersianDigits(pendingImports) : "—"}
+          icon={Receipt}
           tone="success"
           hint="نیاز به بررسی"
         />
@@ -112,12 +123,12 @@ export default function BankDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>ارسال وجه در انتظار</CardTitle>
-            <span className="text-2xl font-bold text-emerald-700">{hydrated ? toPersianDigits(pendingSend) : "—"}</span>
+            <CardTitle>واردات در انتظار</CardTitle>
+            <span className="text-2xl font-bold text-emerald-700">{hydrated ? toPersianDigits(pendingImports) : "—"}</span>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full bg-emerald-700 hover:bg-emerald-600">
-              <Link href="/bank/send">مشاهده صف</Link>
+              <Link href="/bank/imports">مشاهده صف</Link>
             </Button>
           </CardContent>
         </Card>
@@ -150,7 +161,7 @@ export default function BankDashboardPage() {
                     contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }}
                     formatter={((v: unknown, name: unknown) => [
                       toPersianDigits(Number(v)) + " م.ت",
-                      name === "send" ? "ارسال وجه" : "تسویه",
+                      name === "send" ? "واردات" : "تسویه",
                     ]) as never}
                   />
                   <Bar dataKey="send" fill="oklch(0.55 0.18 240)" radius={[4, 4, 0, 0]} />
@@ -211,17 +222,17 @@ export default function BankDashboardPage() {
                   recentActivity.map((a, i) => (
                     <tr key={`${a.type}-${a.trx}-${i}`} className="border-b border-border last:border-0">
                       <td className="py-2.5">
-                        <span className={`inline-flex items-center gap-1 ${a.type === "send" ? "text-info" : "text-success"}`}>
-                          {a.type === "send" ? <Send className="h-3.5 w-3.5" /> : <Coins className="h-3.5 w-3.5" />}
-                          {a.type === "send" ? "ارسال وجه" : "تسویه"}
+                        <span className={`inline-flex items-center gap-1 ${a.type === "import" ? "text-info" : "text-success"}`}>
+                          {a.type === "import" ? <Receipt className="h-3.5 w-3.5" /> : <Coins className="h-3.5 w-3.5" />}
+                          {a.type === "import" ? "واردات" : "تسویه"}
                         </span>
                       </td>
                       <td className="py-2.5 font-mono text-xs">{a.trx}</td>
                       <td className="py-2.5">{a.user ?? "—"}</td>
                       <td className="py-2.5"><MoneyText amount={a.amount} currency={a.currency} /></td>
                       <td className="py-2.5">
-                        {a.type === "send" ? (
-                          <SendStatusBadge status={a.status as any} />
+                        {a.type === "import" ? (
+                          <InvoiceStatusBadge status={a.status as any} />
                         ) : (
                           <SettlementStatusBadge status={a.status as any} />
                         )}

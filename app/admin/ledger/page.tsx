@@ -55,7 +55,6 @@ const KIND_FA: Record<string, string> = {
   REFUND_SENT: "بازگرداندن وجه به خریدار",
   SETTLEMENT_FUNDED: "دریافت کریپتو برای تسویه",
   SETTLEMENT_SETTLED: "پرداخت ریال به تاجر",
-  SEND_COMPLETED: "تحویل ارز به گیرنده",
 };
 
 const ICONS: Record<string, typeof Wallet> = {

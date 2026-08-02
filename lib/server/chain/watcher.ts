@@ -13,7 +13,7 @@ import { invoiceHref, notify } from "../notify";
 import { openDepositAddresses } from "../gateway";
 import { parseTerms, splitForAmount } from "./gateway-contract";
 import { raisePayoutSettlement } from "../payout";
-import { postInvoicePaid, postSendCompleted } from "../postings";
+import { postInvoicePaid } from "../postings";
 import type { Prisma, Role } from "@/lib/generated/prisma/client";
 
 export type WatcherReport = {
@@ -451,8 +451,8 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
 
 /**
  * Advances confirmation counts on transactions still maturing, and promotes
- * them once they cross the threshold. Invoices, settlements and sends waiting
- * on those transactions are all moved forward in the same pass.
+ * them once they cross the threshold. Invoices and settlements waiting on those
+ * transactions are both moved forward in the same pass.
  */
 async function refreshConfirmations(finalized: bigint): Promise<number> {
   const head = await publicClient().getBlockNumber();
@@ -481,64 +481,11 @@ async function refreshConfirmations(finalized: bigint): Promise<number> {
     if (confirmed) {
       if (!tx.matchedAt) await matchInvoice(tx);
       await promoteSettlement(tx.id);
-      await promoteSend(tx.id);
     }
   }
   return updated;
 }
 
-/**
- * A send whose outgoing transfer just finalised moves to PAID.
- *
- * Without this the flow dead-ends: `recordCryptoSent` parks the request at
- * CRYPTO_SENT whenever the bank submits a hash the chain has not finalised yet,
- * and nothing else in the system can advance it — the transition route only
- * accepts that action from RIAL_RECEIVED, so the request would stay short of
- * PAID forever.
- */
-async function promoteSend(chainTxId: string) {
-  const send = await db.sendRequest.findFirst({
-    where: { chainTxId, status: "CRYPTO_SENT" },
-  });
-  if (!send) return;
-
-  await db.$transaction([
-    db.sendRequest.update({ where: { id: send.id }, data: { status: "PAID" } }),
-    db.statusEvent.create({
-      data: {
-        subject: "send",
-        subjectId: send.id,
-        fromStatus: send.status,
-        toStatus: "PAID",
-        actor: "SYSTEM",
-        note: "ارسال کریپتو روی زنجیره تأیید شد",
-      },
-    }),
-  ]);
-
-  await postSendCompleted({
-    id: send.id,
-    ref: send.ref,
-    currency: send.currency,
-    feeAmount: send.feeAmount,
-    spreadRial: send.bankSpreadRial,
-  });
-
-  await notify(send.ownerId, {
-    kind: "SEND_COMPLETED",
-    title: "ارسال انجام شد",
-    body: `تراکنش ${send.trxRef} روی شبکه تأیید شد`,
-    href: "/send",
-  });
-  if (send.counterpartyId) {
-    await notify(send.counterpartyId, {
-      kind: "FOREIGN_CRYPTO_RECEIVED",
-      title: "کریپتو دریافت شد",
-      body: `کریپتو تراکنش ${send.trxRef} روی شبکه تأیید شد`,
-      href: "/foreign/requests",
-    });
-  }
-}
 
 /** A settlement whose payout tx just finalised moves to CRYPTO_CONFIRMED. */
 async function promoteSettlement(chainTxId: string) {

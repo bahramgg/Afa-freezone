@@ -30,8 +30,6 @@ export const GET = handler(async (request: Request) => {
     where.OR = [
       { invoice: { ownerId: user.id } },
       { settlement: { ownerId: user.id } },
-      { sendRequest: { ownerId: user.id } },
-      { sendRequest: { counterpartyId: user.id } },
     ];
   }
 
@@ -42,14 +40,13 @@ export const GET = handler(async (request: Request) => {
     include: {
       invoice: { select: { ref: true, trxRef: true } },
       settlement: { select: { ref: true, trxRef: true } },
-      sendRequest: { select: { ref: true, trxRef: true } },
     },
   });
 
   return jsonOk({
     list: list.map((t) => ({
       ...serializeChainTx(t),
-      trxId: t.invoice?.trxRef ?? t.settlement?.trxRef ?? t.sendRequest?.trxRef,
+      trxId: t.invoice?.trxRef ?? t.settlement?.trxRef,
       invoiceId: t.invoice?.ref,
     })),
   });

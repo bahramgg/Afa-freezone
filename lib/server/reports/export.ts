@@ -4,7 +4,7 @@ import type { SheetData } from "write-excel-file/node";
 import { db } from "../db";
 import { forbidden } from "../http";
 import { formatJalali } from "@/lib/format";
-import { invoiceScope, sendScope, settlementScope } from "../scope";
+import { invoiceScope, settlementScope } from "../scope";
 import type { SessionUser } from "../auth/session";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -95,7 +95,6 @@ const KIND_FA: Record<string, string> = {
   DEPOSIT_SWEPT: "برداشت به خزانه",
   SETTLEMENT_FUNDED: "دریافت کریپتو برای تسویه",
   SETTLEMENT_SETTLED: "پرداخت ریال به تاجر",
-  SEND_COMPLETED: "تحویل ارز به گیرنده",
 };
 
 const status = (value: string | null | undefined) => (value ? (STATUS_FA[value] ?? value) : "—");
@@ -131,49 +130,6 @@ const DATASETS = {
         { header: "هش تراکنش", width: 68, value: (r) => text(r.chainTx?.hash) },
         { header: "تاریخ ثبت", width: 20, value: (r) => when(r.createdAt) },
         { header: "تاریخ پرداخت", width: 20, value: (r) => when(r.paidAt) },
-      ],
-    },
-  ),
-
-  sends: dataset(
-    (user: SessionUser) =>
-      db.sendRequest.findMany({
-        where: sendScope(user),
-        include: {
-          owner: { select: { uid: true, fullName: true } },
-          counterparty: { select: { uid: true, fullName: true } },
-          chainTx: true,
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-    {
-      sheet: "درخواست‌های ارسال",
-      file: "sends",
-      roles: ["IRANIAN", "FOREIGN", "ADMIN", "BANK"],
-      columns: [
-        { header: "شماره درخواست", width: 16, value: (r) => text(r.ref) },
-        { header: "شناسه تراکنش", width: 16, value: (r) => text(r.trxRef) },
-        { header: "فرستنده", width: 24, value: (r) => `${r.owner.fullName} (${r.owner.uid})` },
-        {
-          header: "گیرنده",
-          width: 24,
-          value: (r) => text(r.counterparty?.fullName ?? r.counterpartyUid),
-        },
-        { header: "شرح", width: 32, value: (r) => text(r.description) },
-        { header: "مبلغ", width: 16, value: (r) => money(r.amount) },
-        { header: "ارز", width: 9, value: (r) => text(r.currency) },
-        { header: "کارمزد", width: 14, value: (r) => money(r.feeAmount) },
-        { header: "مبلغ مبنای ریال", width: 18, value: (r) => money(r.netAmount) },
-        { header: "نرخ (ریال)", width: 16, value: (r) => money(r.exchangeRate) },
-        { header: "معادل ریالی", width: 20, value: (r) => money(r.rialAmount) },
-        { header: "حاشیه بانک (ریال)", width: 20, value: (r) => money(r.bankSpreadRial) },
-        { header: "وضعیت", width: 20, value: (r) => status(r.status) },
-        { header: "حساب واریز ریال", width: 30, value: (r) => text(r.depositAccount) },
-        { header: "شماره رسید", width: 16, value: (r) => text(r.rialReceiptNo) },
-        { header: "والت گیرنده", width: 46, value: (r) => text(r.recipientWalletAddress) },
-        { header: "هش تراکنش", width: 68, value: (r) => text(r.chainTx?.hash) },
-        { header: "دلیل رد", width: 30, value: (r) => text(r.rejectReason) },
-        { header: "تاریخ ثبت", width: 20, value: (r) => when(r.createdAt) },
       ],
     },
   ),
@@ -223,7 +179,7 @@ const DATASETS = {
   transactions: dataset(
     () =>
       db.chainTx.findMany({
-        include: { invoice: true, sendRequest: true, settlement: true },
+        include: { invoice: true, settlement: true },
         orderBy: { seenAt: "desc" },
       }),
     {
@@ -243,7 +199,7 @@ const DATASETS = {
         {
           header: "مرتبط با",
           width: 18,
-          value: (r) => text(r.invoice?.ref ?? r.sendRequest?.ref ?? r.settlement?.ref),
+          value: (r) => text(r.invoice?.ref ?? r.settlement?.ref),
         },
         { header: "تاریخ مشاهده", width: 20, value: (r) => when(r.seenAt) },
         { header: "تاریخ تأیید", width: 20, value: (r) => when(r.confirmedAt) },

@@ -54,16 +54,6 @@ export type Invoice = {
   rejectReason?: string;
 };
 
-export type SendStatus =
-  | "AWAITING_COUNTERPARTY"
-  | "AWAITING_ADMIN"
-  | "AWAITING_BANK_REVIEW"
-  | "BANK_RATE_LOCKED"
-  | "RIAL_RECEIVED"
-  | "CRYPTO_SENT"
-  | "PAYMENT_PENDING"
-  | "PAID"
-  | "REJECTED";
 
 export type TradeDocumentKind =
   | "PROFORMA"
@@ -79,41 +69,6 @@ export type TradeDocument = {
   issuer?: string;
 };
 
-export type SendRequest = {
-  id: string;
-  trxId: string;
-  userUid?: string;
-  userName?: string;
-  counterpartyUid: string;
-  counterpartyName?: string;
-  counterpartyEmail?: string;
-  /** True when the recipient wallet was confirmed by the counterparty. */
-  recipientConfirmed?: boolean;
-  documents?: TradeDocument[];
-  amount: number;
-  currency: Currency;
-  description?: string;
-  status: SendStatus;
-  createdAt: string;
-  updatedAt: string;
-  paymentAddress?: string;
-  txHash?: string;
-  exchangeRate?: number;
-  rateLocked?: boolean;
-  rialAmount?: number;
-  depositAccount?: string;
-  feeAmount?: number;
-  netAmount?: number;
-  /** The bank's exchange margin on this request, in rial. */
-  bankSpreadRial?: number;
-  rialReceiptNo?: string;
-  rialDepositAt?: string;
-  bankWalletAddress?: string;
-  recipientWalletAddress?: string;
-  txHashFromBank?: string;
-  rejectedBy?: "ADMIN" | "BANK";
-  rejectReason?: string;
-};
 
 export type SettlementStatus =
   | "AWAITING_ADMIN"
@@ -268,9 +223,6 @@ export type NotificationKind =
   | "SETTLEMENT_APPROVED"
   | "SETTLEMENT_SETTLED"
   | "SETTLEMENT_REJECTED"
-  | "SEND_REQUEST_RECEIVED"
-  | "SEND_RATE_LOCKED"
-  | "SEND_COMPLETED"
   | "FOREIGN_RECEIVE_REQUEST"
   | "FOREIGN_CRYPTO_RECEIVED"
   | "SETTLEMENT_FROM_INVOICE"

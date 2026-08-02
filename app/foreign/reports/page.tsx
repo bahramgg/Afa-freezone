@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import {
   CartesianGrid,
@@ -20,8 +20,10 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { JalaliDate } from "@/components/shared/JalaliDate";
-import { SendStatusBadge } from "@/components/shared/StatusBadge";
-import { useSendStore } from "@/lib/stores/send";
+import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
+import { api } from "@/lib/api/client";
+import { useLoad } from "@/lib/stores/useLoad";
+import type { Invoice } from "@/lib/types";
 import { useForeignStore } from "@/lib/stores/foreign";
 import { truncateAddress, truncateHash, bscScanUrl, toPersianDigits } from "@/lib/format";
 
@@ -35,9 +37,17 @@ const MONTH_DATA = [
 ];
 
 export default function ForeignReportsPage() {
-  const sends = useSendStore((s) => s.list);
   const user = useForeignStore((s) => s.user);
-  const my = sends.filter((s) => s.counterpartyUid === user?.uid);
+  const [list, setList] = useState<Invoice[]>([]);
+
+  const load = useCallback(async () => {
+    const data = await api.get<{ list: Invoice[] }>("/invoices?status=ALL");
+    setList(data.list);
+  }, []);
+  useLoad(load);
+
+  // Both sides of this account: exports it was asked to pay, and its own sales.
+  const my = list;
 
   const [tab, setTab] = useState<"all" | "success" | "in-progress" | "rejected">("all");
   const [search, setSearch] = useState("");
@@ -47,8 +57,8 @@ export default function ForeignReportsPage() {
       if (tab === "success") if (s.status !== "PAID") return false;
       if (tab === "rejected") if (s.status !== "REJECTED") return false;
       if (tab === "in-progress")
-        if (!["AWAITING_COUNTERPARTY", "AWAITING_ADMIN", "AWAITING_BANK_REVIEW", "BANK_RATE_LOCKED", "RIAL_RECEIVED", "CRYPTO_SENT"].includes(s.status)) return false;
-      if (search && !s.trxId.toLowerCase().includes(search.toLowerCase())) return false;
+        if (!["PENDING", "APPROVED", "PAYMENT_PENDING", "BANK_RATE_LOCKED", "RIAL_RECEIVED"].includes(s.status)) return false;
+      if (search && !`${s.trxId} ${s.id}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
   }, [my, tab, search]);
@@ -57,8 +67,8 @@ export default function ForeignReportsPage() {
     <div className="space-y-6">
       <PageHeader
         title="گزارشات"
-        description="تاریخچه کامل دریافت‌های شما"
-        actions={<ExportExcelButton datasets={["sends"]} />}
+        description="تاریخچه کامل فاکتورهای شما"
+        actions={<ExportExcelButton datasets={["invoices"]} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -117,7 +127,7 @@ export default function ForeignReportsPage() {
                       <th className="text-start font-medium px-4 py-3">TRX</th>
                       <th className="text-start font-medium px-4 py-3">فرستنده</th>
                       <th className="text-start font-medium px-4 py-3">مبلغ</th>
-                      <th className="text-start font-medium px-4 py-3">والت دریافت</th>
+                      <th className="text-start font-medium px-4 py-3">کیف پول دریافت</th>
                       <th className="text-start font-medium px-4 py-3">TX</th>
                       <th className="text-start font-medium px-4 py-3">وضعیت</th>
                       <th className="text-start font-medium px-4 py-3">تاریخ</th>
@@ -132,20 +142,20 @@ export default function ForeignReportsPage() {
                       filtered.map((s) => (
                         <tr key={s.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 font-mono text-xs">{s.trxId}</td>
-                          <td className="px-4 py-3">{s.userName ?? s.userUid ?? "—"}</td>
+                          <td className="px-4 py-3">{(s.userUid === user?.uid ? s.counterpartyName : s.userName) ?? "—"}</td>
                           <td className="px-4 py-3"><MoneyText amount={s.amount} currency={s.currency} /></td>
                           <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                            <Ltr>{s.recipientWalletAddress ? truncateAddress(s.recipientWalletAddress) : "—"}</Ltr>
+                            <Ltr>{s.beneficiaryWallet ? truncateAddress(s.beneficiaryWallet) : "—"}</Ltr>
                           </td>
                           <td className="px-4 py-3 font-mono text-xs">
-                            {s.txHashFromBank ? (
-                              <a href={bscScanUrl(s.txHashFromBank)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-primary">
-                                {truncateHash(s.txHashFromBank)}
+                            {s.txHash ? (
+                              <a href={bscScanUrl(s.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-primary">
+                                {truncateHash(s.txHash)}
                                 <ExternalLink className="h-3 w-3" />
                               </a>
                             ) : "—"}
                           </td>
-                          <td className="px-4 py-3"><SendStatusBadge status={s.status} /></td>
+                          <td className="px-4 py-3"><InvoiceStatusBadge status={s.status} /></td>
                           <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={s.createdAt} /></td>
                         </tr>
                       ))

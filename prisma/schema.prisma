@@ -394,6 +394,15 @@ enum SendStatus {
   REJECTED
 }
 
+/// Retired.
+///
+/// The flow this served is gone from the product: the bank paid the supplier's
+/// wallet directly, so the fee the books recorded for the gateway and the
+/// organization was never actually taken. Imports go through an invoice now.
+///
+/// The model stays because the rows are payment records — seventeen of them,
+/// one settled — and dropping a table to tidy up the schema destroys history
+/// that may still have to be answered for. Nothing in the application reads it.
 model SendRequest {
   id     String @id @default(cuid())
   ref    String @unique

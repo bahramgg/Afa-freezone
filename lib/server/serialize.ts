@@ -2,7 +2,6 @@ import "server-only";
 import type {
   Invoice,
   Notification,
-  SendRequest,
   Settlement,
   Settings,
   User,
@@ -113,13 +112,6 @@ type TradeDoc = {
   issuer: string | null;
 };
 
-type SendWithParties = SendRequest &
-  WithOwner &
-  WithChainTx & {
-    counterparty?: Pick<User, "uid" | "fullName"> | null;
-    documents?: TradeDoc[];
-  };
-
 export function serializeDocument(d: TradeDoc) {
   return {
     id: d.id,
@@ -130,42 +122,6 @@ export function serializeDocument(d: TradeDoc) {
   };
 }
 
-export function serializeSend(s: SendWithParties) {
-  return {
-    id: s.ref,
-    dbId: s.id,
-    trxId: s.trxRef,
-    amount: Number(s.amount),
-    currency: s.currency,
-    description: s.description ?? undefined,
-    status: s.status,
-    userUid: s.owner?.uid,
-    userName: s.owner?.fullName,
-    counterpartyUid: s.counterparty?.uid ?? s.counterpartyUid,
-    counterpartyName: s.counterparty?.fullName ?? s.counterpartyName ?? undefined,
-    counterpartyEmail: s.counterpartyEmail ?? undefined,
-    recipientConfirmed: s.recipientConfirmed,
-    documents: s.documents?.map(serializeDocument),
-    exchangeRate: num(s.exchangeRate),
-    rateLocked: s.rateLocked,
-    rialAmount: num(s.rialAmount),
-    feeAmount: num(s.feeAmount),
-    netAmount: num(s.netAmount),
-    bankSpreadRial: num(s.bankSpreadRial),
-    depositAccount: s.depositAccount ?? undefined,
-    rialReceiptNo: s.rialReceiptNo ?? undefined,
-    rialDepositAt: iso(s.rialDepositAt),
-    recipientWalletAddress: s.recipientWalletAddress ?? undefined,
-    bankWalletAddress: s.bankWalletAddress ?? undefined,
-    txHashFromBank: s.chainTx?.hash ?? undefined,
-    txHash: s.chainTx?.hash ?? undefined,
-    confirmations: s.chainTx?.confirmations,
-    rejectedBy: s.rejectedBy ?? undefined,
-    rejectReason: s.rejectReason ?? undefined,
-    createdAt: s.createdAt.toISOString(),
-    updatedAt: s.updatedAt.toISOString(),
-  };
-}
 
 export function serializeSettlement(s: Settlement & WithOwner & WithChainTx) {
   return {

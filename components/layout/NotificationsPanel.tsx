@@ -9,7 +9,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
-import { Undo2, Bell, CheckCircle2, FileText, XCircle, Wallet, Clock, Banknote, Mail, AlertCircle, Coins, Send } from "lucide-react";
+import { Undo2, Bell, CheckCircle2, FileText, XCircle, Wallet, Clock, Banknote, Mail, AlertCircle, Coins } from "lucide-react";
 import { useNotificationsStore } from "@/lib/stores/notifications";
 import { useState } from "react";
 import { useHydrated } from "@/lib/stores/hydration";
@@ -28,9 +28,6 @@ const ICONS: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
   SETTLEMENT_APPROVED: { icon: Banknote, tone: "text-info bg-info/10" },
   SETTLEMENT_SETTLED: { icon: CheckCircle2, tone: "text-success bg-success/10" },
   SETTLEMENT_REJECTED: { icon: XCircle, tone: "text-destructive bg-destructive/10" },
-  SEND_REQUEST_RECEIVED: { icon: Mail, tone: "text-primary bg-primary/10" },
-  SEND_RATE_LOCKED: { icon: Coins, tone: "text-info bg-info/10" },
-  SEND_COMPLETED: { icon: Send, tone: "text-success bg-success/10" },
   FOREIGN_RECEIVE_REQUEST: { icon: Mail, tone: "text-primary bg-primary/10" },
   FOREIGN_CRYPTO_RECEIVED: { icon: Wallet, tone: "text-success bg-success/10" },
   SETTLEMENT_FROM_INVOICE: { icon: Banknote, tone: "text-info bg-info/10" },

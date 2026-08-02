@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Archive,
   FileText,
   Home,
-  Inbox,
   LineChart,
   LogOut,
   Receipt,
@@ -21,7 +21,7 @@ export const FOREIGN_NAV = [
   { href: "/foreign/dashboard", label: "داشبورد", icon: Home },
   { href: "/foreign/invoices", label: "درخواست‌های پرداخت", icon: FileText },
   { href: "/foreign/imports", label: "فاکتورهای فروش", icon: Receipt },
-  { href: "/foreign/requests", label: "درخواست‌های دریافت", icon: Inbox },
+  { href: "/foreign/requests", label: "درخواست‌های دریافت (بازنشسته)", icon: Archive },
   { href: "/foreign/wallets", label: "مدیریت والت", icon: WalletIcon },
   { href: "/foreign/reports", label: "گزارشات", icon: LineChart },
   { href: "/foreign/settings", label: "تنظیمات", icon: SettingsIcon },

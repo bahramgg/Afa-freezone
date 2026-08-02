@@ -61,8 +61,8 @@ export default function ForeignRequestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="دریافت وجه"
-        description="درخواست‌های ارسال شده توسط کاربران ایرانی — تأیید والت و ایجاد صفحه پرداخت"
+        title="دریافت وجه (بازنشسته)"
+        description="درخواست‌های ثبت‌شده پیش از بازنشستگی این مسیر — درخواست تازه‌ای اضافه نمی‌شود"
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>

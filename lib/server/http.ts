@@ -29,6 +29,8 @@ export const forbidden = (message = "شما به این بخش دسترسی ند
 export const notFound = (message = "موردی یافت نشد") =>
   new ApiError(404, "not_found", message);
 export const conflict = (message: string) => new ApiError(409, "conflict", message);
+/** A flow that has been retired: no longer accepting new work, by design. */
+export const gone = (message: string) => new ApiError(410, "gone", message);
 export const tooManyRequests = (message: string) =>
   new ApiError(429, "too_many_requests", message);
 

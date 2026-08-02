@@ -13,15 +13,6 @@ type SendState = {
   loaded: boolean;
 
   load: (opts?: { status?: SendStatus | "ALL" }) => Promise<void>;
-  create: (input: {
-    counterpartyUid: string;
-    counterpartyEmail?: string;
-    recipientWalletAddress?: string;
-    documents?: { kind: string; number: string; issuer?: string }[];
-    amount: number;
-    currency: Currency;
-    description?: string;
-  }) => Promise<SendRequest>;
 
   /** Foreign counterparty confirms the wallet the crypto should land in. */
   approveCounterparty: (ref: string, walletAddress: string) => Promise<void>;
@@ -67,13 +58,6 @@ export const useSendStore = create<SendState>()((set, get) => {
       } finally {
         set({ loading: false });
       }
-    },
-
-    create: async (input) => {
-      const { send } = await api.post<{ send: SendRequest }>("/sends", input);
-      set({ list: [send, ...get().list] });
-      pingReload(SLICE);
-      return send;
     },
 
     approveCounterparty: (ref, walletAddress) =>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Archive,
   ActivitySquare,
   Scale,
   Undo2,
@@ -11,7 +12,6 @@ import {
   FileCheck2,
   LineChart,
   LogOut,
-  Send,
   Settings as SettingsIcon,
   ShieldCheck,
   Users,
@@ -27,7 +27,8 @@ export const ADMIN_NAV = [
   { href: "/admin/users", label: "مدیریت کاربران", icon: Users },
   { href: "/admin/kyc", label: "احراز هویت کاربران", icon: ShieldCheck },
   { href: "/admin/invoices", label: "دریافت وجه", icon: FileCheck2 },
-  { href: "/admin/send", label: "ارسال وجه", icon: Send },
+  // Retired: only the requests already in flight remain to be reviewed.
+  { href: "/admin/send", label: "ارسال وجه (بازنشسته)", icon: Archive },
   { href: "/admin/settlements", label: "تسویه", icon: Banknote },
   { href: "/admin/transactions", label: "مدیریت تراکنش‌ها", icon: ActivitySquare },
   { href: "/admin/refunds", label: "بازگشت وجه", icon: Undo2 },

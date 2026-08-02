@@ -99,8 +99,8 @@ export default function AdminSendPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="ارسال وجه"
-        description="درخواست‌های ارسال وجه — بررسی قانونی توسط ادمین"
+        title="ارسال وجه (بازنشسته)"
+        description="درخواست‌های باقی‌مانده از مسیر قدیمی واردات — بررسی قانونی توسط ادمین"
         actions={
           <Input
             value={search}

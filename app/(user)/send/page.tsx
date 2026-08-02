@@ -1,23 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, type Resolver } from "react-hook-form";
-import { z } from "zod";
-import { ExternalLink, Loader2, Send } from "lucide-react";
-import { toast } from "sonner";
+import Link from "next/link";
+import { Archive, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input, Textarea } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/Select";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { SendStatusBadge } from "@/components/shared/StatusBadge";
@@ -25,151 +12,47 @@ import { CopyButton } from "@/components/shared/CopyButton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useSendStore } from "@/lib/stores/send";
 import { useHydrated } from "@/lib/stores/hydration";
-import { TIMINGS } from "@/lib/mock/timings";
 import { truncateAddress, truncateHash, bscScanUrl, toPersianDigits, formatAmount } from "@/lib/format";
-import type { Currency, SendRequest } from "@/lib/types";
 
-const schema = z.object({
-  counterpartyUid: z.string().min(1, "نام یا شناسه فروشنده را وارد کنید"),
-  counterpartyName: z.string().optional(),
-  counterpartyEmail: z.string().optional(),
-  recipientWalletAddress: z
-    .string()
-    .regex(/^0x[a-fA-F0-9]{40}$/, "آدرس کیف پول فروشنده معتبر نیست"),
-  amount: z.coerce.number().positive("مبلغ باید مثبت باشد"),
-  currency: z.enum(["USDT", "BNB"]),
-  description: z.string().optional(),
-  documentKind: z.enum(["PROFORMA", "ORDER_REGISTRATION", "CUSTOMS_DECLARATION", "CONTRACT"]),
-  documentNumber: z.string().min(1, "شماره سند تجاری الزامی است"),
-  documentIssuer: z.string().optional(),
-});
-
-type FormValues = z.infer<typeof schema>;
-
+/**
+ * Retired. Imports are an invoice the foreign seller raises; see /imports.
+ *
+ * The list stays because retiring a payment flow cannot strand the requests
+ * already inside it — a merchant with one in flight still needs to watch the
+ * bank finish or reject it. Only the form is gone, and the API refuses new
+ * requests regardless of what a client sends.
+ */
 export default function SendPage() {
   const list = useSendStore((s) => s.list);
-  const create = useSendStore((s) => s.create);
   const hydrated = useHydrated();
-
-  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } =
-    useForm<FormValues>({
-      resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-      defaultValues: { currency: "USDT" as Currency, documentKind: "PROFORMA" },
-    });
-
-
-  const onSubmit = async (data: FormValues) => {
-    try {
-      const { documentKind, documentNumber, documentIssuer, ...rest } = data;
-      const item = await create({
-        ...rest,
-        documents: [{ kind: documentKind, number: documentNumber, issuer: documentIssuer }],
-      });
-      toast.success("درخواست ثبت شد", {
-        description: `${item.trxId} — در انتظار بررسی ادمین`,
-      });
-      reset();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "ثبت درخواست ناموفق بود");
-    }
-  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="واردات — تأمین و ارسال ارز"
-        description="پرداخت به فروشندهٔ خارجی؛ بانک ارز را تأمین می‌کند و شما معادل ریالی را می‌پردازید"
+        title="ارسال وجه (بازنشسته)"
+        description="درخواست‌های ارسالی که پیش از بازنشستگی این مسیر ثبت شده‌اند"
       />
 
-      <Card>
+      {/* Retired: new requests are refused by the API. What is left here is the
+          list, because a request already in flight still has to be watched
+          through to the end. */}
+      <Card className="border-warning/50 bg-warning/5">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-primary" />
-            درخواست جدید
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Archive className="h-4 w-4 text-warning" />
+            این مسیر بازنشسته شده است
           </CardTitle>
           <CardDescription>
-            آدرس کیف پول فروشنده را از پیش‌فاکتور وارد کنید. فروشنده لازم نیست در سامانه ثبت‌نام
-            کند. پس از تأیید ادمین، بانک نرخ را اعلام می‌کند و با واریز ریال شما، ارز ارسال می‌شود.
+            واردات اکنون با فاکتوری انجام می‌شود که فروشندهٔ خارجی صادر می‌کند: شناسهٔ کاربری خود را
+            به فروشنده بدهید، فاکتور در «واردات (فاکتور فروشنده)» برای شما می‌آید، معادل ریالی را به
+            حساب بانک می‌ریزید و قرارداد تسویه، اصل مبلغ را به فروشنده و کارمزد را به درگاه و سازمان
+            می‌رساند. درخواست‌های در جریانِ زیر تا پایان کار دنبال می‌شوند.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="uid">فروشنده (نام یا شناسه)</Label>
-              <Input id="uid" placeholder="Ningbo Trading Co." {...register("counterpartyUid")} />
-              {errors.counterpartyUid ? (
-                <p className="text-xs text-destructive">{errors.counterpartyUid.message}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">ایمیل فروشنده (اختیاری)</Label>
-              <Input id="email" placeholder="sales@example.com" {...register("counterpartyEmail")} dir="ltr" />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="wallet">آدرس کیف پول فروشنده</Label>
-              <Input
-                id="wallet"
-                placeholder="0x…"
-                dir="ltr"
-                className="font-mono text-sm"
-                {...register("recipientWalletAddress")}
-              />
-              {errors.recipientWalletAddress ? (
-                <p className="text-xs text-destructive">{errors.recipientWalletAddress.message}</p>
-              ) : (
-                <p className="text-xs text-warning">
-                  این آدرس را با پیش‌فاکتور مقابله کنید — انتقال روی زنجیره برگشت‌پذیر نیست.
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="amount">مبلغ</Label>
-              <Input id="amount" type="number" step="0.01" {...register("amount")} dir="ltr" />
-              {errors.amount ? <p className="text-xs text-destructive">{errors.amount.message}</p> : null}
-            </div>
-            <div className="space-y-2">
-              <Label>ارز</Label>
-              <Select
-                value={watch("currency")}
-                onValueChange={(v) => setValue("currency", v as Currency)}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USDT">USDT</SelectItem>
-                  <SelectItem value="BNB">BNB</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>نوع سند تجاری</Label>
-              <Select
-                value={watch("documentKind")}
-                onValueChange={(v) => setValue("documentKind", v as FormValues["documentKind"])}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PROFORMA">پیش‌فاکتور</SelectItem>
-                  <SelectItem value="ORDER_REGISTRATION">ثبت سفارش</SelectItem>
-                  <SelectItem value="CUSTOMS_DECLARATION">کوتاژ گمرکی</SelectItem>
-                  <SelectItem value="CONTRACT">قرارداد</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="docno">شماره سند</Label>
-              <Input id="docno" placeholder="PI-2026-0142" dir="ltr" {...register("documentNumber")} />
-              {errors.documentNumber ? (
-                <p className="text-xs text-destructive">{errors.documentNumber.message}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="desc">توضیحات</Label>
-              <Textarea id="desc" rows={2} {...register("description")} />
-            </div>
-            <div className="sm:col-span-2 flex justify-end">
-              <Button type="submit">ارسال درخواست</Button>
-            </div>
-          </form>
+          <Button asChild size="sm">
+            <Link href="/imports">رفتن به واردات</Link>
+          </Button>
         </CardContent>
       </Card>
 

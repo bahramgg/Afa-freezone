@@ -65,8 +65,8 @@ export default function BankSendPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="ارسال وجه"
-        description="درخواست‌های ارسال وجه ارجاع شده از ادمین"
+        title="ارسال وجه (بازنشسته)"
+        description="درخواست‌های باقی‌مانده از مسیر قدیمی واردات — تا پایان کار پیگیری می‌شوند"
         actions={
           <Input
             value={search}

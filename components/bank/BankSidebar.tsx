@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Archive,
   ArrowDownToLine,
   Banknote,
   Building2,
@@ -10,7 +11,6 @@ import {
   LineChart,
   LogOut,
   Receipt,
-  Send,
   Settings as SettingsIcon,
   Wallet as WalletIcon,
 } from "lucide-react";
@@ -22,7 +22,8 @@ import { cn } from "@/lib/cn";
 export const BANK_NAV = [
   { href: "/bank/dashboard", label: "داشبورد", icon: Home },
   { href: "/bank/imports", label: "واردات — تأمین ارز", icon: Receipt },
-  { href: "/bank/send", label: "ارسال وجه", icon: Send },
+  // Retired: only the requests already in flight remain to be closed out.
+  { href: "/bank/send", label: "ارسال وجه (بازنشسته)", icon: Archive },
   { href: "/bank/settlement", label: "تسویه", icon: Banknote },
   { href: "/bank/deposits", label: "آدرس‌های واریز", icon: ArrowDownToLine },
   { href: "/bank/wallets", label: "کیف پول‌های بانک", icon: WalletIcon },

@@ -1,11 +1,10 @@
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { PortalGrid } from "@/components/landing/PortalGrid";
-import { SystemNotice } from "@/components/landing/SystemNotice";
 
 /**
- * Entry point of an internal system, not a marketing site: it names the system,
- * routes each role to its panel, and states the access conditions.
+ * Entry point of an internal system, not a marketing site: it names the system
+ * and routes each role to its panel.
  */
 export default function Home() {
   return (
@@ -26,10 +25,6 @@ export default function Home() {
         <h2 className="mt-10 text-sm font-medium text-muted-foreground">انتخاب پنل</h2>
         <div className="mt-3">
           <PortalGrid />
-        </div>
-
-        <div className="mt-8">
-          <SystemNotice />
         </div>
       </main>
 

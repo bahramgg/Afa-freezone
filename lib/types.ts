@@ -5,10 +5,16 @@ export type UserType = "IRANIAN" | "FOREIGN";
 export type InvoiceStatus =
   | "PENDING"
   | "APPROVED"
+  /** Import only: the bank has priced it and named the rial account. */
+  | "BANK_RATE_LOCKED"
+  /** Import only: the importer's rial has reached the bank. */
+  | "RIAL_RECEIVED"
   | "PAYMENT_PENDING"
   | "PAID"
   | "EXPIRED"
   | "REJECTED";
+
+export type TradeDirection = "EXPORT" | "IMPORT";
 
 export type InvoiceDirection = "RECEIVE" | "SEND";
 
@@ -36,6 +42,15 @@ export type Invoice = {
   expiresAt?: string;
   netAmount?: number;
   fee?: number;
+  tradeDirection?: TradeDirection;
+  /** Import only: the seller's wallet, where the principal is paid. */
+  beneficiaryWallet?: string;
+  depositAccount?: string;
+  exchangeRate?: number;
+  rialAmount?: number;
+  rialReceiptNo?: string;
+  rialDepositAt?: string;
+  bankSpreadRial?: number;
   rejectReason?: string;
 };
 
@@ -261,6 +276,8 @@ export type NotificationKind =
   | "SETTLEMENT_FROM_INVOICE"
   | "PAYMENT_PARTIAL"
   | "INVOICE_ADDRESSED"
+  | "INVOICE_RATE_LOCKED"
+  | "INVOICE_RIAL_RECEIVED"
   | "REFUND_REQUESTED"
   | "REFUND_UPDATED";
 

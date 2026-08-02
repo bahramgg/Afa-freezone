@@ -47,7 +47,7 @@ async function main() {
   const token = address("USDT_CONTRACT_ADDRESS");
   const gatewayWallet = address("GATEWAY_WALLET");
   const freezoneWallet = address("FREEZONE_WALLET");
-  const bankWallet = address("BANK_TREASURY_WALLET");
+  const beneficiary = address("BANK_TREASURY_WALLET");
 
   // Percentages arrive as human numbers and go on chain as basis points.
   const feeBps = Math.round(Number(process.env.GATEWAY_FEE_PERCENT ?? 2) * 100);
@@ -55,7 +55,7 @@ async function main() {
   const feeMin = parseUnits(process.env.GATEWAY_FEE_MIN ?? "1", decimals);
   const feeMax = parseUnits(process.env.GATEWAY_FEE_MAX ?? "500", decimals);
 
-  const distinct = new Set([gatewayWallet, freezoneWallet, bankWallet].map((a) => a.toLowerCase()));
+  const distinct = new Set([gatewayWallet, freezoneWallet, beneficiary].map((a) => a.toLowerCase()));
   if (distinct.size < 3) {
     throw new Error(
       "GATEWAY_WALLET, FREEZONE_WALLET and BANK_TREASURY_WALLET must be three different addresses — " +
@@ -69,7 +69,7 @@ async function main() {
   console.log(`token            : ${token}`);
   console.log(`gateway wallet   : ${gatewayWallet}`);
   console.log(`freezone wallet  : ${freezoneWallet}`);
-  console.log(`bank treasury    : ${bankWallet}`);
+  console.log(`bank treasury    : ${beneficiary}`);
   console.log(`fee              : ${feeBps / 100}%  (floor ${process.env.GATEWAY_FEE_MIN ?? 1}, ceiling ${process.env.GATEWAY_FEE_MAX ?? 500})`);
   console.log(`organisation cut : ${freezoneBps / 100}% of the fee\n`);
 
@@ -78,7 +78,7 @@ async function main() {
   const hash = await wallet.deployContract({
     abi: artifacts.AfaGatewayFactory.abi,
     bytecode: artifacts.AfaGatewayFactory.bytecode as `0x${string}`,
-    args: [token, gatewayWallet, freezoneWallet, bankWallet, feeBps, freezoneBps, feeMin, feeMax],
+    args: [token, gatewayWallet, freezoneWallet, beneficiary, feeBps, freezoneBps, feeMin, feeMax],
   });
   console.log(`deploying        : ${hash}`);
 

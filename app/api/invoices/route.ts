@@ -15,6 +15,7 @@ import { recordTransition } from "@/lib/server/statusEvents";
 import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { invoiceScope, narrow } from "@/lib/server/scope";
+import { feeFor } from "@/lib/server/fees";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -68,6 +69,12 @@ export const GET = handler(async (request: Request) => {
 });
 
 const CreateBody = z.object({
+  /**
+   * EXPORT is raised by the Iranian merchant against a foreign buyer; IMPORT by
+   * the foreign seller against an Iranian importer. Either way the party who is
+   * owed the money raises it.
+   */
+  direction: z.enum(["EXPORT", "IMPORT"]).default("EXPORT"),
   amount: z.number().positive("مبلغ باید بزرگ‌تر از صفر باشد"),
   // USDT only. The deposit watcher reads BEP-20 Transfer logs; a native BNB
   // transfer emits none, so a BNB invoice could never be credited on its own.
@@ -79,24 +86,39 @@ const CreateBody = z.object({
    * country, so the payer cannot be a name typed into a box — they register,
    * quote their uid, and the invoice lands in their own dashboard.
    */
-  counterpartyUid: z.string().trim().min(2, "شناسه کاربر خارجی الزامی است"),
+  counterpartyUid: z.string().trim().min(2, "شناسه طرف مقابل الزامی است"),
+  /** Import only: the seller's own wallet, where the principal is paid. */
+  beneficiaryWallet: z.string().trim().optional(),
   walletAddress: z.string().trim().optional(),
 });
 
 export const POST = handler(async (request: Request) => {
-  const user = await requireApprovedMerchant("IRANIAN");
+  // Parsed before the role check, because which role may raise it depends
+  // on the direction.
   const input = await readJson(request, CreateBody);
+  const importing = input.direction === "IMPORT";
 
+  // Whoever is owed the money raises the invoice: the Iranian merchant when
+  // exporting, the foreign seller when importing.
+  const user = await requireApprovedMerchant(importing ? "FOREIGN" : "IRANIAN");
+
+  const counterpartyRole = importing ? "IRANIAN" : "FOREIGN";
   const counterparty = await db.user.findFirst({
-    where: { uid: input.counterpartyUid, role: "FOREIGN" },
+    where: { uid: input.counterpartyUid, role: counterpartyRole },
     select: { id: true, fullName: true, disabledAt: true },
   });
   if (!counterparty) {
     throw badRequest(
-      `کاربر خارجی با شناسهٔ ${input.counterpartyUid} پیدا نشد — خریدار باید ابتدا در سامانه ثبت‌نام کند و شناسه‌اش را به شما بدهد`,
+      importing
+        ? `واردکنندهٔ ایرانی با شناسهٔ ${input.counterpartyUid} پیدا نشد`
+        : `کاربر خارجی با شناسهٔ ${input.counterpartyUid} پیدا نشد — خریدار باید ابتدا در سامانه ثبت‌نام کند و شناسه‌اش را به شما بدهد`,
     );
   }
-  if (counterparty.disabledAt) throw badRequest("حساب این کاربر خارجی غیرفعال است");
+  if (counterparty.disabledAt) throw badRequest("حساب طرف مقابل غیرفعال است");
+
+  if (importing && (!input.beneficiaryWallet || !isAddress(input.beneficiaryWallet))) {
+    throw badRequest("آدرس کیف پول خودتان را برای دریافت وجه وارد کنید");
+  }
 
   const settings = await db.settings.findUnique({ where: { id: 1 } });
   if (settings) {
@@ -114,6 +136,10 @@ export const POST = handler(async (request: Request) => {
 
   const validity = settings?.invoiceValidityMinutes ?? 30;
 
+  // The seller names what they want to receive; the fee goes on top of it, so
+  // they are paid the figure on their commercial contract exactly.
+  const fee = await feeFor(input.amount, "debit");
+
   const invoice = await db.$transaction(async (tx) => {
     const { ref, trxRef } = await nextRef("invoice", tx);
     const created = await tx.invoice.create({
@@ -125,10 +151,19 @@ export const POST = handler(async (request: Request) => {
         currency: input.currency,
         description: input.description,
         goodsTitle: input.goodsTitle,
+        direction: input.direction,
         counterpartyId: counterparty.id,
         // Taken from the account rather than typed, so the name on the invoice
         // is the one that was verified at registration.
         senderName: counterparty.fullName,
+        beneficiaryWallet: input.beneficiaryWallet
+          ? normalizeAddress(input.beneficiaryWallet)
+          : null,
+        // The fee is settled at creation, so an importer is told the whole sum
+        // they owe before the bank ever quotes a rate — and the bank supplies
+        // currency for the amount plus the fee rather than the amount alone.
+        feeAmount: fee.fee.toFixed(8),
+        netAmount: input.amount.toString(),
         walletAddress: input.walletAddress ? normalizeAddress(input.walletAddress) : null,
         status: "PENDING",
         expiresAt: new Date(Date.now() + validity * 60_000),
@@ -155,9 +190,9 @@ export const POST = handler(async (request: Request) => {
   });
   await notify(counterparty.id, {
     kind: "INVOICE_ADDRESSED",
-    title: "درخواست پرداخت جدید",
+    title: importing ? "صورتحساب واردات جدید" : "درخواست پرداخت جدید",
     body: `${user.fullName} فاکتور ${invoice.ref} را برای شما صادر کرد`,
-    href: "/foreign/invoices",
+    href: importing ? "/imports" : "/foreign/invoices",
   });
 
   return jsonOk({ invoice: serializeInvoice(invoice) }, { status: 201 });

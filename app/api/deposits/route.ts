@@ -29,7 +29,9 @@ export const GET = handler(async () => {
 
   const rows = await db.depositAddress.findMany({
     where: { invoiceId: { not: null } },
-    include: { invoice: { select: { ref: true, currency: true, status: true } } },
+    include: {
+      invoice: { select: { ref: true, currency: true, status: true, direction: true } },
+    },
     orderBy: [{ sweptAt: "asc" }, { createdAt: "desc" }],
     take: 200,
   });
@@ -45,7 +47,7 @@ export const GET = handler(async () => {
     })(),
     list: rows.map((d) => {
       const received = new Prisma.Decimal(d.receivedAmount);
-      let preview: { gateway: string; freezone: string; bank: string } | undefined;
+      let preview: { gateway: string; freezone: string; beneficiary: string } | undefined;
       try {
         if (d.terms && received.gt(0)) {
           const split = previewSplit(
@@ -55,7 +57,7 @@ export const GET = handler(async () => {
           preview = {
             gateway: toHuman(split.gateway, "USDT"),
             freezone: toHuman(split.freezone, "USDT"),
-            bank: toHuman(split.bank, "USDT"),
+            beneficiary: toHuman(split.beneficiary, "USDT"),
           };
         }
       } catch {
@@ -68,6 +70,7 @@ export const GET = handler(async () => {
         index: d.index,
         address: d.address,
         invoiceRef: d.invoice?.ref,
+        direction: d.invoice?.direction,
         currency: d.invoice?.currency ?? "USDT",
         receivedAmount: Number(d.receivedAmount),
         released: d.sweptAt !== null,
@@ -79,7 +82,7 @@ export const GET = handler(async () => {
           ? {
               gateway: Number(d.gatewayAmount),
               freezone: Number(d.freezoneAmount ?? 0),
-              bank: Number(d.bankAmount ?? 0),
+              beneficiary: Number(d.beneficiaryAmount ?? 0),
             }
           : undefined,
         createdAt: d.createdAt.toISOString(),
@@ -110,7 +113,7 @@ export const POST = handler(async (request: Request) => {
 
   const deposit = await db.depositAddress.findUnique({
     where: { id },
-    include: { invoice: { select: { ref: true, currency: true } } },
+    include: { invoice: { select: { ref: true, currency: true, direction: true } } },
   });
   if (!deposit) throw notFound("آدرس واریز یافت نشد");
   if (deposit.sweptAt) throw badRequest("این آدرس قبلاً تسویه شده است");
@@ -123,7 +126,9 @@ export const POST = handler(async (request: Request) => {
 
   // The event has to come from this deposit's own address, so a hash belonging
   // to some other release cannot be used to close this one.
-  let released: { total: bigint; gateway: bigint; freezone: bigint; bank: bigint } | null = null;
+  let released:
+    | { total: bigint; gateway: bigint; freezone: bigint; beneficiary: bigint }
+    | null = null;
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== deposit.address.toLowerCase()) continue;
     try {
@@ -133,13 +138,13 @@ export const POST = handler(async (request: Request) => {
         total: bigint;
         gatewayAmount: bigint;
         freezoneAmount: bigint;
-        bankAmount: bigint;
+        beneficiaryAmount: bigint;
       };
       released = {
         total: args.total,
         gateway: args.gatewayAmount,
         freezone: args.freezoneAmount,
-        bank: args.bankAmount,
+        beneficiary: args.beneficiaryAmount,
       };
       break;
     } catch {
@@ -159,7 +164,7 @@ export const POST = handler(async (request: Request) => {
       sweepTxHash: txHash.toLowerCase(),
       gatewayAmount: toHuman(released.gateway, currency),
       freezoneAmount: toHuman(released.freezone, currency),
-      bankAmount: toHuman(released.bank, currency),
+      beneficiaryAmount: toHuman(released.beneficiary, currency),
     },
   });
 
@@ -167,10 +172,11 @@ export const POST = handler(async (request: Request) => {
     id: updated.id,
     address: updated.address,
     currency,
+    direction: deposit.invoice?.direction,
     total: toHuman(released.total, currency),
     gateway: toHuman(released.gateway, currency),
     freezone: toHuman(released.freezone, currency),
-    bank: toHuman(released.bank, currency),
+    beneficiary: toHuman(released.beneficiary, currency),
   });
 
   return jsonOk({
@@ -179,7 +185,7 @@ export const POST = handler(async (request: Request) => {
     split: {
       gateway: toHuman(released.gateway, currency),
       freezone: toHuman(released.freezone, currency),
-      bank: toHuman(released.bank, currency),
+      beneficiary: toHuman(released.beneficiary, currency),
     },
   });
 });

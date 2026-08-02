@@ -220,10 +220,34 @@ model StatusEvent {
 enum InvoiceStatus {
   PENDING
   APPROVED
+  /** Import only: the bank has priced it and named the rial account. */
+  BANK_RATE_LOCKED
+  /** Import only: the importer's rial has arrived at the bank. */
+  RIAL_RECEIVED
   PAYMENT_PENDING
   PAID
   EXPIRED
   REJECTED
+}
+
+/**
+ * Which way the goods — and therefore the money — are going.
+ *
+ * Both directions are the same shape: a seller raises an invoice against a
+ * buyer, it is paid into an address derived for it alone, and the contract
+ * splits what arrives. What differs is who stands where.
+ *
+ * EXPORT: an Iranian merchant sells abroad. The foreign buyer pays crypto
+ * straight in, and what is left after the fees goes to the bank, which pays the
+ * merchant in rial.
+ *
+ * IMPORT: a foreign seller sells to an Iranian importer. The importer pays rial
+ * to the bank, the bank pays the crypto in, and what is left after the fees
+ * goes to the seller's own wallet.
+ */
+enum TradeDirection {
+  EXPORT
+  IMPORT
 }
 
 model Invoice {
@@ -240,10 +264,33 @@ model Invoice {
   amount   Decimal  @db.Decimal(38, 18)
   currency Currency
 
+  direction TradeDirection @default(EXPORT)
+
   description String
   goodsTitle  String
   /** The payer's name, taken from their account rather than typed. */
   senderName  String
+
+  /**
+   * Where the money goes once the fees are off it.
+   *
+   * Null on an export — the contract is deployed against the bank's treasury,
+   * which is configured on the factory. On an import it is the foreign seller's
+   * own wallet, which they supply when raising the invoice.
+   */
+  beneficiaryWallet String?
+
+  // ── the rial leg, on imports only ──────────────────────────────────────
+  /** Bank account the importer pays the rial into. Named by the bank. */
+  depositAccount String?
+  exchangeRate   Decimal?  @db.Decimal(24, 4)
+  rateLockedAt   DateTime?
+  /** What the importer owes in rial: the amount plus the fee, at that rate. */
+  rialAmount     Decimal?  @db.Decimal(24, 2)
+  rialReceiptNo  String?
+  rialDepositAt  DateTime?
+  /** The bank's exchange margin on supplying the currency, in rial. */
+  bankSpreadRial Decimal?  @db.Decimal(24, 2)
 
   /**
    * The foreign buyer this invoice is addressed to.
@@ -575,6 +622,15 @@ enum LedgerAccount {
   GATEWAY_PAID
   /** The organization's share, actually received on chain. */
   FREEZONE_PAID
+  /**
+   * Paid on chain to a foreign seller for an import.
+   *
+   * Unlike an export, where the remainder moves from the deposit into the
+   * bank's treasury and stays inside the system, this leaves it altogether —
+   * booking it as a bank holding would credit the bank with currency it never
+   * received.
+   */
+  SUPPLIER_PAID
 }
 
 enum LedgerUnit {
@@ -700,10 +756,16 @@ model DepositAddress {
   /** Set once the contract split the balance three ways. */
   sweptAt     DateTime?
   sweepTxHash String?
-  /** What the contract actually paid out, read back from its own event. */
-  gatewayAmount  Decimal? @db.Decimal(38, 18)
-  freezoneAmount Decimal? @db.Decimal(38, 18)
-  bankAmount     Decimal? @db.Decimal(38, 18)
+  /**
+   * What the contract actually paid out, read back from its own event.
+   *
+   * The remainder goes to whoever the terms name as beneficiary — the bank's
+   * treasury on an export, the foreign seller on an import — so it is not a
+   * bank figure and must not be booked as one.
+   */
+  gatewayAmount     Decimal? @db.Decimal(38, 18)
+  freezoneAmount    Decimal? @db.Decimal(38, 18)
+  beneficiaryAmount Decimal? @db.Decimal(38, 18)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

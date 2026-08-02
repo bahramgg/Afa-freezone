@@ -332,7 +332,10 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
   // The fee comes from the terms this address was derived from, not from the
   // settings row: the contract is what will actually take it, and a figure
   // worked out anywhere else is wrong the moment an admin edits the setting.
-  const { fee, net } = splitForAmount(parseTerms(deposit.terms), total.toString());
+  const { fee, net, gateway, freezone } = splitForAmount(
+    parseTerms(deposit.terms),
+    total.toString(),
+  );
 
   await db.$transaction([
     db.invoice.update({
@@ -371,13 +374,20 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     ref: invoice.ref,
     ownerId: invoice.ownerId,
     currency: invoice.currency,
+    direction: invoice.direction,
     receivedAmount: total,
     feeAmount: fee,
     netAmount: net,
+    share: { gateway, freezone },
   });
 
-  // The money is here now; the payout carries it on to the merchant.
-  await raisePayoutSettlement({ ...invoice, netAmount: net as unknown as Prisma.Decimal });
+  // Exporting, the money is here but not yet with the merchant, and the payout
+  // carries it on as rial. Importing there is nothing to carry: the contract's
+  // own transfer pays the foreign seller, so raising a settlement would invent a
+  // rial debt to a merchant who is owed nothing.
+  if (invoice.direction === "EXPORT") {
+    await raisePayoutSettlement({ ...invoice, netAmount: net as unknown as Prisma.Decimal });
+  }
 
   return true;
 }

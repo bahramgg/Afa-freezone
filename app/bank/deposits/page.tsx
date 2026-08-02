@@ -30,13 +30,19 @@ import { truncateAddress, truncateHash, toPersianDigits, formatAmount } from "@/
  * books are written from.
  */
 
-type Split = { gateway: number | string; freezone: number | string; bank: number | string };
+type Split = {
+  gateway: number | string;
+  freezone: number | string;
+  /** The remainder: the bank's treasury on an export, the seller on an import. */
+  beneficiary: number | string;
+};
 
 type Deposit = {
   id: string;
   index: number;
   address: string;
   invoiceRef?: string;
+  direction?: "EXPORT" | "IMPORT";
   currency: string;
   receivedAmount: number;
   released: boolean;
@@ -209,7 +215,10 @@ export default function DepositsPage() {
                             <div className="space-y-0.5 whitespace-nowrap">
                               <div>درگاه {toPersianDigits(formatAmount(Number(s.gateway)))}</div>
                               <div>سازمان {toPersianDigits(formatAmount(Number(s.freezone)))}</div>
-                              <div>بانک {toPersianDigits(formatAmount(Number(s.bank)))}</div>
+                              <div>
+                                {d.direction === "IMPORT" ? "فروشنده" : "بانک"}{" "}
+                                {toPersianDigits(formatAmount(Number(s.beneficiary)))}
+                              </div>
                               {!d.split ? (
                                 <div className="text-[10px] text-muted-foreground">پیش‌بینی</div>
                               ) : null}
@@ -243,6 +252,7 @@ export default function DepositsPage() {
                             factory={factory}
                             terms={d.terms}
                             chainId={CHAIN_ID}
+                            direction={d.direction}
                             onReleased={load}
                           />
                         ) : (

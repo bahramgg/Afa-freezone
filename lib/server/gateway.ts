@@ -35,6 +35,13 @@ export async function allocateDepositAddress(
   invoiceId: string,
   invoiceRef: string,
   client: Prisma.TransactionClient = db,
+  /**
+   * Import only. The remainder belongs to the foreign seller rather than to the
+   * bank's treasury, and pinning the fee to an exact figure is what lets the
+   * seller receive the sum on their commercial contract to the last unit —
+   * a percentage of the grossed-up total would not divide back cleanly.
+   */
+  override?: { beneficiary: string; fee: bigint },
 ): Promise<string> {
   // Re-approving must not move an address a buyer may already be holding.
   const existing = await client.depositAddress.findUnique({ where: { invoiceId } });
@@ -44,6 +51,15 @@ export async function allocateDepositAddress(
   let terms;
   try {
     terms = await currentTerms(invoiceRef);
+    if (override) {
+      terms = {
+        ...terms,
+        beneficiary: override.beneficiary as `0x${string}`,
+        feeBps: 0,
+        feeMin: override.fee,
+        feeMax: override.fee,
+      };
+    }
     address = await depositAddressFor(terms);
   } catch (error) {
     console.error("[gateway] could not derive a deposit address", error);

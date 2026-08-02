@@ -31,15 +31,19 @@ export function ReleaseButton({
   factory,
   terms,
   chainId,
+  direction,
   onReleased,
 }: {
   depositId: string;
   factory?: string;
   terms?: unknown;
   chainId: number;
+  direction?: "EXPORT" | "IMPORT";
   onReleased: () => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  // Exporting, the remainder is the bank's; importing, it is the seller's.
+  const beneficiaryLabel = direction === "IMPORT" ? "فروشنده" : "بانک";
 
   async function release() {
     const provider = injected();
@@ -88,7 +92,7 @@ export function ReleaseButton({
                   token: t.token,
                   gatewayWallet: t.gatewayWallet,
                   freezoneWallet: t.freezoneWallet,
-                  bankWallet: t.bankWallet,
+                  beneficiary: t.beneficiary,
                 },
               ],
             }),
@@ -104,13 +108,12 @@ export function ReleaseButton({
       for (let attempt = 0; attempt < 20 && !recorded; attempt++) {
         await new Promise((r) => setTimeout(r, 3000));
         try {
-          const result = await api.post<{ split: { gateway: string; freezone: string; bank: string } }>(
-            "/deposits",
-            { id: depositId, txHash },
-          );
+          const result = await api.post<{
+            split: { gateway: string; freezone: string; beneficiary: string };
+          }>("/deposits", { id: depositId, txHash });
           recorded = true;
           toast.success(
-            `تسویه شد — درگاه ${result.split.gateway} · سازمان ${result.split.freezone} · بانک ${result.split.bank}`,
+            `تسویه شد — درگاه ${result.split.gateway} · سازمان ${result.split.freezone} · ${beneficiaryLabel} ${result.split.beneficiary}`,
           );
         } catch (error) {
           const message = error instanceof ApiClientError ? error.message : "";

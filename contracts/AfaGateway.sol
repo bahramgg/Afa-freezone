@@ -42,7 +42,15 @@ struct Terms {
     address token;
     address gatewayWallet;
     address freezoneWallet;
-    address bankWallet;
+    /**
+     * Whoever the payment is ultimately for, once the fees are off it.
+     *
+     * Exporting, that is the bank, which then pays the Iranian merchant in
+     * rial. Importing, it is the foreign seller's own wallet, and the bank is
+     * the one paying in. The contract does not need to know which: it pays
+     * whoever the terms name, and the terms are fixed in the address.
+     */
+    address beneficiary;
 }
 
 /**
@@ -60,7 +68,7 @@ contract AfaDeposit {
         uint256 total,
         uint256 gatewayAmount,
         uint256 freezoneAmount,
-        uint256 bankAmount
+        uint256 beneficiaryAmount
     );
 
     constructor(Terms memory t) {
@@ -98,13 +106,13 @@ contract AfaDeposit {
         // the fee exactly, and the remainder to the total exactly. No dust is
         // stranded here, ever.
         uint256 gatewayAmount = fee - freezoneAmount;
-        uint256 bankAmount = total - fee;
+        uint256 beneficiaryAmount = total - fee;
 
         if (gatewayAmount > 0) _send(t.token, t.gatewayWallet, gatewayAmount);
         if (freezoneAmount > 0) _send(t.token, t.freezoneWallet, freezoneAmount);
-        if (bankAmount > 0) _send(t.token, t.bankWallet, bankAmount);
+        if (beneficiaryAmount > 0) _send(t.token, t.beneficiary, beneficiaryAmount);
 
-        emit Released(t.invoiceRef, total, gatewayAmount, freezoneAmount, bankAmount);
+        emit Released(t.invoiceRef, total, gatewayAmount, freezoneAmount, beneficiaryAmount);
     }
 
     /** BEP-20 tokens vary in whether they return a bool; both are accepted. */
@@ -134,7 +142,7 @@ contract AfaGatewayFactory {
     address public token;
     address public gatewayWallet;
     address public freezoneWallet;
-    address public bankWallet;
+    address public beneficiary;
     uint16 public feeBps;
     uint16 public freezoneBps;
     uint256 public feeMin;
@@ -147,7 +155,7 @@ contract AfaGatewayFactory {
         uint256 feeMax,
         address gatewayWallet,
         address freezoneWallet,
-        address bankWallet
+        address beneficiary
     );
     event Deployed(string invoiceRef, address deposit);
     event OwnerChanged(address previous, address next);
@@ -161,7 +169,7 @@ contract AfaGatewayFactory {
         address _token,
         address _gatewayWallet,
         address _freezoneWallet,
-        address _bankWallet,
+        address _beneficiary,
         uint16 _feeBps,
         uint16 _freezoneBps,
         uint256 _feeMin,
@@ -169,25 +177,25 @@ contract AfaGatewayFactory {
     ) {
         owner = msg.sender;
         token = _token;
-        _setTerms(_gatewayWallet, _freezoneWallet, _bankWallet, _feeBps, _freezoneBps, _feeMin, _feeMax);
+        _setTerms(_gatewayWallet, _freezoneWallet, _beneficiary, _feeBps, _freezoneBps, _feeMin, _feeMax);
     }
 
     function setTerms(
         address _gatewayWallet,
         address _freezoneWallet,
-        address _bankWallet,
+        address _beneficiary,
         uint16 _feeBps,
         uint16 _freezoneBps,
         uint256 _feeMin,
         uint256 _feeMax
     ) external onlyOwner {
-        _setTerms(_gatewayWallet, _freezoneWallet, _bankWallet, _feeBps, _freezoneBps, _feeMin, _feeMax);
+        _setTerms(_gatewayWallet, _freezoneWallet, _beneficiary, _feeBps, _freezoneBps, _feeMin, _feeMax);
     }
 
     function _setTerms(
         address _gatewayWallet,
         address _freezoneWallet,
-        address _bankWallet,
+        address _beneficiary,
         uint16 _feeBps,
         uint16 _freezoneBps,
         uint256 _feeMin,
@@ -195,20 +203,20 @@ contract AfaGatewayFactory {
     ) private {
         require(_gatewayWallet != address(0), "gateway wallet required");
         require(_freezoneWallet != address(0), "freezone wallet required");
-        require(_bankWallet != address(0), "bank wallet required");
+        require(_beneficiary != address(0), "beneficiary required");
         require(_feeBps <= 10_000, "fee out of range");
         require(_freezoneBps <= 10_000, "share out of range");
         require(_feeMax == 0 || _feeMax >= _feeMin, "ceiling below floor");
 
         gatewayWallet = _gatewayWallet;
         freezoneWallet = _freezoneWallet;
-        bankWallet = _bankWallet;
+        beneficiary = _beneficiary;
         feeBps = _feeBps;
         freezoneBps = _freezoneBps;
         feeMin = _feeMin;
         feeMax = _feeMax;
 
-        emit TermsChanged(_feeBps, _freezoneBps, _feeMin, _feeMax, _gatewayWallet, _freezoneWallet, _bankWallet);
+        emit TermsChanged(_feeBps, _freezoneBps, _feeMin, _feeMax, _gatewayWallet, _freezoneWallet, _beneficiary);
     }
 
     function transferOwnership(address next) external onlyOwner {
@@ -228,7 +236,7 @@ contract AfaGatewayFactory {
             token: token,
             gatewayWallet: gatewayWallet,
             freezoneWallet: freezoneWallet,
-            bankWallet: bankWallet
+            beneficiary: beneficiary
         });
     }
 

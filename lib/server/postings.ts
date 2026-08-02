@@ -24,36 +24,61 @@ async function freezonePercent(): Promise<Prisma.Decimal> {
  * against them stand two claims: what the merchant is owed, and the fee — split
  * there and then between the gateway and the organization, so neither share is
  * ever a figure someone has to work out later.
+ *
+ * `share` is that split as the deposit's own contract terms define it. It is
+ * passed in rather than worked out here because the contract is what will
+ * actually send the two wallets their money; the settings row only says what a
+ * *future* contract would be deployed with, and the moment an admin edits it
+ * the books would start describing a split that never happened.
  */
 export async function postInvoicePaid(invoice: {
   id: string;
   ref: string;
   ownerId: string;
   currency: Currency;
+  direction?: "EXPORT" | "IMPORT";
   receivedAmount: Prisma.Decimal | string | number;
   feeAmount: Prisma.Decimal | string | number;
   netAmount: Prisma.Decimal | string | number;
+  share?: { gateway: Prisma.Decimal | string | number; freezone: Prisma.Decimal | string | number };
 }): Promise<void> {
   if (await alreadyPosted("INVOICE_PAID", invoice.id)) return;
 
   const unit = unitFor(invoice.currency);
-  const { gateway, freezone } = splitGatewayFee(invoice.feeAmount, await freezonePercent());
+  const { gateway, freezone } = invoice.share
+    ? { gateway: new Prisma.Decimal(invoice.share.gateway), freezone: new Prisma.Decimal(invoice.share.freezone) }
+    : splitGatewayFee(invoice.feeAmount, await freezonePercent());
+  const context = {
+    kind: "INVOICE_PAID" as const,
+    subject: "invoice" as const,
+    subjectId: invoice.id,
+    subjectRef: invoice.ref,
+  };
 
-  await post(
-    { kind: "INVOICE_PAID", subject: "invoice", subjectId: invoice.id, subjectRef: invoice.ref },
-    [
-      { account: "DEPOSIT_HELD", amount: invoice.receivedAmount, unit, note: "پرداخت خریدار" },
-      {
-        account: "MERCHANT_PAYABLE",
-        amount: invoice.netAmount,
-        unit,
-        userId: invoice.ownerId,
-        note: "سهم تاجر پس از کارمزد",
-      },
+  // Importing, the remainder is the foreign seller's and leaves the country the
+  // moment the contract splits it — nobody here is owed it in between. Only the
+  // fee is ours to account for.
+  if (invoice.direction === "IMPORT") {
+    await post(context, [
+      { account: "DEPOSIT_HELD", amount: invoice.receivedAmount, unit, note: "ارز تأمین‌شده توسط بانک" },
       { account: "GATEWAY_SHARE", amount: gateway, unit, note: "سهم درگاه از کارمزد" },
       { account: "FREEZONE_SHARE", amount: freezone, unit, note: "سهم سازمان منطقه آزاد" },
-    ],
-  );
+    ]);
+    return;
+  }
+
+  await post(context, [
+    { account: "DEPOSIT_HELD", amount: invoice.receivedAmount, unit, note: "پرداخت خریدار" },
+    {
+      account: "MERCHANT_PAYABLE",
+      amount: invoice.netAmount,
+      unit,
+      userId: invoice.ownerId,
+      note: "سهم تاجر پس از کارمزد",
+    },
+    { account: "GATEWAY_SHARE", amount: gateway, unit, note: "سهم درگاه از کارمزد" },
+    { account: "FREEZONE_SHARE", amount: freezone, unit, note: "سهم سازمان منطقه آزاد" },
+  ]);
 }
 
 /**
@@ -68,10 +93,12 @@ export async function postDepositReleased(deposit: {
   id: string;
   address: string;
   currency: Currency;
+  direction?: "EXPORT" | "IMPORT";
   total: string;
   gateway: string;
   freezone: string;
-  bank: string;
+  /** The remainder, to whoever the terms name as beneficiary. */
+  beneficiary: string;
 }): Promise<void> {
   if (await alreadyPosted("DEPOSIT_RELEASED", deposit.id)) return;
 
@@ -88,7 +115,22 @@ export async function postDepositReleased(deposit: {
     [
       // What was held at the address has left it, in three directions.
       { account: "DEPOSIT_HELD", amount: negate(deposit.total), unit },
-      { account: "BANK_HELD", amount: deposit.bank, unit, note: "سهم بانک روی زنجیره" },
+      // Exporting, the remainder moves into the bank's treasury and stays there
+      // until it pays the merchant rial. Importing, it has gone out of the
+      // country to the foreign seller and is nobody here's to hold.
+      deposit.direction === "IMPORT"
+        ? {
+            account: "SUPPLIER_PAID" as const,
+            amount: deposit.beneficiary,
+            unit,
+            note: "پرداخت به فروشندهٔ خارجی",
+          }
+        : {
+            account: "BANK_HELD" as const,
+            amount: deposit.beneficiary,
+            unit,
+            note: "باقیماندهٔ تقسیم روی زنجیره",
+          },
       { account: "GATEWAY_PAID", amount: deposit.gateway, unit, note: "کارمزد درگاه پرداخت شد" },
       { account: "FREEZONE_PAID", amount: deposit.freezone, unit, note: "سهم سازمان پرداخت شد" },
       // The claims the payment created are now settled in money, not on paper.

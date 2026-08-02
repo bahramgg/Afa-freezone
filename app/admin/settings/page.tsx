@@ -185,7 +185,7 @@ type ContractInfo = {
   freezoneSharePercent: number;
   gatewayWallet: string;
   freezoneWallet: string;
-  bankWallet: string;
+  beneficiary: string;
 } | null;
 
 /**
@@ -228,7 +228,7 @@ function ContractTerms({ settingsFee }: { settingsFee: number }) {
         <Term label="سهم سازمان" value={`${toPersianDigits(String(info.freezoneSharePercent))}٪ از کارمزد`} />
         <Term label="کیف پول درگاه" value={truncateAddress(info.gatewayWallet)} mono />
         <Term label="کیف پول سازمان" value={truncateAddress(info.freezoneWallet)} mono />
-        <Term label="خزانهٔ بانک" value={truncateAddress(info.bankWallet)} mono />
+        <Term label="گیرندهٔ باقیمانده" value={truncateAddress(info.beneficiary)} mono />
         <Term label="قرارداد" value={truncateAddress(info.factory)} mono />
       </dl>
       {drift > 0.001 ? (

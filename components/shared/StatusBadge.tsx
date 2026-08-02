@@ -6,6 +6,8 @@ type Tone = "neutral" | "primary" | "success" | "warning" | "destructive" | "inf
 const INVOICE_LABELS: Record<InvoiceStatus, { label: string; tone: Tone }> = {
   PENDING: { label: "در انتظار تأیید ادمین", tone: "warning" },
   APPROVED: { label: "تأیید شده — منتظر پرداخت", tone: "info" },
+  BANK_RATE_LOCKED: { label: "نرخ اعلام شد — منتظر واریز ریال", tone: "info" },
+  RIAL_RECEIVED: { label: "ریال دریافت شد — تأمین ارز", tone: "primary" },
   PAYMENT_PENDING: { label: "منتظر پرداخت", tone: "primary" },
   PAID: { label: "موفق — واریز شد", tone: "success" },
   EXPIRED: { label: "منقضی", tone: "neutral" },

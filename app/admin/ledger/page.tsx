@@ -42,11 +42,17 @@ const ACCOUNT_FA: Record<string, string> = {
   GATEWAY_SHARE: "سهم درگاه",
   FREEZONE_SHARE: "سهم سازمان منطقه آزاد",
   BANK_SPREAD: "حاشیه صرافی بانک",
+  GATEWAY_PAID: "کارمزد دریافتی درگاه",
+  FREEZONE_PAID: "سهم پرداخت‌شده به سازمان",
+  SUPPLIER_PAID: "پرداخت به فروشندگان خارجی",
+  REFUNDED: "بازگردانده به خریدار",
 };
 
 const KIND_FA: Record<string, string> = {
   INVOICE_PAID: "پرداخت فاکتور",
+  DEPOSIT_RELEASED: "تقسیم واریزی روی زنجیره",
   DEPOSIT_SWEPT: "برداشت به خزانه",
+  REFUND_SENT: "بازگرداندن وجه به خریدار",
   SETTLEMENT_FUNDED: "دریافت کریپتو برای تسویه",
   SETTLEMENT_SETTLED: "پرداخت ریال به تاجر",
   SEND_COMPLETED: "تحویل ارز به گیرنده",
@@ -59,6 +65,10 @@ const ICONS: Record<string, typeof Wallet> = {
   GATEWAY_SHARE: PiggyBank,
   FREEZONE_SHARE: Banknote,
   BANK_SPREAD: Banknote,
+  GATEWAY_PAID: PiggyBank,
+  FREEZONE_PAID: Banknote,
+  SUPPLIER_PAID: Users,
+  REFUNDED: Wallet,
 };
 
 const ORDER = [
@@ -67,6 +77,10 @@ const ORDER = [
   "MERCHANT_PAYABLE",
   "GATEWAY_SHARE",
   "FREEZONE_SHARE",
+  "GATEWAY_PAID",
+  "FREEZONE_PAID",
+  "SUPPLIER_PAID",
+  "REFUNDED",
   "BANK_SPREAD",
 ];
 

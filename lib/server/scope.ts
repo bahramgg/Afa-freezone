@@ -20,14 +20,13 @@ export function invoiceScope(user: SessionUser): Prisma.InvoiceWhereInput {
   switch (user.role) {
     case "ADMIN":
       return {};
-    case "IRANIAN":
-      return { ownerId: user.id };
-    case "FOREIGN":
-      // The buyer an invoice is addressed to sees it, and only it: this is how
-      // a payment request reaches them at all.
-      return { counterpartyId: user.id };
+    case "BANK":
+      // The bank prices and funds imports, so it sees those once cleared.
+      return { direction: "IMPORT", status: { notIn: ["PENDING", "REJECTED"] } };
     default:
-      return { ownerId: NOTHING };
+      // Everyone else sees both sides of their own trades: what they raised,
+      // and what was raised against them.
+      return { OR: [{ ownerId: user.id }, { counterpartyId: user.id }] };
   }
 }
 

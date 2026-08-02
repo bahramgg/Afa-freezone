@@ -69,7 +69,7 @@ export const POST = handler(async () => {
         freezoneSharePercent: terms.freezoneBps / 100,
         gatewayWallet: terms.gatewayWallet,
         freezoneWallet: terms.freezoneWallet,
-        bankWallet: terms.bankWallet,
+        beneficiary: terms.beneficiary,
       },
     });
   } catch (error) {

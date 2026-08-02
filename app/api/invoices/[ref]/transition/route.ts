@@ -15,10 +15,16 @@ import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
 import { allocateDepositAddress } from "@/lib/server/gateway";
 import { parseTerms, splitForAmount } from "@/lib/server/chain/gateway-contract";
+import { assertRateWithinTolerance, referenceRate } from "@/lib/server/rates";
+import { bankSpread } from "@/lib/server/ledger";
+import { toRial } from "@/lib/server/money";
+import { env } from "@/lib/server/env";
+import { parseUnits } from "viem";
 import { raisePayoutSettlement } from "@/lib/server/payout";
 import { postInvoicePaid } from "@/lib/server/postings";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
-import type { Actor, InvoiceStatus, Prisma } from "@/lib/generated/prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
+import type { Actor, InvoiceStatus } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +36,22 @@ const INVOICE_INCLUDE = {
 } satisfies Prisma.InvoiceInclude;
 
 const Body = z.object({
-  action: z.enum(["approve", "reject", "startPayment", "confirmPayment", "expire"]),
+  action: z.enum([
+    "approve",
+    "reject",
+    // Import only, in order: the bank prices it and names the rial account,
+    // confirms the importer's rial has landed, then funds the contract.
+    "lockRate",
+    "confirmRialDeposit",
+    "startPayment",
+    "confirmPayment",
+    "expire",
+  ]),
   reason: z.string().trim().max(500).optional(),
   txHash: z.string().trim().optional(),
+  rate: z.number().positive().optional(),
+  depositAccount: z.string().trim().optional(),
+  receiptNo: z.string().trim().optional(),
 });
 
 /**
@@ -43,7 +62,8 @@ const Body = z.object({
 export const POST = handler(
   async (request: Request, ctx: { params: Promise<{ ref: string }> }) => {
     const { ref } = await ctx.params;
-    const { action, reason, txHash } = await readJson(request, Body);
+    const body = await readJson(request, Body);
+    const { action, reason, txHash } = body;
 
     // Paying is no longer anonymous. An export brings currency into the
     // country, so the payer has to be the account the invoice was addressed to
@@ -61,6 +81,8 @@ export const POST = handler(
     let actor: Actor;
     let data: Prisma.InvoiceUpdateInput = {};
     let recipientNote: { title: string; body: string; kind: string } | null = null;
+    /** How the deposit's contract divides the fee, once one has been read. */
+    let share: { gateway: string; freezone: string } | undefined;
 
     switch (action) {
       case "approve": {
@@ -70,8 +92,25 @@ export const POST = handler(
         actor = "ADMIN";
         // Derived at approval, so an unapproved invoice never advertises
         // somewhere to send money — and derived per invoice, so whatever lands
-        // there can only belong to this one.
-        data = { paymentAddress: await allocateDepositAddress(invoice.id, invoice.ref) };
+        // there can only belong to this one. On an import the remainder is the
+        // seller's, and the fee is pinned so they receive their exact figure.
+        const importing = invoice.direction === "IMPORT";
+        if (importing && !invoice.beneficiaryWallet) {
+          throw badRequest("این فاکتور آدرس کیف پول فروشنده را ندارد");
+        }
+        data = {
+          paymentAddress: await allocateDepositAddress(
+            invoice.id,
+            invoice.ref,
+            db,
+            importing
+              ? {
+                  beneficiary: invoice.beneficiaryWallet!,
+                  fee: parseUnits((invoice.feeAmount ?? new Prisma.Decimal(0)).toString(), env().USDT_DECIMALS),
+                }
+              : undefined,
+          ),
+        };
         recipientNote = {
           kind: "INVOICE_APPROVED",
           title: "فاکتور تأیید شد",
@@ -93,11 +132,72 @@ export const POST = handler(
         };
         break;
       }
+      case "lockRate": {
+        // Import only. The bank prices the currency it will supply and names
+        // the account the importer pays the rial into — both reach the importer
+        // together, so they see the sum and where to send it in one place.
+        if (user.role !== "BANK") throw forbidden();
+        if (invoice.direction !== "IMPORT") throw badRequest("این اقدام فقط برای واردات است");
+        assertTransition(from, ["APPROVED"], "قفل نرخ");
+        if (!body.rate) throw badRequest("نرخ ارز الزامی است");
+        if (!body.depositAccount) throw badRequest("شماره حساب واریز ریالی الزامی است");
+        await assertRateWithinTolerance(body.rate, invoice.currency);
+
+        // The importer pays for the amount plus the fee, because that is what
+        // the bank has to supply for the seller to receive their full figure.
+        const gross = (invoice.netAmount ?? invoice.amount).add(invoice.feeAmount ?? 0);
+        const spread = bankSpread({
+          side: "sell",
+          lockedRate: body.rate,
+          referenceRate: await referenceRate(invoice.currency),
+          tokenAmount: gross,
+        });
+
+        to = "BANK_RATE_LOCKED";
+        actor = "BANK";
+        data = {
+          exchangeRate: body.rate.toString(),
+          rateLockedAt: new Date(),
+          rialAmount: toRial(body.rate, gross),
+          depositAccount: body.depositAccount,
+          bankSpreadRial: spread,
+        };
+        recipientNote = {
+          kind: "INVOICE_RATE_LOCKED",
+          title: "نرخ اعلام شد",
+          body: `برای فاکتور ${invoice.ref} نرخ قفل شد — مبلغ ریالی را واریز کنید`,
+        };
+        break;
+      }
+
+      case "confirmRialDeposit": {
+        if (user.role !== "BANK") throw forbidden();
+        if (invoice.direction !== "IMPORT") throw badRequest("این اقدام فقط برای واردات است");
+        assertTransition(from, ["BANK_RATE_LOCKED"], "تأیید واریز ریال");
+        if (!body.receiptNo) throw badRequest("شماره رسید واریز الزامی است");
+        to = "RIAL_RECEIVED";
+        actor = "BANK";
+        data = { rialReceiptNo: body.receiptNo, rialDepositAt: new Date() };
+        recipientNote = {
+          kind: "INVOICE_RIAL_RECEIVED",
+          title: "واریز ریالی تأیید شد",
+          body: `ریال فاکتور ${invoice.ref} دریافت شد — ارز در حال تأمین است`,
+        };
+        break;
+      }
+
       case "startPayment": {
-        if (invoice.counterpartyId !== user.id) {
+        // On an import the bank pays, having already taken the rial; on an
+        // export it is the buyer the invoice was addressed to.
+        const payer = invoice.direction === "IMPORT" ? "BANK" : null;
+        if (payer ? user.role !== payer : invoice.counterpartyId !== user.id) {
           throw forbidden("این فاکتور برای حساب دیگری صادر شده است");
         }
-        assertTransition(from, ["APPROVED"], "شروع پرداخت");
+        assertTransition(
+          from,
+          invoice.direction === "IMPORT" ? ["RIAL_RECEIVED"] : ["APPROVED"],
+          "شروع پرداخت",
+        );
         if (invoice.expiresAt && invoice.expiresAt.getTime() < Date.now()) {
           throw badRequest("مهلت پرداخت این فاکتور به پایان رسیده است");
         }
@@ -110,10 +210,17 @@ export const POST = handler(
         // watcher does this automatically when log scanning is available; this
         // path lets a payment settle without it, and is no less safe because
         // the chain — not the caller — supplies amount and recipient.
-        if (invoice.counterpartyId !== user.id) {
+        const payerRole = invoice.direction === "IMPORT" ? "BANK" : null;
+        if (payerRole ? user.role !== payerRole : invoice.counterpartyId !== user.id) {
           throw forbidden("این فاکتور برای حساب دیگری صادر شده است");
         }
-        assertTransition(from, ["APPROVED", "PAYMENT_PENDING"], "ثبت پرداخت");
+        assertTransition(
+          from,
+          invoice.direction === "IMPORT"
+            ? ["RIAL_RECEIVED", "PAYMENT_PENDING"]
+            : ["APPROVED", "PAYMENT_PENDING"],
+          "ثبت پرداخت",
+        );
         if (!txHash) throw badRequest("هش تراکنش الزامی است");
         if (!invoice.paymentAddress) throw badRequest("آدرس پرداخت این فاکتور تعیین نشده است");
 
@@ -141,7 +248,11 @@ export const POST = handler(
           select: { terms: true },
         });
         if (!deposit?.terms) throw badRequest("شرایط تسویه این فاکتور ثبت نشده است");
-        const { fee, net } = splitForAmount(parseTerms(deposit.terms), verified.amount);
+        const { fee, net, gateway, freezone } = splitForAmount(
+          parseTerms(deposit.terms),
+          verified.amount,
+        );
+        share = { gateway, freezone };
 
         to = "PAID";
         actor = "COUNTERPARTY";
@@ -197,17 +308,21 @@ export const POST = handler(
 
     // A paid invoice is only half the journey: the money is at the gateway, not
     // with the merchant. The books record it, then the payout carries it on.
+    // An import's payout is the contract's own transfer to the seller, so
+    // there is no rial settlement to raise afterwards.
     if (to === "PAID") {
       await postInvoicePaid({
         id: updated.id,
         ref: updated.ref,
         ownerId: updated.ownerId,
         currency: updated.currency,
+        direction: updated.direction,
         receivedAmount: updated.receivedAmount ?? updated.amount,
         feeAmount: updated.feeAmount ?? 0,
         netAmount: updated.netAmount ?? updated.amount,
+        share,
       });
-      await raisePayoutSettlement(updated);
+      if (updated.direction === "EXPORT") await raisePayoutSettlement(updated);
     }
 
     return jsonOk({ invoice: serializeInvoice(updated) });

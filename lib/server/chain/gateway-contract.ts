@@ -31,7 +31,7 @@ export type Terms = {
   token: `0x${string}`;
   gatewayWallet: `0x${string}`;
   freezoneWallet: `0x${string}`;
-  bankWallet: `0x${string}`;
+  beneficiary: `0x${string}`;
 };
 
 export class GatewayContractError extends Error {}
@@ -71,7 +71,7 @@ export async function currentTerms(invoiceRef: string): Promise<Terms> {
     token: raw.token,
     gatewayWallet: raw.gatewayWallet,
     freezoneWallet: raw.freezoneWallet,
-    bankWallet: raw.bankWallet,
+    beneficiary: raw.beneficiary,
   };
 }
 
@@ -101,7 +101,7 @@ export function serializeTerms(terms: Terms): Prisma.InputJsonValue {
     token: terms.token,
     gatewayWallet: terms.gatewayWallet,
     freezoneWallet: terms.freezoneWallet,
-    bankWallet: terms.bankWallet,
+    beneficiary: terms.beneficiary,
   };
 }
 
@@ -119,7 +119,7 @@ export function parseTerms(value: unknown): Terms {
     token: t.token as `0x${string}`,
     gatewayWallet: t.gatewayWallet as `0x${string}`,
     freezoneWallet: t.freezoneWallet as `0x${string}`,
-    bankWallet: t.bankWallet as `0x${string}`,
+    beneficiary: t.beneficiary as `0x${string}`,
   };
 }
 
@@ -130,14 +130,14 @@ export function parseTerms(value: unknown): Terms {
 export function previewSplit(
   terms: Terms,
   total: bigint,
-): { fee: bigint; gateway: bigint; freezone: bigint; bank: bigint } {
+): { fee: bigint; gateway: bigint; freezone: bigint; beneficiary: bigint } {
   let fee = (total * BigInt(terms.feeBps)) / 10_000n;
   if (fee < terms.feeMin) fee = terms.feeMin;
   if (terms.feeMax > 0n && fee > terms.feeMax) fee = terms.feeMax;
   if (fee > total) fee = total;
 
   const freezone = (fee * BigInt(terms.freezoneBps)) / 10_000n;
-  return { fee, gateway: fee - freezone, freezone, bank: total - fee };
+  return { fee, gateway: fee - freezone, freezone, beneficiary: total - fee };
 }
 
 /**
@@ -152,17 +152,18 @@ export function previewSplit(
 export function splitForAmount(
   terms: Terms,
   amount: Prisma.Decimal | string | number,
-): { fee: string; net: string; gateway: string; freezone: string; bank: string } {
+): { fee: string; net: string; gateway: string; freezone: string; beneficiary: string } {
   const decimals = env().USDT_DECIMALS;
   const total = parseUnits(String(amount), decimals);
   const split = previewSplit(terms, total);
 
   return {
     fee: formatUnits(split.fee, decimals),
-    // What the merchant is credited is what the bank is left holding.
-    net: formatUnits(split.bank, decimals),
+    // What is left after the fees — the merchant's credit on an export, the
+    // seller's payment on an import.
+    net: formatUnits(split.beneficiary, decimals),
     gateway: formatUnits(split.gateway, decimals),
     freezone: formatUnits(split.freezone, decimals),
-    bank: formatUnits(split.bank, decimals),
+    beneficiary: formatUnits(split.beneficiary, decimals),
   };
 }

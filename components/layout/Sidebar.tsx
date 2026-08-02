@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Archive,
   Banknote,
   FileText,
   Home,
@@ -21,9 +20,9 @@ export const USER_NAV = [
   { href: "/dashboard", label: "داشبورد", icon: Home },
   { href: "/receive", label: "صادرات (دریافت وجه)", icon: WalletIcon },
   { href: "/imports", label: "واردات (فاکتور فروشنده)", icon: FileText },
-  // Retired, but still reachable: requests raised before it closed have to be
-  // watchable until the bank finishes or rejects them.
-  { href: "/send", label: "ارسال وجه (بازنشسته)", icon: Archive },
+  // The retired send flow is off the menu. /send still answers, so a merchant
+  // holding a link to a request raised before it closed can still watch it
+  // through to the end — it just no longer offers itself to everyone else.
   { href: "/settlement", label: "تسویه ریالی", icon: Banknote },
   { href: "/wallets", label: "مدیریت والت", icon: WalletIcon },
   { href: "/reports", label: "گزارشات", icon: LineChart },

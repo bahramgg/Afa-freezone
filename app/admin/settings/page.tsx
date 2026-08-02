@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { api } from "@/lib/api/client";
+import { toPersianDigits, truncateAddress } from "@/lib/format";
+import { useLoad } from "@/lib/stores/useLoad";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -132,6 +135,7 @@ export default function AdminSettingsPage() {
                 کارمزد یک بار در هر مسیر گرفته می‌شود. فاکتوری که پرداخت شود کارمزدش را همان‌جا
                 می‌دهد و تسویهٔ خودکاری که از آن ساخته می‌شود کارمزد ندارد.
               </p>
+              <ContractTerms settingsFee={Number(feeBasePercent)} />
               <Button onClick={saveFee}>ذخیره</Button>
             </CardContent>
           </Card>
@@ -171,6 +175,80 @@ export default function AdminSettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+type ContractInfo = {
+  factory: string;
+  feePercent: number;
+  freezoneSharePercent: number;
+  gatewayWallet: string;
+  freezoneWallet: string;
+  bankWallet: string;
+} | null;
+
+/**
+ * What the deployed contract is actually set to do.
+ *
+ * The numbers above configure a contract that has not been deployed yet. These
+ * are the ones that will decide where a payment goes, and the only way to
+ * change them is to deploy again — which is what stops anyone redirecting money
+ * a buyer has already sent.
+ */
+function ContractTerms({ settingsFee }: { settingsFee: number }) {
+  const [info, setInfo] = useState<ContractInfo>(null);
+  const [checked, setChecked] = useState(false);
+
+  const load = useCallback(async () => {
+    const data = await api.post<{ contract: ContractInfo }>("/settings", {});
+    setInfo(data.contract);
+    setChecked(true);
+  }, []);
+  useLoad(load);
+
+  if (!checked) return null;
+
+  if (!info) {
+    return (
+      <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
+        قرارداد تسویه مستقر نشده است — تا وقتی مستقر نشود، فاکتور تأیید نمی‌شود چون آدرس
+        پرداختی برای اعلام وجود ندارد.
+      </div>
+    );
+  }
+
+  const drift = Math.abs(info.feePercent - settingsFee);
+
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3 text-xs">
+      <div className="font-medium">آنچه قرارداد مستقرشده انجام می‌دهد</div>
+      <dl className="grid gap-1 sm:grid-cols-2">
+        <Term label="کارمزد" value={`${toPersianDigits(String(info.feePercent))}٪`} />
+        <Term label="سهم سازمان" value={`${toPersianDigits(String(info.freezoneSharePercent))}٪ از کارمزد`} />
+        <Term label="کیف پول درگاه" value={truncateAddress(info.gatewayWallet)} mono />
+        <Term label="کیف پول سازمان" value={truncateAddress(info.freezoneWallet)} mono />
+        <Term label="خزانهٔ بانک" value={truncateAddress(info.bankWallet)} mono />
+        <Term label="قرارداد" value={truncateAddress(info.factory)} mono />
+      </dl>
+      {drift > 0.001 ? (
+        <p className="text-warning">
+          کارمزد بالا با کارمزد قرارداد یکی نیست. آنچه از پرداخت‌ها کسر می‌شود همان{" "}
+          {toPersianDigits(String(info.feePercent))}٪ قرارداد است — برای تغییرش باید قرارداد
+          دوباره مستقر شود.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Term({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={mono ? "font-mono" : undefined} dir={mono ? "ltr" : undefined}>
+        {value}
+      </dd>
     </div>
   );
 }

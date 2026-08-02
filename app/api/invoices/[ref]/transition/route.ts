@@ -14,7 +14,7 @@ import { serializeInvoice } from "@/lib/server/serialize";
 import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
 import { allocateDepositAddress } from "@/lib/server/gateway";
-import { feeFor } from "@/lib/server/fees";
+import { parseTerms, splitForAmount } from "@/lib/server/chain/gateway-contract";
 import { raisePayoutSettlement } from "@/lib/server/payout";
 import { postInvoicePaid } from "@/lib/server/postings";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
@@ -133,8 +133,15 @@ export const POST = handler(
         if (chainTx.matchedAt) throw conflict("این تراکنش قبلاً برای فاکتور دیگری ثبت شده است");
 
         // Credit what actually arrived rather than what was invoiced, so an
-        // overpayment reaches the merchant instead of being kept.
-        const { fee, net } = await feeFor(Number(verified.amount));
+        // overpayment reaches the merchant instead of being kept — and split it
+        // by the terms this address was derived from, because the contract is
+        // what will actually take the fee.
+        const deposit = await db.depositAddress.findUnique({
+          where: { invoiceId: invoice.id },
+          select: { terms: true },
+        });
+        if (!deposit?.terms) throw badRequest("شرایط تسویه این فاکتور ثبت نشده است");
+        const { fee, net } = splitForAmount(parseTerms(deposit.terms), verified.amount);
 
         to = "PAID";
         actor = "COUNTERPARTY";
@@ -142,8 +149,8 @@ export const POST = handler(
           chainTx: { connect: { id: chainTx.id } },
           paidAt: new Date(),
           receivedAmount: verified.amount,
-          feeAmount: fee.toFixed(8),
-          netAmount: net.toFixed(8),
+          feeAmount: fee,
+          netAmount: net,
         };
         recipientNote = {
           kind: "PAYMENT_RECEIVED",

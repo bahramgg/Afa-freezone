@@ -1,5 +1,6 @@
 import "server-only";
 import artifacts from "@/contracts/artifacts/afa-gateway.json";
+import { formatUnits, parseUnits } from "viem";
 import { publicClient } from "./client";
 import { env } from "../env";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -137,4 +138,31 @@ export function previewSplit(
 
   const freezone = (fee * BigInt(terms.freezoneBps)) / 10_000n;
   return { fee, gateway: fee - freezone, freezone, bank: total - fee };
+}
+
+/**
+ * The split for a human-scale amount, in human-scale amounts.
+ *
+ * This is what the books must use. The fee the gateway charges is decided by
+ * the contract, not by the settings row: the contract is what actually moves
+ * the money, so a figure worked out anywhere else is a guess that will be wrong
+ * the moment the two drift. Settings decides what a *future* contract is
+ * deployed with; it does not decide what an existing one does.
+ */
+export function splitForAmount(
+  terms: Terms,
+  amount: Prisma.Decimal | string | number,
+): { fee: string; net: string; gateway: string; freezone: string; bank: string } {
+  const decimals = env().USDT_DECIMALS;
+  const total = parseUnits(String(amount), decimals);
+  const split = previewSplit(terms, total);
+
+  return {
+    fee: formatUnits(split.fee, decimals),
+    // What the merchant is credited is what the bank is left holding.
+    net: formatUnits(split.bank, decimals),
+    gateway: formatUnits(split.gateway, decimals),
+    freezone: formatUnits(split.freezone, decimals),
+    bank: formatUnits(split.bank, decimals),
+  };
 }

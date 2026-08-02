@@ -10,8 +10,8 @@ import {
   usdtAddress,
 } from "./client";
 import { notify } from "../notify";
-import { feeFor } from "../fees";
 import { openDepositAddresses } from "../gateway";
+import { parseTerms, splitForAmount } from "./gateway-contract";
 import { raisePayoutSettlement } from "../payout";
 import { postInvoicePaid, postSendCompleted } from "../postings";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -329,9 +329,10 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     return false;
   }
 
-  // The merchant is credited for what actually arrived, so an overpayment is
-  // passed on rather than kept.
-  const { fee, net } = await feeFor(Number(total));
+  // The fee comes from the terms this address was derived from, not from the
+  // settings row: the contract is what will actually take it, and a figure
+  // worked out anywhere else is wrong the moment an admin edits the setting.
+  const { fee, net } = splitForAmount(parseTerms(deposit.terms), total.toString());
 
   await db.$transaction([
     db.invoice.update({
@@ -341,8 +342,8 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
         paidAt: new Date(),
         chainTxId: tx.id,
         receivedAmount: total,
-        feeAmount: fee.toFixed(8),
-        netAmount: net.toFixed(8),
+        feeAmount: fee,
+        netAmount: net,
       },
     }),
     db.chainTx.update({ where: { id: tx.id }, data: { matchedAt: new Date() } }),
@@ -371,12 +372,12 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     ownerId: invoice.ownerId,
     currency: invoice.currency,
     receivedAmount: total,
-    feeAmount: fee.toFixed(8),
-    netAmount: net.toFixed(8),
+    feeAmount: fee,
+    netAmount: net,
   });
 
   // The money is here now; the payout carries it on to the merchant.
-  await raisePayoutSettlement({ ...invoice, netAmount: net.toFixed(8) as unknown as Prisma.Decimal });
+  await raisePayoutSettlement({ ...invoice, netAmount: net as unknown as Prisma.Decimal });
 
   return true;
 }

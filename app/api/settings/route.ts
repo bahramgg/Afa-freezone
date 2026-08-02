@@ -49,3 +49,33 @@ export const PATCH = handler(async (request: Request) => {
   });
   return jsonOk({ settings: serializeSettings(updated) });
 });
+
+/**
+ * What the settlement contract is actually configured to do.
+ *
+ * Shown beside the settings so nobody mistakes the fee stored here for the one
+ * that will be charged: this row decides what a future contract is deployed
+ * with, and the contract decides what happens to money.
+ */
+export const POST = handler(async () => {
+  await requireRole("ADMIN", "BANK");
+  try {
+    const { currentTerms, factoryAddress } = await import("@/lib/server/chain/gateway-contract");
+    const terms = await currentTerms("INV-0000");
+    return jsonOk({
+      contract: {
+        factory: factoryAddress(),
+        feePercent: terms.feeBps / 100,
+        freezoneSharePercent: terms.freezoneBps / 100,
+        gatewayWallet: terms.gatewayWallet,
+        freezoneWallet: terms.freezoneWallet,
+        bankWallet: terms.bankWallet,
+      },
+    });
+  } catch (error) {
+    return jsonOk({
+      contract: null,
+      reason: error instanceof Error ? error.message : "unavailable",
+    });
+  }
+});

@@ -12,7 +12,7 @@ import {
 import { nextRef } from "@/lib/server/refs";
 import { serializeInvoice } from "@/lib/server/serialize";
 import { recordTransition } from "@/lib/server/statusEvents";
-import { notifyRole } from "@/lib/server/notify";
+import { notify, notifyRole } from "@/lib/server/notify";
 import { isAddress, normalizeAddress } from "@/lib/server/chain/client";
 import { invoiceScope, narrow } from "@/lib/server/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
 
 const INVOICE_INCLUDE = {
   owner: { select: { uid: true, fullName: true } },
+  counterparty: { select: { uid: true, fullName: true } },
   chainTx: true,
 } satisfies Prisma.InvoiceInclude;
 
@@ -73,13 +74,29 @@ const CreateBody = z.object({
   currency: z.literal("USDT", { message: "فاکتور فقط با تتر (USDT) صادر می‌شود" }),
   description: z.string().trim().min(1, "شرح تراکنش الزامی است"),
   goodsTitle: z.string().trim().min(1, "عنوان کالا الزامی است"),
-  senderName: z.string().trim().min(1, "نام فرستنده الزامی است"),
+  /**
+   * The buyer's account in this system. An export brings currency into the
+   * country, so the payer cannot be a name typed into a box — they register,
+   * quote their uid, and the invoice lands in their own dashboard.
+   */
+  counterpartyUid: z.string().trim().min(2, "شناسه کاربر خارجی الزامی است"),
   walletAddress: z.string().trim().optional(),
 });
 
 export const POST = handler(async (request: Request) => {
   const user = await requireApprovedMerchant("IRANIAN");
   const input = await readJson(request, CreateBody);
+
+  const counterparty = await db.user.findFirst({
+    where: { uid: input.counterpartyUid, role: "FOREIGN" },
+    select: { id: true, fullName: true, disabledAt: true },
+  });
+  if (!counterparty) {
+    throw badRequest(
+      `کاربر خارجی با شناسهٔ ${input.counterpartyUid} پیدا نشد — خریدار باید ابتدا در سامانه ثبت‌نام کند و شناسه‌اش را به شما بدهد`,
+    );
+  }
+  if (counterparty.disabledAt) throw badRequest("حساب این کاربر خارجی غیرفعال است");
 
   const settings = await db.settings.findUnique({ where: { id: 1 } });
   if (settings) {
@@ -108,7 +125,10 @@ export const POST = handler(async (request: Request) => {
         currency: input.currency,
         description: input.description,
         goodsTitle: input.goodsTitle,
-        senderName: input.senderName,
+        counterpartyId: counterparty.id,
+        // Taken from the account rather than typed, so the name on the invoice
+        // is the one that was verified at registration.
+        senderName: counterparty.fullName,
         walletAddress: input.walletAddress ? normalizeAddress(input.walletAddress) : null,
         status: "PENDING",
         expiresAt: new Date(Date.now() + validity * 60_000),
@@ -132,6 +152,12 @@ export const POST = handler(async (request: Request) => {
     title: "فاکتور جدید در انتظار تأیید",
     body: `فاکتور ${invoice.ref} از ${user.fullName} ثبت شد`,
     href: "/admin/invoices",
+  });
+  await notify(counterparty.id, {
+    kind: "INVOICE_ADDRESSED",
+    title: "درخواست پرداخت جدید",
+    body: `${user.fullName} فاکتور ${invoice.ref} را برای شما صادر کرد`,
+    href: "/foreign/invoices",
   });
 
   return jsonOk({ invoice: serializeInvoice(invoice) }, { status: 201 });

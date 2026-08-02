@@ -17,7 +17,7 @@ type InvoicesState = {
     amount: number;
     currency: Currency;
     description: string;
-    senderName: string;
+    counterpartyUid: string;
     goodsTitle: string;
     walletAddress?: string;
   }) => Promise<Invoice>;

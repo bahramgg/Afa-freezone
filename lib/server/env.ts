@@ -6,6 +6,15 @@ import { z } from "zod";
  * this file has a production-safe default: a missing value fails the boot
  * rather than silently pointing the app at the wrong chain or a dev secret.
  */
+/**
+ * A key present but empty in .env means "not set", not "set to nothing".
+ *
+ * Commenting a value out and blanking it are the same intent, and an optional
+ * setting should not fail the boot because someone left the equals sign there.
+ */
+const optional = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), inner.optional());
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
@@ -21,7 +30,7 @@ const schema = z.object({
    * transfers in real time instead of polling — the only workable mode on a
    * chain producing a block every half second.
    */
-  CHAIN_WSS_URL: z.string().url().optional(),
+  CHAIN_WSS_URL: optional(z.string().url()),
   CHAIN_EXPLORER_URL: z.string().url().default("https://bscscan.com"),
   /** BEP-20 USDT contract on the configured chain. */
   USDT_CONTRACT_ADDRESS: z
@@ -36,14 +45,7 @@ const schema = z.object({
    * the organization and the bank happens inside the contract it deploys —
    * which is why no key to a deposit address exists anywhere.
    */
-  GATEWAY_FACTORY_ADDRESS: z
-    .string()
-    // A blank line in .env means "not deployed yet", not "invalid".
-    .transform((v) => v.trim() || undefined)
-    .refine((v) => v === undefined || /^0x[a-fA-F0-9]{40}$/.test(v), {
-      message: "GATEWAY_FACTORY_ADDRESS must be a contract address",
-    })
-    .optional(),
+  GATEWAY_FACTORY_ADDRESS: optional(z.string().regex(/^0x[a-fA-F0-9]{40}$/)),
   /**
    * How a deposit is judged irreversible.
    *
@@ -64,20 +66,20 @@ const schema = z.object({
   /** Upper bound on getLogs requests per watcher tick, so one pass is bounded. */
   CHAIN_SCAN_MAX_REQUESTS: z.coerce.number().int().positive().default(40),
   /** Shared secret required by the watcher's cron endpoint. */
-  CHAIN_WATCHER_TOKEN: z.string().min(16).optional(),
+  CHAIN_WATCHER_TOKEN: optional(z.string().min(16)),
 
   /** OTP delivery. `console` prints to the server log — development only. */
   EMAIL_PROVIDER: z.enum(["console", "smtp", "resend"]).default("console"),
   EMAIL_FROM: z.string().default("AFA <no-reply@afa.local>"),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_HOST: optional(z.string()),
+  SMTP_PORT: optional(z.coerce.number().int().positive()),
   SMTP_SECURE: z
     .enum(["true", "false"])
     .default("true")
     .transform((v) => v === "true"),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
+  SMTP_USER: optional(z.string()),
+  SMTP_PASSWORD: optional(z.string()),
+  RESEND_API_KEY: optional(z.string()),
 
   OTP_TTL_MINUTES: z.coerce.number().int().positive().default(3),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

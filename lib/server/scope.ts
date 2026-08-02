@@ -17,9 +17,18 @@ import type { SessionUser } from "./auth/session";
 const NOTHING = "__none__";
 
 export function invoiceScope(user: SessionUser): Prisma.InvoiceWhereInput {
-  if (user.role === "ADMIN") return {};
-  if (user.role === "IRANIAN") return { ownerId: user.id };
-  return { ownerId: NOTHING };
+  switch (user.role) {
+    case "ADMIN":
+      return {};
+    case "IRANIAN":
+      return { ownerId: user.id };
+    case "FOREIGN":
+      // The buyer an invoice is addressed to sees it, and only it: this is how
+      // a payment request reaches them at all.
+      return { counterpartyId: user.id };
+    default:
+      return { ownerId: NOTHING };
+  }
 }
 
 export function sendScope(user: SessionUser): Prisma.SendRequestWhereInput {

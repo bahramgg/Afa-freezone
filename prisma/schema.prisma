@@ -73,6 +73,7 @@ model User {
   ledgerEntries      LedgerEntry[]
   refundsRequested   Refund[]      @relation("RefundRequester")
   invoices           Invoice[]     @relation("InvoiceOwner")
+  invoicesToPay      Invoice[]     @relation("InvoiceCounterparty")
   sendRequests       SendRequest[] @relation("SendOwner")
   sendCounterparties SendRequest[] @relation("SendCounterparty")
   settlements        Settlement[]  @relation("SettlementOwner")
@@ -241,7 +242,18 @@ model Invoice {
 
   description String
   goodsTitle  String
+  /** The payer's name, taken from their account rather than typed. */
   senderName  String
+
+  /**
+   * The foreign buyer this invoice is addressed to.
+   *
+   * Required: an export brings currency into the country, so who sent it is
+   * exactly what has to be known. The buyer registers, quotes their uid to the
+   * merchant, and the invoice then appears in their own dashboard to pay.
+   */
+  counterpartyId String
+  counterparty   User   @relation("InvoiceCounterparty", fields: [counterpartyId], references: [id], onDelete: Restrict)
 
   status InvoiceStatus @default(PENDING)
 
@@ -276,6 +288,7 @@ model Invoice {
   refunds   Refund[]
 
   @@index([ownerId, status])
+  @@index([counterpartyId, status])
   @@index([status, createdAt])
 }
 

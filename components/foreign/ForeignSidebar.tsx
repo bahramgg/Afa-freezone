@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  FileText,
   Home,
   Inbox,
   LineChart,
@@ -17,7 +18,8 @@ import { cn } from "@/lib/cn";
 
 export const FOREIGN_NAV = [
   { href: "/foreign/dashboard", label: "داشبورد", icon: Home },
-  { href: "/foreign/requests", label: "درخواست‌های دریافت", icon: Inbox },
+    { href: "/foreign/invoices", label: "درخواست‌های پرداخت", icon: FileText },
+{ href: "/foreign/requests", label: "درخواست‌های دریافت", icon: Inbox },
   { href: "/foreign/wallets", label: "مدیریت والت", icon: WalletIcon },
   { href: "/foreign/reports", label: "گزارشات", icon: LineChart },
   { href: "/foreign/settings", label: "تنظیمات", icon: SettingsIcon },

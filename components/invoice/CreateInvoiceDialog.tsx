@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/Label";
 import { useInvoicesStore } from "@/lib/stores/invoices";
 
 const schema = z.object({
-  senderName: z.string().min(1, "نام ارسال کننده را وارد کنید"),
+  counterpartyUid: z.string().min(2, "شناسهٔ خریدار خارجی را وارد کنید"),
   goodsTitle: z.string().min(1, "کالای صادره را وارد کنید"),
   amount: z.coerce.number().positive("مبلغ باید مثبت باشد"),
   currency: z.literal("USDT"),
@@ -71,9 +71,22 @@ export function CreateInvoiceDialog() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="senderName">ارسال کننده</Label>
-            <Input id="senderName" placeholder="مثلاً Anatolia Imports" {...register("senderName")} />
-            {errors.senderName ? <p className="text-xs text-destructive">{errors.senderName.message}</p> : null}
+            <Label htmlFor="counterpartyUid">شناسهٔ خریدار خارجی</Label>
+            <Input
+              id="counterpartyUid"
+              placeholder="FOR-042"
+              dir="ltr"
+              className="font-mono"
+              {...register("counterpartyUid")}
+            />
+            {errors.counterpartyUid ? (
+              <p className="text-xs text-destructive">{errors.counterpartyUid.message}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                خریدار باید در سامانه ثبت‌نام کرده و شناسه‌اش را به شما داده باشد. فاکتور در
+                داشبورد خودش نمایش داده می‌شود تا پرداخت کند.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

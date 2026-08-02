@@ -1,14 +1,16 @@
 import "server-only";
 import { db } from "./db";
 import { env } from "./env";
+import { currentUser } from "./auth/session";
 import { serializeInvoice } from "./serialize";
 
 /**
- * The public view of a payment request.
+ * What the payment page shows.
  *
- * A buyer has no account, so this is deliberately readable by anyone holding
- * the reference — but only while the invoice is actually payable, and it never
- * carries the audit trail or anything about the merchant beyond their name.
+ * The buyer now holds an account — an export brings currency into the country,
+ * so who paid has to be known — and this returns nothing to anyone else. The
+ * page itself still lives on a shareable link; opening it without being the
+ * addressed buyer asks for a sign-in rather than showing the invoice.
  */
 export type CheckoutData = {
   invoice: ReturnType<typeof serializeInvoice>;
@@ -31,20 +33,34 @@ export function publicChainInfo(): CheckoutData["chain"] {
   };
 }
 
-export async function checkoutView(reference: string): Promise<CheckoutData | null> {
+export type CheckoutAccess =
+  | { state: "ok"; data: CheckoutData }
+  /** No session, or one belonging to someone else. */
+  | { state: "sign-in" }
+  | { state: "not-found" };
+
+export async function checkoutView(reference: string): Promise<CheckoutAccess> {
   const invoice = await db.invoice.findFirst({
     where: { OR: [{ ref: reference }, { trxRef: reference }] },
-    include: { owner: { select: { uid: true, fullName: true } }, chainTx: true },
+    include: {
+      owner: { select: { uid: true, fullName: true } },
+      counterparty: { select: { uid: true, fullName: true } },
+      chainTx: true,
+    },
   });
-  if (!invoice) return null;
+  if (!invoice) return { state: "not-found" };
 
-  // A rejected or unapproved invoice tells an anonymous caller nothing.
-  const visible =
-    invoice.status === "APPROVED" ||
-    invoice.status === "PAYMENT_PENDING" ||
-    invoice.status === "PAID" ||
-    invoice.status === "EXPIRED";
-  if (!visible) return null;
+  const user = await currentUser();
+  const maySee =
+    user &&
+    (user.id === invoice.counterpartyId ||
+      user.id === invoice.ownerId ||
+      user.role === "ADMIN" ||
+      user.role === "BANK");
+  if (!maySee) return { state: "sign-in" };
 
-  return { invoice: serializeInvoice(invoice), chain: publicChainInfo() };
+  return {
+    state: "ok",
+    data: { invoice: serializeInvoice(invoice), chain: publicChainInfo() },
+  };
 }

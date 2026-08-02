@@ -10,13 +10,15 @@ export const dynamic = "force-dynamic";
 
 const INVOICE_INCLUDE = {
   owner: { select: { uid: true, fullName: true } },
+  counterparty: { select: { uid: true, fullName: true } },
   chainTx: true,
 } satisfies Prisma.InvoiceInclude;
 
 /**
- * A foreign buyer needs to open the payment page without an account, so this
- * route is readable by anyone holding the reference — but it only ever exposes
- * what the payment screen needs, and only for invoices that are payable.
+ * Readable by the merchant who raised it, the buyer it was addressed to, and
+ * staff. Anyone else holding the reference gets nothing: the buyer has an
+ * account here now, so there is no longer a case for showing an invoice to
+ * whoever happens to have the link.
  */
 export const GET = handler(
   async (_request: Request, ctx: { params: Promise<{ ref: string }> }) => {
@@ -28,12 +30,12 @@ export const GET = handler(
     });
     if (!invoice) throw notFound("فاکتور یافت نشد");
 
-    const user = await requireUser().catch(() => null);
-    const isOwner = user?.id === invoice.ownerId;
-    const isStaff = user?.role === "ADMIN" || user?.role === "BANK";
-    const isPayable = invoice.status === "APPROVED" || invoice.status === "PAYMENT_PENDING";
+    const user = await requireUser();
+    const isOwner = user.id === invoice.ownerId;
+    const isBuyer = user.id === invoice.counterpartyId;
+    const isStaff = user.role === "ADMIN" || user.role === "BANK";
 
-    if (!isOwner && !isStaff && !isPayable) {
+    if (!isOwner && !isBuyer && !isStaff) {
       throw forbidden("این فاکتور در دسترس نیست");
     }
 

@@ -10,7 +10,6 @@ import {
   readJson,
   requireUser,
 } from "@/lib/server/http";
-import { currentUser } from "@/lib/server/auth/session";
 import { serializeInvoice } from "@/lib/server/serialize";
 import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
 import { notify } from "@/lib/server/notify";
@@ -26,6 +25,7 @@ export const dynamic = "force-dynamic";
 
 const INVOICE_INCLUDE = {
   owner: { select: { uid: true, fullName: true } },
+  counterparty: { select: { uid: true, fullName: true } },
   chainTx: true,
 } satisfies Prisma.InvoiceInclude;
 
@@ -45,14 +45,10 @@ export const POST = handler(
     const { ref } = await ctx.params;
     const { action, reason, txHash } = await readJson(request, Body);
 
-    // `startPayment` is what a buyer holding the invoice link triggers when the
-    // payment screen opens. It carries no financial effect and reveals nothing
-    // the public invoice lookup doesn't already show, so it needs no session.
-    // Every other action is staff-only and resolves a user first.
-    const user =
-      action === "startPayment" || action === "confirmPayment"
-        ? await currentUser()
-        : await requireUser();
+    // Paying is no longer anonymous. An export brings currency into the
+    // country, so the payer has to be the account the invoice was addressed to
+    // — which is checked against the record below, not merely asserted here.
+    const user = await requireUser();
 
     const invoice = await db.invoice.findFirst({
       where: { OR: [{ ref }, { trxRef: ref }] },
@@ -68,7 +64,7 @@ export const POST = handler(
 
     switch (action) {
       case "approve": {
-        if (user?.role !== "ADMIN") throw forbidden("تأیید فاکتور فقط توسط ادمین انجام می‌شود");
+        if (user.role !== "ADMIN") throw forbidden("تأیید فاکتور فقط توسط ادمین انجام می‌شود");
         assertTransition(from, ["PENDING"], "تأیید فاکتور");
         to = "APPROVED";
         actor = "ADMIN";
@@ -84,7 +80,7 @@ export const POST = handler(
         break;
       }
       case "reject": {
-        if (user?.role !== "ADMIN") throw forbidden("رد فاکتور فقط توسط ادمین انجام می‌شود");
+        if (user.role !== "ADMIN") throw forbidden("رد فاکتور فقط توسط ادمین انجام می‌شود");
         assertTransition(from, ["PENDING", "APPROVED"], "رد فاکتور");
         if (!reason) throw badRequest("دلیل رد فاکتور الزامی است");
         to = "REJECTED";
@@ -98,8 +94,9 @@ export const POST = handler(
         break;
       }
       case "startPayment": {
-        // The buyer opening the payment screen moves the invoice along; anyone
-        // holding the reference may do this, but only from APPROVED.
+        if (invoice.counterpartyId !== user.id) {
+          throw forbidden("این فاکتور برای حساب دیگری صادر شده است");
+        }
         assertTransition(from, ["APPROVED"], "شروع پرداخت");
         if (invoice.expiresAt && invoice.expiresAt.getTime() < Date.now()) {
           throw badRequest("مهلت پرداخت این فاکتور به پایان رسیده است");
@@ -113,6 +110,9 @@ export const POST = handler(
         // watcher does this automatically when log scanning is available; this
         // path lets a payment settle without it, and is no less safe because
         // the chain — not the caller — supplies amount and recipient.
+        if (invoice.counterpartyId !== user.id) {
+          throw forbidden("این فاکتور برای حساب دیگری صادر شده است");
+        }
         assertTransition(from, ["APPROVED", "PAYMENT_PENDING"], "ثبت پرداخت");
         if (!txHash) throw badRequest("هش تراکنش الزامی است");
         if (!invoice.paymentAddress) throw badRequest("آدرس پرداخت این فاکتور تعیین نشده است");
@@ -153,7 +153,7 @@ export const POST = handler(
         break;
       }
       case "expire": {
-        if (user?.role !== "ADMIN") throw forbidden();
+        if (user.role !== "ADMIN") throw forbidden();
         assertTransition(from, ["PENDING", "APPROVED", "PAYMENT_PENDING"], "انقضای فاکتور");
         to = "EXPIRED";
         actor = "SYSTEM";
@@ -178,7 +178,7 @@ export const POST = handler(
         fromStatus: from,
         toStatus: to,
         actor,
-        actorUserId: user?.id ?? null,
+        actorUserId: user.id,
         note: reason ?? null,
       });
       return next;

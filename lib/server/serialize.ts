@@ -62,7 +62,9 @@ export function serializeWallet(w: Wallet) {
   };
 }
 
-export function serializeInvoice(i: Invoice & WithOwner & WithChainTx) {
+export function serializeInvoice(
+  i: Invoice & WithOwner & WithChainTx & { counterparty?: Pick<User, "uid" | "fullName"> | null },
+) {
   return {
     id: i.ref,
     dbId: i.id,
@@ -85,7 +87,8 @@ export function serializeInvoice(i: Invoice & WithOwner & WithChainTx) {
     confirmations: i.chainTx?.confirmations,
     userUid: i.owner?.uid,
     userName: i.owner?.fullName,
-    counterpartyName: i.senderName,
+    counterpartyUid: i.counterparty?.uid,
+    counterpartyName: i.counterparty?.fullName ?? i.senderName,
     expiresAt: iso(i.expiresAt),
     paidAt: iso(i.paidAt),
     createdAt: i.createdAt.toISOString(),

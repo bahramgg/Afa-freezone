@@ -35,6 +35,7 @@ const ICONS: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
   FOREIGN_CRYPTO_RECEIVED: { icon: Wallet, tone: "text-success bg-success/10" },
   SETTLEMENT_FROM_INVOICE: { icon: Banknote, tone: "text-info bg-info/10" },
   PAYMENT_PARTIAL: { icon: Clock, tone: "text-warning bg-warning/10" },
+  INVOICE_ADDRESSED: { icon: FileText, tone: "text-primary bg-primary/10" },
   REFUND_REQUESTED: { icon: Undo2, tone: "text-warning bg-warning/10" },
   REFUND_UPDATED: { icon: Undo2, tone: "text-info bg-info/10" },
 };

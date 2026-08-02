@@ -36,7 +36,7 @@ export function PortalGrid() {
           return (
             <Link
               key={p.key}
-              href={isActive ? p.dashboardHref : p.loginHref}
+              href={p.dashboardHref}
               className={cn(
                 "group flex flex-col rounded-lg border border-border bg-card p-5 transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -70,7 +70,7 @@ export function PortalGrid() {
               <p className="mt-4 flex-1 text-sm leading-7 text-muted-foreground">{p.summary}</p>
 
               <span className="mt-4 inline-flex items-center gap-1.5 border-t border-border pt-3 text-sm font-medium">
-                {isActive ? "ورود به پنل" : "ورود"}
+                {isActive ? "ادامه در پنل" : "ورود به پنل"}
                 <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
               </span>
             </Link>

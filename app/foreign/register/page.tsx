@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -108,12 +107,6 @@ export default function ForeignRegisterPage() {
           </Button>
         </form>
 
-        <p className="text-center text-sm text-muted-foreground">
-          حساب دارید؟{" "}
-          <Link href="/foreign/login" className="text-primary hover:underline">
-            وارد شوید
-          </Link>
-        </p>
       </motion.div>
     </div>
   );

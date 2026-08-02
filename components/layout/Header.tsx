@@ -97,12 +97,12 @@ export function Header() {
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link
-                  href="/login"
+                  href="/"
                   onClick={() => logout()}
                   className="flex items-center gap-2 text-destructive"
                 >
                   <LogOut className="h-4 w-4" />
-                  خروج
+                  خروج از پنل
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

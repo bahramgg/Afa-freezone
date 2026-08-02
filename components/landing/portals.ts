@@ -6,12 +6,11 @@ export type PortalKey = "user" | "foreign" | "admin" | "bank";
 export type Portal = {
   key: PortalKey;
   title: string;
-  /** Who signs in here — the page is a directory, not a pitch. */
+  /** Who this panel is for — the page is a directory, not a pitch. */
   audience: string;
   /** What this panel is used for, stated plainly. */
   summary: string;
   icon: LucideIcon;
-  loginHref: string;
   dashboardHref: string;
   /** Accent tying each entry to the panel it opens. */
   accent: {
@@ -28,7 +27,6 @@ export const PORTALS: Portal[] = [
     audience: "اشخاص حقیقی و حقوقی ثبت‌شده در منطقه آزاد",
     summary: "صدور فاکتور ارزی، ثبت درخواست ارسال وجه و درخواست تسویه ریالی.",
     icon: UserRound,
-    loginHref: "/login",
     dashboardHref: "/dashboard",
     accent: {
       border: "hover:border-primary/60",
@@ -42,7 +40,6 @@ export const PORTALS: Portal[] = [
     audience: "طرف حساب‌های بین‌المللی",
     summary: "پرداخت فاکتورهای صادره و تأیید درخواست‌های دریافت وجه.",
     icon: Globe2,
-    loginHref: "/foreign/login",
     dashboardHref: "/foreign/dashboard",
     accent: {
       border: "hover:border-info/60",
@@ -56,7 +53,6 @@ export const PORTALS: Portal[] = [
     audience: "کارکنان سازمان منطقه آزاد",
     summary: "بررسی احراز هویت، تأیید تراکنش‌ها، نظارت و گزارش‌گیری.",
     icon: Crown,
-    loginHref: "/admin/login",
     dashboardHref: "/admin/dashboard",
     accent: {
       border: "hover:border-slate-500/60",
@@ -70,7 +66,6 @@ export const PORTALS: Portal[] = [
     audience: "کارکنان واحد ارزی بانک",
     summary: "اعلام و قفل نرخ، مدیریت کیف پول‌ها و ثبت تسویه ریالی.",
     icon: Building2,
-    loginHref: "/bank/login",
     dashboardHref: "/bank/dashboard",
     accent: {
       border: "hover:border-success/60",

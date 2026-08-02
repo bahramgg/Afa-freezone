@@ -62,11 +62,11 @@ export function AdminMobileNav() {
             onClick={() => {
               logoutAdmin();
               setOpen(false);
-              router.replace("/admin/login");
+              router.replace("/");
             }}
           >
             <LogOut className="h-4 w-4" />
-            خروج
+            خروج از پنل
           </Button>
         </div>
       </SheetContent>

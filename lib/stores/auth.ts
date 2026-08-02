@@ -7,10 +7,14 @@ import type { User } from "../types";
 
 const SLICE = "auth";
 
+export type PortalKey = "user" | "foreign" | "admin" | "bank";
+
 type SessionPayload = {
   user: (User & { role?: string }) | null;
   hasProfile?: boolean;
   hasPassedKyc?: boolean;
+  /** Panels are open to anyone with the link; there is no sign-in. */
+  openAccess?: boolean;
 };
 
 type AuthState = {
@@ -21,10 +25,14 @@ type AuthState = {
   isBank: boolean;
   hasProfile: boolean;
   hasPassedKyc: boolean;
-  /** False until the first /me call resolves, so guards don't redirect early. */
+  /** False until the first /me call resolves, so guards don't act early. */
   ready: boolean;
+  /** Whether the deployment lets anyone with the link into a panel. */
+  openAccess: boolean;
 
   load: () => Promise<void>;
+  /** Adopts the account a panel belongs to. Only works while open access is on. */
+  enterPortal: (portal: PortalKey) => Promise<void>;
   requestOtp: (email: string) => Promise<{ expiresAt: string; devCode?: string }>;
   verifyOtp: (email: string, code: string) => Promise<void>;
   loginPassword: (
@@ -70,16 +78,23 @@ function fromPayload(payload: SessionPayload) {
 export const useAuthStore = create<AuthState>()((set) => ({
   ...EMPTY,
   ready: false,
+  openAccess: false,
 
   load: async () => {
     try {
       const data = await api.get<SessionPayload>("/auth/me");
-      set({ ...fromPayload(data), ready: true });
+      set({ ...fromPayload(data), openAccess: data.openAccess ?? false, ready: true });
     } catch {
       // A failed lookup is indistinguishable from being signed out, and the
       // guards treat both the same way.
       set({ ...EMPTY, ready: true });
     }
+  },
+
+  enterPortal: async (portal) => {
+    const data = await api.post<SessionPayload>("/auth/portal", { portal });
+    set({ ...fromPayload(data), openAccess: true, ready: true });
+    pingReload(SLICE);
   },
 
   requestOtp: (email) =>

@@ -186,12 +186,12 @@ export function ForeignHeader() {
               <DropdownMenuItem
                 onClick={() => {
                   logout();
-                  router.replace("/foreign/login");
+                  router.replace("/");
                 }}
                 className="text-destructive"
               >
                 <LogOut className="h-4 w-4" />
-                خروج
+                خروج از پنل
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

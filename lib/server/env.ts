@@ -84,6 +84,18 @@ const schema = z.object({
   OTP_TTL_MINUTES: z.coerce.number().int().positive().default(3),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 
+  /**
+   * Opens every panel to anyone holding the link.
+   *
+   * With this on there is no sign-in: arriving at a panel adopts that panel's
+   * representative account and the system behaves normally from there. It is
+   * off unless explicitly set, because it makes the deployment public — every
+   * invoice, every balance, and every action an operator can take.
+   */
+  AUTH_OPEN_ACCESS: z
+    .preprocess((v) => (typeof v === "string" ? v.trim().toLowerCase() === "true" : v), z.boolean())
+    .default(false),
+
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

@@ -64,11 +64,11 @@ export function ForeignSidebar() {
           className="w-full justify-start text-muted-foreground hover:text-destructive"
           onClick={() => {
             logout();
-            router.replace("/foreign/login");
+            router.replace("/");
           }}
         >
           <LogOut className="h-4 w-4" />
-          <span>خروج</span>
+          <span>خروج از پنل</span>
         </Button>
       </div>
     </aside>

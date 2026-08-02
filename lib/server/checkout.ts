@@ -52,11 +52,14 @@ export async function checkoutView(reference: string): Promise<CheckoutAccess> {
 
   const user = await currentUser();
   const maySee =
-    user &&
-    (user.id === invoice.counterpartyId ||
-      user.id === invoice.ownerId ||
-      user.role === "ADMIN" ||
-      user.role === "BANK");
+    // With open access the link is the credential everywhere else too, and a
+    // checkout link is the most link-driven page in the system.
+    env().AUTH_OPEN_ACCESS ||
+    (user &&
+      (user.id === invoice.counterpartyId ||
+        user.id === invoice.ownerId ||
+        user.role === "ADMIN" ||
+        user.role === "BANK"));
   if (!maySee) return { state: "sign-in" };
 
   return {

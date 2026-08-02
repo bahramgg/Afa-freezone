@@ -21,7 +21,7 @@ export default function KycWaitingPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isAuthed) router.replace("/login");
+    if (!isAuthed) router.replace("/");
   }, [hydrated, isAuthed, router]);
 
   // The decision is made by a reviewer in another session, so this page polls

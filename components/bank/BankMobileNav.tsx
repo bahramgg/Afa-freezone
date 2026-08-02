@@ -57,11 +57,11 @@ export function BankMobileNav() {
             onClick={() => {
               logout();
               setOpen(false);
-              router.replace("/bank/login");
+              router.replace("/");
             }}
           >
             <LogOut className="h-4 w-4" />
-            خروج
+            خروج از پنل
           </Button>
         </div>
       </SheetContent>

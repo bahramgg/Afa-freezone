@@ -61,9 +61,9 @@ export function MobileNav() {
               setOpen(false);
             }}
           >
-            <Link href="/login">
+            <Link href="/">
               <LogOut className="h-4 w-4" />
-              <span>خروج</span>
+              <span>خروج از پنل</span>
             </Link>
           </Button>
         </div>

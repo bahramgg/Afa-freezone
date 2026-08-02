@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { DataBootstrap } from "@/components/layout/DataBootstrap";
+import { OpenAccessBanner } from "@/components/layout/OpenAccessBanner";
 import { Header } from "@/components/layout/Header";
 import { UserAuthGuard } from "@/components/layout/AuthGuard";
 
@@ -11,6 +12,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
         <Sidebar />
         <div className="flex-1 min-w-0 flex flex-col">
           <Header />
+          <OpenAccessBanner />
           <main className="flex-1 p-5 lg:p-7">{children}</main>
         </div>
       </div>

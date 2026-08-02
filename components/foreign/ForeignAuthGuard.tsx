@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth";
+import { usePortalEntry } from "@/components/layout/AuthGuard";
 import { useForeignStore } from "@/lib/stores/foreign";
 import { useHydrated } from "@/lib/stores/hydration";
 import { ROUTE_GUARDS_ENABLED } from "@/lib/guards";
@@ -15,15 +16,16 @@ export function ForeignAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const ready = useAuthStore((s) => s.ready);
   const hydrated = useHydrated() && ready;
+  const entering = usePortalEntry("foreign", isAuthed);
 
   useEffect(() => {
     if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
-    if (!isAuthed) router.replace("/foreign/login");
+    if (!isAuthed) router.replace("/");
     else if (!hasProfile) router.replace("/foreign/profile");
     else if (!hasPassedKyc) router.replace("/foreign/kyc-waiting");
   }, [hydrated, isAuthed, hasProfile, hasPassedKyc, router]);
 
-  if (ROUTE_GUARDS_ENABLED && (!hydrated || !isAuthed || !hasProfile || !hasPassedKyc)) {
+  if ((ROUTE_GUARDS_ENABLED && (!hydrated || !isAuthed || !hasProfile || !hasPassedKyc)) || entering) {
     return (
       <div className="p-8 space-y-3">
         <Skeleton className="h-6 w-40" />

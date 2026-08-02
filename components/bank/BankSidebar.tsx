@@ -71,11 +71,11 @@ export function BankSidebar() {
           className="w-full justify-start text-emerald-200 hover:bg-white/5 hover:text-destructive"
           onClick={() => {
             logout();
-            router.replace("/bank/login");
+            router.replace("/");
           }}
         >
           <LogOut className="h-4 w-4" />
-          خروج
+          خروج از پنل
         </Button>
       </div>
     </aside>

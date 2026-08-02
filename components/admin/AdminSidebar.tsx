@@ -80,11 +80,11 @@ export function AdminSidebar() {
           className="w-full justify-start text-slate-300 hover:bg-white/5 hover:text-destructive"
           onClick={() => {
             logoutAdmin();
-            router.replace("/admin/login");
+            router.replace("/");
           }}
         >
           <LogOut className="h-4 w-4" />
-          خروج
+          خروج از پنل
         </Button>
       </div>
     </aside>

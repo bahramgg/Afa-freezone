@@ -57,11 +57,11 @@ export function ForeignMobileNav() {
             onClick={() => {
               logout();
               setOpen(false);
-              router.replace("/foreign/login");
+              router.replace("/");
             }}
           >
             <LogOut className="h-4 w-4" />
-            <span>خروج</span>
+            <span>خروج از پنل</span>
           </Button>
         </div>
       </SheetContent>

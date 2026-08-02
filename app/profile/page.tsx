@@ -53,7 +53,7 @@ export default function ProfilePage() {
   }, [hydrated, user, reset]);
 
   useEffect(() => {
-    if (hydrated && !isAuthed) router.replace("/login");
+    if (hydrated && !isAuthed) router.replace("/");
   }, [hydrated, isAuthed, router]);
 
   const onSubmit = async (data: FormValues) => {

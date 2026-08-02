@@ -9,6 +9,7 @@ import {
   Home,
   LineChart,
   LogOut,
+  Receipt,
   Send,
   Settings as SettingsIcon,
   Wallet as WalletIcon,
@@ -20,10 +21,11 @@ import { cn } from "@/lib/cn";
 
 export const BANK_NAV = [
   { href: "/bank/dashboard", label: "داشبورد", icon: Home },
+  { href: "/bank/imports", label: "واردات — تأمین ارز", icon: Receipt },
   { href: "/bank/send", label: "ارسال وجه", icon: Send },
   { href: "/bank/settlement", label: "تسویه", icon: Banknote },
-    { href: "/bank/deposits", label: "آدرس‌های واریز", icon: ArrowDownToLine },
-{ href: "/bank/wallets", label: "کیف پول‌های بانک", icon: WalletIcon },
+  { href: "/bank/deposits", label: "آدرس‌های واریز", icon: ArrowDownToLine },
+  { href: "/bank/wallets", label: "کیف پول‌های بانک", icon: WalletIcon },
   { href: "/bank/reports", label: "گزارشات", icon: LineChart },
   { href: "/bank/settings", label: "تنظیمات", icon: SettingsIcon },
 ] as const;

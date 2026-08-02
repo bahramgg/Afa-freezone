@@ -19,10 +19,18 @@ type InvoicesState = {
     description: string;
     counterpartyUid: string;
     goodsTitle: string;
+    /** EXPORT unless the foreign seller is billing an Iranian importer. */
+    direction?: "EXPORT" | "IMPORT";
+    /** Import only: the seller's wallet, where the principal is paid. */
+    beneficiaryWallet?: string;
     walletAddress?: string;
   }) => Promise<Invoice>;
   approve: (ref: string) => Promise<void>;
   reject: (ref: string, reason: string) => Promise<void>;
+  /** Import only, bank: prices the invoice in rial and names the account. */
+  lockRate: (ref: string, rate: number, depositAccount: string) => Promise<void>;
+  /** Import only, bank: the importer's rial arrived. */
+  confirmRialDeposit: (ref: string, receiptNo: string) => Promise<void>;
   startPayment: (ref: string) => Promise<void>;
   /** Buyer reports the hash of the transfer they made; verified on chain. */
   confirmPayment: (ref: string, txHash: string) => Promise<void>;
@@ -78,6 +86,25 @@ export const useInvoicesStore = create<InvoicesState>()((set, get) => ({
     const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
       action: "reject",
       reason,
+    });
+    set({ list: replace(get().list, invoice) });
+    pingReload(SLICE);
+  },
+
+  lockRate: async (ref, rate, depositAccount) => {
+    const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
+      action: "lockRate",
+      rate,
+      depositAccount,
+    });
+    set({ list: replace(get().list, invoice) });
+    pingReload(SLICE);
+  },
+
+  confirmRialDeposit: async (ref, receiptNo) => {
+    const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
+      action: "confirmRialDeposit",
+      receiptNo,
     });
     set({ list: replace(get().list, invoice) });
     pingReload(SLICE);

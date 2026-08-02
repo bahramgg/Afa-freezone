@@ -9,12 +9,12 @@ import {
   TRANSFER_EVENT,
   usdtAddress,
 } from "./client";
-import { notify } from "../notify";
+import { invoiceHref, notify } from "../notify";
 import { openDepositAddresses } from "../gateway";
 import { parseTerms, splitForAmount } from "./gateway-contract";
 import { raisePayoutSettlement } from "../payout";
 import { postInvoicePaid, postSendCompleted } from "../postings";
-import type { Prisma } from "@/lib/generated/prisma/client";
+import type { Prisma, Role } from "@/lib/generated/prisma/client";
 
 export type WatcherReport = {
   fromBlock: string;
@@ -184,11 +184,31 @@ async function retryUnmatchedDeposits(): Promise<number> {
 async function expireStaleInvoices(): Promise<number> {
   const stale = await db.invoice.findMany({
     where: {
-      status: { in: ["PENDING", "APPROVED", "PAYMENT_PENDING"] },
       expiresAt: { lt: new Date() },
       OR: [{ receivedAmount: null }, { receivedAmount: { lte: 0 } }],
+      AND: [
+        {
+          OR: [
+            { direction: "EXPORT", status: { in: ["PENDING", "APPROVED", "PAYMENT_PENDING"] } },
+            // An import stops being expirable the moment the bank engages with
+            // it. Past that the importer has either been quoted a rate or
+            // already wired rial, and closing the invoice underneath them would
+            // strand money the gateway is holding on their behalf.
+            { direction: "IMPORT", status: { in: ["PENDING", "APPROVED"] } },
+          ],
+        },
+      ],
     },
-    select: { id: true, ref: true, ownerId: true, status: true },
+    select: {
+      id: true,
+      ref: true,
+      ownerId: true,
+      counterpartyId: true,
+      direction: true,
+      status: true,
+      owner: { select: { role: true } },
+      counterparty: { select: { role: true } },
+    },
     take: 200,
   });
 
@@ -206,14 +226,44 @@ async function expireStaleInvoices(): Promise<number> {
         },
       }),
     ]);
-    await notify(invoice.ownerId, {
+    await notifyInvoiceParties(invoice, {
       kind: "INVOICE_EXPIRED",
       title: "فاکتور منقضی شد",
       body: `مهلت پرداخت فاکتور ${invoice.ref} به پایان رسید`,
-      href: `/receive/${invoice.ref}`,
     });
   }
   return stale.length;
+}
+
+/**
+ * Tells both sides of an invoice, each at their own panel's route.
+ *
+ * The watcher used to write only to the raiser, at the Iranian merchant's
+ * route. On an import that meant the foreign seller was handed a link into a
+ * panel they cannot open, and the importer heard nothing at all.
+ */
+async function notifyInvoiceParties(
+  invoice: {
+    ref: string;
+    direction: "EXPORT" | "IMPORT";
+    ownerId: string;
+    counterpartyId: string | null;
+    owner?: { role: Role } | null;
+    counterparty?: { role: Role } | null;
+  },
+  note: { kind: string; title: string; body: string },
+) {
+  const parties: [string | null, Role | undefined, boolean][] = [
+    [invoice.ownerId, invoice.owner?.role, true],
+    [invoice.counterpartyId, invoice.counterparty?.role, false],
+  ];
+  for (const [id, role, isRaiser] of parties) {
+    if (!id || !role) continue;
+    await notify(id, {
+      ...note,
+      href: invoiceHref(role, invoice.direction, invoice.ref, { isRaiser }),
+    });
+  }
 }
 
 /**
@@ -294,7 +344,16 @@ async function watchedAddresses(): Promise<Set<string>> {
 async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.Decimal }) {
   const deposit = await db.depositAddress.findUnique({
     where: { address: tx.toAddress },
-    include: { invoice: { include: { owner: { select: { id: true } } } } },
+    include: {
+      invoice: {
+        include: {
+          // Roles come along so a notification can be sent to the panel its
+          // recipient actually has.
+          owner: { select: { id: true, role: true } },
+          counterparty: { select: { id: true, role: true } },
+        },
+      },
+    },
   });
   if (!deposit?.invoice) return false;
 
@@ -320,11 +379,10 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
       where: { id: invoice.id },
       data: { status: "PAYMENT_PENDING", receivedAmount: total },
     });
-    await notify(invoice.ownerId, {
+    await notifyInvoiceParties(invoice, {
       kind: "PAYMENT_PARTIAL",
       title: "پرداخت ناقص دریافت شد",
       body: `برای فاکتور ${invoice.ref} تاکنون ${total} از ${invoice.amount} دریافت شده است`,
-      href: `/receive/${invoice.ref}`,
     });
     return false;
   }
@@ -362,11 +420,10 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     }),
   ]);
 
-  await notify(invoice.ownerId, {
+  await notifyInvoiceParties(invoice, {
     kind: "PAYMENT_RECEIVED",
     title: "پرداخت دریافت شد",
     body: `پرداخت فاکتور ${invoice.ref} روی شبکه تأیید شد`,
-    href: `/receive/${invoice.ref}`,
   });
 
   await postInvoicePaid({

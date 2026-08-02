@@ -12,7 +12,7 @@ import {
 } from "@/lib/server/http";
 import { serializeInvoice } from "@/lib/server/serialize";
 import { assertTransition, recordTransition } from "@/lib/server/statusEvents";
-import { notify } from "@/lib/server/notify";
+import { invoiceHref, notify } from "@/lib/server/notify";
 import { allocateDepositAddress } from "@/lib/server/gateway";
 import { parseTerms, splitForAmount } from "@/lib/server/chain/gateway-contract";
 import { assertRateWithinTolerance, referenceRate } from "@/lib/server/rates";
@@ -24,14 +24,16 @@ import { raisePayoutSettlement } from "@/lib/server/payout";
 import { postInvoicePaid } from "@/lib/server/postings";
 import { ChainVerificationError, recordChainTx, verifyTransfer } from "@/lib/server/chain/verify";
 import { Prisma } from "@/lib/generated/prisma/client";
-import type { Actor, InvoiceStatus } from "@/lib/generated/prisma/client";
+import type { Actor, InvoiceStatus, Role } from "@/lib/generated/prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const INVOICE_INCLUDE = {
-  owner: { select: { uid: true, fullName: true } },
-  counterparty: { select: { uid: true, fullName: true } },
+  // `role` is here so a notification can be pointed at the panel its recipient
+  // actually has: each side reads the same invoice at a different route.
+  owner: { select: { uid: true, fullName: true, role: true } },
+  counterparty: { select: { uid: true, fullName: true, role: true } },
   chainTx: true,
 } satisfies Prisma.InvoiceInclude;
 
@@ -80,7 +82,15 @@ export const POST = handler(
     let to: InvoiceStatus;
     let actor: Actor;
     let data: Prisma.InvoiceUpdateInput = {};
-    let recipientNote: { title: string; body: string; kind: string } | null = null;
+    /**
+     * `to` is whoever has to act next. On an export that is nearly always the
+     * merchant who raised the invoice; on an import it alternates between the
+     * foreign seller and the Iranian importer, and telling the wrong one is how
+     * the importer never finds out they owe rial.
+     */
+    let recipientNote:
+      | { title: string; body: string; kind: string; to?: "raiser" | "counterparty" | "both" }
+      | null = null;
     /** How the deposit's contract divides the fee, once one has been read. */
     let share: { gateway: string; freezone: string } | undefined;
 
@@ -114,7 +124,11 @@ export const POST = handler(
         recipientNote = {
           kind: "INVOICE_APPROVED",
           title: "فاکتور تأیید شد",
-          body: `فاکتور ${invoice.ref} تأیید شد — لینک پرداخت را برای خریدار بفرستید`,
+          body:
+            invoice.direction === "IMPORT"
+              ? `فاکتور ${invoice.ref} توسط سازمان تأیید شد — بانک نرخ و شماره حساب را اعلام می‌کند`
+              : `فاکتور ${invoice.ref} تأیید شد — لینک پرداخت را برای خریدار بفرستید`,
+          to: "both",
         };
         break;
       }
@@ -129,6 +143,7 @@ export const POST = handler(
           kind: "INVOICE_REJECTED",
           title: "فاکتور رد شد",
           body: `فاکتور ${invoice.ref} رد شد: ${reason}`,
+          to: "both",
         };
         break;
       }
@@ -155,17 +170,29 @@ export const POST = handler(
 
         to = "BANK_RATE_LOCKED";
         actor = "BANK";
+        // The window restarts here. Up to now the clock was measuring the
+        // organization's and the bank's own review; from here it measures the
+        // importer's time to wire rial against a rate the bank has committed
+        // to, which is the only part of an import that has to be time-boxed.
+        const settings = await db.settings.findUnique({ where: { id: 1 } });
         data = {
           exchangeRate: body.rate.toString(),
           rateLockedAt: new Date(),
           rialAmount: toRial(body.rate, gross),
           depositAccount: body.depositAccount,
           bankSpreadRial: spread,
+          expiresAt: new Date(Date.now() + (settings?.importValidityHours ?? 72) * 3_600_000),
         };
         recipientNote = {
           kind: "INVOICE_RATE_LOCKED",
-          title: "نرخ اعلام شد",
-          body: `برای فاکتور ${invoice.ref} نرخ قفل شد — مبلغ ریالی را واریز کنید`,
+          title: "نرخ اعلام شد — منتظر واریز شما",
+          body:
+            `برای فاکتور ${invoice.ref} نرخ قفل شد — ` +
+            `${toRial(body.rate, gross)} ریال به حساب ${body.depositAccount} واریز کنید`,
+          // The importer is the one who owes the money. Telling the seller to
+          // pay rial was the bug: they have none to pay, and the person who
+          // does was never told.
+          to: "counterparty",
         };
         break;
       }
@@ -182,6 +209,7 @@ export const POST = handler(
           kind: "INVOICE_RIAL_RECEIVED",
           title: "واریز ریالی تأیید شد",
           body: `ریال فاکتور ${invoice.ref} دریافت شد — ارز در حال تأمین است`,
+          to: "both",
         };
         break;
       }
@@ -198,7 +226,12 @@ export const POST = handler(
           invoice.direction === "IMPORT" ? ["RIAL_RECEIVED"] : ["APPROVED"],
           "شروع پرداخت",
         );
-        if (invoice.expiresAt && invoice.expiresAt.getTime() < Date.now()) {
+        // An import that has reached this point is funded by the bank out of
+        // rial it already holds. Refusing on a lapsed deadline would strand the
+        // importer's money: they paid, and nobody would be allowed to complete
+        // the trade or send it back.
+        const deadlineApplies = invoice.direction !== "IMPORT";
+        if (deadlineApplies && invoice.expiresAt && invoice.expiresAt.getTime() < Date.now()) {
           throw badRequest("مهلت پرداخت این فاکتور به پایان رسیده است");
         }
         to = "PAYMENT_PENDING";
@@ -267,6 +300,7 @@ export const POST = handler(
           kind: "PAYMENT_RECEIVED",
           title: "پرداخت دریافت شد",
           body: `پرداخت فاکتور ${invoice.ref} روی شبکه تأیید شد`,
+          to: "both",
         };
         break;
       }
@@ -279,6 +313,7 @@ export const POST = handler(
           kind: "INVOICE_EXPIRED",
           title: "فاکتور منقضی شد",
           body: `مهلت پرداخت فاکتور ${invoice.ref} به پایان رسید`,
+          to: "both",
         };
         break;
       }
@@ -303,7 +338,21 @@ export const POST = handler(
     });
 
     if (recipientNote) {
-      await notify(invoice.ownerId, { ...recipientNote, href: `/receive/${invoice.ref}` });
+      const { to: audience = "raiser", ...note } = recipientNote;
+      const parties: { id: string | null; role: Role; isRaiser: boolean }[] = [
+        { id: invoice.ownerId, role: updated.owner.role, isRaiser: true },
+        { id: invoice.counterpartyId, role: updated.counterparty?.role ?? "FOREIGN", isRaiser: false },
+      ];
+      for (const party of parties) {
+        if (!party.id) continue;
+        if (audience !== "both" && party.isRaiser !== (audience === "raiser")) continue;
+        await notify(party.id, {
+          ...note,
+          // Each side reads the same invoice at a different route; sending them
+          // to the other party's panel just lands them on a guard.
+          href: invoiceHref(party.role, invoice.direction, invoice.ref, { isRaiser: party.isRaiser }),
+        });
+      }
     }
 
     // A paid invoice is only half the journey: the money is at the gateway, not

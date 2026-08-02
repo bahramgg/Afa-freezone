@@ -806,7 +806,21 @@ model Settings {
   feeMin         Decimal @db.Decimal(38, 18) @default(1)
   feeMax         Decimal @db.Decimal(38, 18) @default(500)
 
+  /**
+   * How long an export invoice stays payable. Minutes is the right unit: the
+   * buyer already has the address and is paying from a wallet.
+   */
   invoiceValidityMinutes Int     @default(30)
+  /**
+   * How long an import invoice stays alive, in hours.
+   *
+   * Nothing about an import happens in minutes. The organization approves, the
+   * bank prices it, the importer wires rial through a bank, and only then does
+   * the bank fund the contract — days of work by people, not one wallet
+   * transfer. Measured in the same unit as an export it would expire before the
+   * bank ever opened its queue.
+   */
+  importValidityHours    Int     @default(72)
   invoiceMinAmount       Decimal @db.Decimal(38, 18) @default(10)
   invoiceMaxAmount       Decimal @db.Decimal(38, 18) @default(100000)
 

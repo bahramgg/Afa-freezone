@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useHydrated } from "@/lib/stores/hydration";
+import { ROUTE_GUARDS_ENABLED } from "@/lib/guards";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 export function UserAuthGuard({ children }: { children: React.ReactNode }) {
@@ -15,13 +16,13 @@ export function UserAuthGuard({ children }: { children: React.ReactNode }) {
   const hydrated = useHydrated() && ready;
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
     if (!isAuthed) router.replace("/login");
     else if (!hasProfile) router.replace("/profile");
     else if (!hasPassedKyc) router.replace("/kyc-waiting");
   }, [hydrated, isAuthed, hasProfile, hasPassedKyc, router]);
 
-  if (!hydrated || !isAuthed || !hasProfile || !hasPassedKyc) {
+  if (ROUTE_GUARDS_ENABLED && (!hydrated || !isAuthed || !hasProfile || !hasPassedKyc)) {
     return (
       <div className="p-8 space-y-3">
         <Skeleton className="h-6 w-40" />
@@ -39,11 +40,11 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   const hydrated = useHydrated() && ready;
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
     if (!isAdmin) router.replace("/admin/login");
   }, [hydrated, isAdmin, router]);
 
-  if (!hydrated || !isAdmin) {
+  if (ROUTE_GUARDS_ENABLED && (!hydrated || !isAdmin)) {
     return (
       <div className="p-8 space-y-3">
         <Skeleton className="h-6 w-40" />

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useHydrated } from "@/lib/stores/hydration";
+import { ROUTE_GUARDS_ENABLED } from "@/lib/guards";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 export function BankAuthGuard({ children }: { children: React.ReactNode }) {
@@ -13,11 +14,11 @@ export function BankAuthGuard({ children }: { children: React.ReactNode }) {
   const hydrated = useHydrated() && ready;
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
     if (!isAuthed) router.replace("/bank/login");
   }, [hydrated, isAuthed, router]);
 
-  if (!hydrated || !isAuthed) {
+  if (ROUTE_GUARDS_ENABLED && (!hydrated || !isAuthed)) {
     return (
       <div className="p-8 space-y-3">
         <Skeleton className="h-6 w-40" />

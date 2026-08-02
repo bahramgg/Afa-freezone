@@ -134,7 +134,12 @@ export const POST = handler(async (request: Request) => {
     throw badRequest("آدرس والت معتبر نیست");
   }
 
-  const validity = settings?.invoiceValidityMinutes ?? 30;
+  // An export is payable for minutes — the buyer has the address in front of
+  // them. An import has to survive the organization's review, the bank's
+  // pricing and a rial wire, so it is measured in hours.
+  const validityMs = importing
+    ? (settings?.importValidityHours ?? 72) * 3_600_000
+    : (settings?.invoiceValidityMinutes ?? 30) * 60_000;
 
   // The seller names what they want to receive; the fee goes on top of it, so
   // they are paid the figure on their commercial contract exactly.
@@ -166,7 +171,7 @@ export const POST = handler(async (request: Request) => {
         netAmount: input.amount.toString(),
         walletAddress: input.walletAddress ? normalizeAddress(input.walletAddress) : null,
         status: "PENDING",
-        expiresAt: new Date(Date.now() + validity * 60_000),
+        expiresAt: new Date(Date.now() + validityMs),
       },
       include: INVOICE_INCLUDE,
     });

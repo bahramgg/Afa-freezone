@@ -19,22 +19,11 @@ function hashSecret(plain: string) {
   return hash(plain, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
 }
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `${name} is required to seed. Set it in .env, e.g. ${name}="a-strong-password".`,
-    );
-  }
-  if (value.length < 10) throw new Error(`${name} must be at least 10 characters.`);
-  return value;
-}
 
 async function main() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@afa.local";
   const bankEmail = process.env.SEED_BANK_EMAIL ?? "bank@afa.local";
-  const adminPassword = required("SEED_ADMIN_PASSWORD");
-  const bankPassword = required("SEED_BANK_PASSWORD");
+  const systemEmail = process.env.SEED_SYSTEM_EMAIL ?? "system@afa.local";
 
   await db.settings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
   console.log("· settings row ready");
@@ -46,11 +35,10 @@ async function main() {
       role: "ADMIN",
       fullName: process.env.SEED_ADMIN_NAME ?? "ادمین سیستم",
       email: adminEmail,
-      passwordHash: await hashSecret(adminPassword),
       kyc: "APPROVED",
       avatarColor: "oklch(0.62 0.16 240)",
     },
-    update: { passwordHash: await hashSecret(adminPassword) },
+    update: {},
   });
   console.log(`· admin ${admin.uid} <${admin.email}>`);
 
@@ -61,13 +49,27 @@ async function main() {
       role: "BANK",
       fullName: process.env.SEED_BANK_NAME ?? "مدیر عملیات ارزی",
       email: bankEmail,
-      passwordHash: await hashSecret(bankPassword),
       kyc: "APPROVED",
       avatarColor: "oklch(0.65 0.18 155)",
     },
-    update: { passwordHash: await hashSecret(bankPassword) },
+    update: {},
   });
   console.log(`· bank operator ${bank.uid} <${bank.email}>`);
+
+  // Runs the system rather than the business: users, logs, who may register.
+  const system = await db.user.upsert({
+    where: { email: systemEmail },
+    create: {
+      uid: "SYS-001",
+      role: "SUPERADMIN",
+      fullName: process.env.SEED_SYSTEM_NAME ?? "مدیر سیستم",
+      email: systemEmail,
+      kyc: "APPROVED",
+      avatarColor: "oklch(0.6 0.2 300)",
+    },
+    update: { role: "SUPERADMIN" },
+  });
+  console.log(`· system administrator ${system.uid} <${system.email}>`);
 
   // Gateway wallets. Without at least one RECEIVE wallet no invoice can be
   // approved, because there is nowhere to quote for payment.

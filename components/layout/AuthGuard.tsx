@@ -54,7 +54,7 @@ export function UserAuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
-    if (!isAuthed) router.replace("/");
+    if (!isAuthed) router.replace("/login");
     else if (!hasProfile) router.replace("/profile");
     else if (!hasPassedKyc) router.replace("/kyc-waiting");
   }, [hydrated, isAuthed, hasProfile, hasPassedKyc, router]);
@@ -75,7 +75,7 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
-    if (!isAdmin) router.replace("/");
+    if (!isAdmin) router.replace("/login");
   }, [hydrated, isAdmin, router]);
 
   if (ROUTE_GUARDS_ENABLED && (!hydrated || !isAdmin)) return <Waiting />;

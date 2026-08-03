@@ -1,5 +1,5 @@
 import "server-only";
-import { randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { db } from "../db";
 import { env } from "../env";
 import { emailProvider } from "../email";
@@ -34,8 +34,15 @@ const RESEND_COOLDOWN_MS = 60_000;
  * and any earlier unconsumed code for the same address is invalidated so a user
  * can never have two live codes at once.
  */
-export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCode?: string }> {
-  const { OTP_TTL_MINUTES, EMAIL_PROVIDER, NODE_ENV } = env();
+/** SHA-256, because a link token is high-entropy and looked up by value. */
+const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+export async function issueOtp(
+  email: string,
+  /** Absolute origin the sign-in link should point at. Omitted, no link is sent. */
+  origin?: string,
+): Promise<{ expiresAt: Date; devCode?: string; devLink?: string }> {
+  const { OTP_TTL_MINUTES, NODE_ENV } = env();
 
   const last = await db.otpCode.findFirst({
     where: { email, consumedAt: null },
@@ -48,6 +55,7 @@ export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCod
   }
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const linkToken = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60_000);
 
   const user = await db.user.findUnique({ where: { email }, select: { id: true } });
@@ -59,12 +67,20 @@ export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCod
       data: { consumedAt: new Date() },
     }),
     db.otpCode.create({
-      data: { email, codeHash: await hashSecret(code), expiresAt, userId: user?.id ?? null },
+      data: {
+        email,
+        codeHash: await hashSecret(code),
+        linkTokenHash: hashToken(linkToken),
+        expiresAt,
+        userId: user?.id ?? null,
+      },
     }),
   ]);
 
+  const link = origin ? `${origin}/login/verify?token=${linkToken}` : undefined;
+
   try {
-    await emailProvider().send({ to: email, ...otpEmail(code, OTP_TTL_MINUTES) });
+    await emailProvider().send({ to: email, ...otpEmail(code, OTP_TTL_MINUTES, link) });
   } catch (error) {
     // A code nobody received must not sit there holding the resend cooldown and
     // telling the user to check an inbox. Retract it and say what went wrong.
@@ -77,10 +93,32 @@ export async function issueOtp(email: string): Promise<{ expiresAt: Date; devCod
     );
   }
 
-  // Only the console provider hands the code back to the caller, and only
-  // outside production, so the login screen is testable without a mail service.
-  const devCode = EMAIL_PROVIDER === "console" && NODE_ENV !== "production" ? code : undefined;
-  return { expiresAt, devCode };
+  // Outside production the code comes back to the caller so the login screen
+  // and the test suites work without waiting on a mailbox. In production this
+  // is never populated, whatever the mail provider is set to.
+  const dev = NODE_ENV !== "production";
+  return { expiresAt, devCode: dev ? code : undefined, devLink: dev ? link : undefined };
+}
+
+/**
+ * Consumes a sign-in link and says which address it belonged to.
+ *
+ * Spends the same record the code would, so a link and a code issued together
+ * cannot both be used — and an old link stops working the moment a new code is
+ * requested, because issuing supersedes everything outstanding.
+ */
+export async function redeemLink(token: string): Promise<string> {
+  const record = await db.otpCode.findFirst({
+    where: { linkTokenHash: hashToken(token), consumedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!record) throw badRequest("این پیوند معتبر نیست یا قبلاً استفاده شده است");
+  if (record.expiresAt.getTime() <= Date.now()) {
+    throw badRequest("این پیوند منقضی شده است — دوباره درخواست ورود دهید");
+  }
+
+  await db.otpCode.update({ where: { id: record.id }, data: { consumedAt: new Date() } });
+  return record.email;
 }
 
 /** Consumes a code. Throws on any failure. */

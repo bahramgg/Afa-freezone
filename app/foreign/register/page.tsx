@@ -18,7 +18,6 @@ export default function ForeignRegisterPage() {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
-    password: "",
     passportNo: "",
     country: "",
   });
@@ -29,10 +28,6 @@ export default function ForeignRegisterPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (form.password.length < 8) {
-      toast.error("رمز عبور باید حداقل ۸ کاراکتر باشد");
-      return;
-    }
     setLoading(true);
     try {
       await register(form);
@@ -76,19 +71,6 @@ export default function ForeignRegisterPage() {
               onChange={set("email")}
               required
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">رمز عبور</Label>
-            <Input
-              id="password"
-              type="password"
-              dir="ltr"
-              autoComplete="new-password"
-              value={form.password}
-              onChange={set("password")}
-              required
-            />
-            <p className="text-xs text-muted-foreground">حداقل ۸ کاراکتر</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

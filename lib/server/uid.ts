@@ -7,6 +7,7 @@ const PREFIX: Record<Role, string> = {
   FOREIGN: "FOR",
   ADMIN: "ADM",
   BANK: "BNK",
+  SUPERADMIN: "SYS",
 };
 
 /**

@@ -17,7 +17,7 @@ export function BankAuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
-    if (!isAuthed) router.replace("/");
+    if (!isAuthed) router.replace("/login");
   }, [hydrated, isAuthed, router]);
 
   if ((ROUTE_GUARDS_ENABLED && (!hydrated || !isAuthed)) || entering) {

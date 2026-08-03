@@ -1,16 +1,48 @@
 import { z } from "zod";
+import { db } from "@/lib/server/db";
 import { issueOtp, normalizeEmail } from "@/lib/server/auth/otp";
-import { handler, jsonOk, readJson } from "@/lib/server/http";
+import { audit } from "@/lib/server/audit";
+import { forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const Body = z.object({ email: z.string().min(4) });
 
+/**
+ * Sends a sign-in email — a code and a link — to any address, whatever panel it
+ * belongs to.
+ *
+ * The reply says nothing about whether an account exists. Answering differently
+ * would turn this into a way to find out who banks with the free zone, and an
+ * address nobody has seen before is a registration rather than an error.
+ */
 export const POST = handler(async (request: Request) => {
   const { email } = await readJson(request, Body);
   const normalized = normalizeEmail(email);
-  const { expiresAt, devCode } = await issueOtp(normalized);
 
-  return jsonOk({ email: normalized, expiresAt: expiresAt.toISOString(), devCode });
+  const user = await db.user.findUnique({
+    where: { email: normalized },
+    select: { id: true, disabledAt: true },
+  });
+  // A disabled account is told plainly. There is nothing left to protect —
+  // whoever holds the address already knows it exists — and leaving them to
+  // wait on an email that will never work is worse than saying so.
+  if (user?.disabledAt) throw forbidden("حساب کاربری شما غیرفعال شده است");
+
+  if (!user) {
+    const settings = await db.settings.findUnique({ where: { id: 1 } });
+    if (settings?.registrationRestricted) {
+      const allowed = await db.allowedEmail.findUnique({ where: { email: normalized } });
+      if (!allowed) {
+        throw forbidden("ثبت‌نام با این نشانی مجاز نیست — با پشتیبانی تماس بگیرید");
+      }
+    }
+  }
+
+  const origin = new URL(request.url).origin;
+  const { expiresAt, devCode, devLink } = await issueOtp(normalized, origin);
+  await audit("LOGIN_CODE_SENT", { request, actorId: user?.id, subject: normalized });
+
+  return jsonOk({ email: normalized, expiresAt: expiresAt.toISOString(), devCode, devLink });
 });

@@ -1,11 +1,9 @@
 /**
- * Whether the client-side route guards redirect.
+ * Whether the client-side route guards send an unrecognised visitor to sign in.
  *
- * Turned off so every panel can be opened and clicked through without signing
- * in. This changes navigation only — the API still derives the caller from
- * their session and refuses anything they are not entitled to, so an
- * unauthenticated browse renders empty pages rather than other people's data.
- *
- * Flip to `true` to put the redirects back; nothing else has to change.
+ * On, now that there is a sign-in to send them to: one email door serves all
+ * four panels. Turning it off leaves navigation open, which is only useful
+ * alongside AUTH_OPEN_ACCESS — on its own it just renders empty pages, because
+ * the API still asks who is calling.
  */
-export const ROUTE_GUARDS_ENABLED = false;
+export const ROUTE_GUARDS_ENABLED = true;

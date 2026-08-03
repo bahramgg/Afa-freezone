@@ -35,6 +35,9 @@ export function settlementScope(user: SessionUser): Prisma.SettlementWhereInput 
   switch (user.role) {
     case "ADMIN":
       return {};
+    case "SUPERADMIN":
+      // Runs the system, not the trades: no business rows at all.
+      return { ownerId: NOTHING };
     case "IRANIAN":
       return { ownerId: user.id };
     case "BANK":

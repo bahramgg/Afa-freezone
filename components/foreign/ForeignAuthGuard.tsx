@@ -20,7 +20,7 @@ export function ForeignAuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ROUTE_GUARDS_ENABLED || !hydrated) return;
-    if (!isAuthed) router.replace("/");
+    if (!isAuthed) router.replace("/login");
     else if (!hasProfile) router.replace("/foreign/profile");
     else if (!hasPassedKyc) router.replace("/foreign/kyc-waiting");
   }, [hydrated, isAuthed, hasProfile, hasPassedKyc, router]);

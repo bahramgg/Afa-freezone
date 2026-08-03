@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./db";
+import type { Role } from "@/lib/generated/prisma/client";
 
 export type NotificationInput = {
   kind: string;
@@ -36,12 +37,13 @@ export async function notifyRole(role: "ADMIN" | "BANK", input: NotificationInpu
  * has no access to.
  */
 export function invoiceHref(
-  role: "IRANIAN" | "FOREIGN" | "ADMIN" | "BANK",
+  role: Role,
   direction: "EXPORT" | "IMPORT",
   ref: string,
   { isRaiser }: { isRaiser: boolean },
 ): string {
   if (role === "ADMIN") return "/admin/invoices";
+  if (role === "SUPERADMIN") return "/system/logs";
   if (role === "BANK") return "/bank/imports";
   if (direction === "IMPORT") {
     // The seller raised it and is paid in currency; the importer owes rial.

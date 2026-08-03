@@ -28,7 +28,18 @@ function frame(bodyHtml: string) {
 </html>`;
 }
 
-export function otpEmail(code: string, ttlMinutes: number): Omit<EmailMessage, "to"> {
+/**
+ * The sign-in email: a code to type, and a link that skips typing it.
+ *
+ * Both open the same single-use record, so using either spends the other. The
+ * link is offered first because it is the shorter path on a phone, where
+ * copying six digits between apps is most of the work.
+ */
+export function otpEmail(
+  code: string,
+  ttlMinutes: number,
+  link?: string,
+): Omit<EmailMessage, "to"> {
   return {
     subject: `کد ورود شما: ${code}`,
     text: [
@@ -36,9 +47,11 @@ export function otpEmail(code: string, ttlMinutes: number): Omit<EmailMessage, "
       "",
       code,
       "",
+      ...(link ? ["", "یا مستقیم وارد شوید:", link] : []),
+      "",
       `این کد تا ${ttlMinutes} دقیقه معتبر است.`,
       "اگر شما درخواست ورود نداده‌اید، این پیام را نادیده بگیرید.",
-    ].join("\n"),
+    ].filter((line) => line !== undefined).join("\n"),
     html: frame(`
       <p style="margin:0 0 16px;font-size:14px;color:#1c1f2b;line-height:2;">
         کد ورود شما به سامانه:
@@ -47,6 +60,15 @@ export function otpEmail(code: string, ttlMinutes: number): Omit<EmailMessage, "
                   font-size:30px;font-weight:bold;letter-spacing:8px;color:#1c1f2b;direction:ltr;">
         ${code}
       </div>
+      ${
+        link
+          ? `<p style="margin:0 0 16px;font-size:13px;color:#4b5563;line-height:2;">یا بدون وارد کردن کد:</p>
+      <p style="margin:0 0 20px;text-align:center;">
+        <a href="${link}" style="display:inline-block;padding:12px 28px;background:#4f46e5;color:#ffffff;
+           text-decoration:none;border-radius:8px;font-size:14px;font-weight:bold;">ورود مستقیم به سامانه</a>
+      </p>`
+          : ""
+      }
       <p style="margin:0 0 8px;font-size:13px;color:#4b5563;line-height:2;">
         این کد تا ${ttlMinutes} دقیقه معتبر است.
       </p>

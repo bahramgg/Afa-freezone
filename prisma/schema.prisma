@@ -18,8 +18,17 @@ datasource db {
 enum Role {
   IRANIAN
   FOREIGN
+  /** Free-zone staff: KYC, invoice approval, oversight of the trade flows. */
   ADMIN
   BANK
+  /**
+   * Runs the system rather than the business.
+   *
+   * Separate from ADMIN on purpose: approving an invoice and disabling an
+   * account are different powers, and an organization operator has no business
+   * holding the second one.
+   */
+  SUPERADMIN
 }
 
 enum KycStatus {
@@ -77,6 +86,8 @@ model User {
   sendRequests       SendRequest[] @relation("SendOwner")
   sendCounterparties SendRequest[] @relation("SendCounterparty")
   settlements        Settlement[]  @relation("SettlementOwner")
+  auditLogs          AuditLog[]    @relation("AuditActor")
+  allowlistEntries   AllowedEmail[] @relation("AllowlistAuthor")
 
   @@index([role, kyc])
 }
@@ -107,6 +118,15 @@ model OtpCode {
   email String
   /** Argon2id hash of the code — a leaked table must not hand over live codes. */
   codeHash  String
+  /**
+   * Hash of the single-use token in the emailed sign-in link.
+   *
+   * A link cannot carry the six-digit code: a URL is logged by proxies, kept in
+   * history and pasted into chats, and six digits are guessable enough that the
+   * attempt counter is what protects them. This is 32 random bytes instead, and
+   * it opens the same record the code does.
+   */
+  linkTokenHash String?
   purpose   OtpPurpose @default(LOGIN)
   attempts  Int        @default(0)
   consumedAt DateTime?
@@ -117,6 +137,50 @@ model OtpCode {
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email, createdAt])
+}
+
+/**
+ * An address cleared to register.
+ *
+ * The list is only consulted when Settings.registrationRestricted is on. Until
+ * then anyone may sign up and this is a standing invitation list rather than a
+ * gate.
+ */
+model AllowedEmail {
+  id    String @id @default(cuid())
+  email String @unique
+  note  String?
+
+  addedById String?
+  addedBy   User?   @relation("AllowlistAuthor", fields: [addedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+}
+
+/**
+ * What people did, as distinct from what money did.
+ *
+ * StatusEvent already records every movement of a trade. This records the acts
+ * around it — who signed in, who was disabled, who was let in — which have no
+ * flow to attach to and would otherwise leave no trace at all.
+ */
+model AuditLog {
+  id     String @id @default(cuid())
+  action String
+  /** Free-form target: an email, a uid, a ref. Kept as text so a deleted row
+      does not take its own history with it. */
+  subject String?
+  detail  String?
+
+  actorId String?
+  actor   User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
 }
 
 // ─────────────────────────── Wallets ───────────────────────────
@@ -843,6 +907,13 @@ model Settings {
   /** Rate a bank-locked exchange rate may deviate from the reference, percent. */
   rateTolerancePercent Decimal @db.Decimal(6, 3) @default(10)
   /** The Free Zone Organization's cut of the gateway fee, percent of the fee. */
+  /**
+   * When on, only an address on the allowlist may register. Off to begin with:
+   * the gateway is opening, and turning people away before anyone is inside is
+   * a way to have no users.
+   */
+  registrationRestricted Boolean @default(false)
+
   freezoneSharePercent Decimal @db.Decimal(6, 3) @default(50)
 
   updatedAt DateTime @updatedAt

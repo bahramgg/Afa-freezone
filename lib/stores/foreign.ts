@@ -24,11 +24,9 @@ type ForeignState = {
   ready: boolean;
 
   load: () => Promise<void>;
-  loginEmail: (email: string, password: string) => Promise<void>;
   register: (input: {
     fullName: string;
     email: string;
-    password: string;
     passportNo?: string;
     country?: string;
   }) => Promise<void>;
@@ -88,11 +86,6 @@ export const useForeignStore = create<ForeignState>()((set, get) => {
       set({ wallets: wallets.list, notifications: notifications.list });
     },
 
-    loginEmail: async (email, password) => {
-      await useAuthStore.getState().loginPassword(email, password, "foreign");
-      await get().load();
-      pingReload(SLICE);
-    },
 
     register: async (input) => {
       await useAuthStore.getState().register(input);

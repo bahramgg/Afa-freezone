@@ -27,7 +27,7 @@ const Body = z.object({
   portal: z.enum(["user", "foreign", "admin", "bank"]),
 });
 
-const ROLE: Record<z.infer<typeof Body>["portal"], Role> = {
+const ROLE: Record<z.infer<typeof Body>["portal"], Exclude<Role, "SUPERADMIN">> = {
   user: "IRANIAN",
   foreign: "FOREIGN",
   admin: "ADMIN",
@@ -35,14 +35,14 @@ const ROLE: Record<z.infer<typeof Body>["portal"], Role> = {
 };
 
 /** The account a panel adopts: a real one if the seed made it, else created. */
-const DEMO: Record<Role, { email: string; fullName: string }> = {
+const DEMO: Record<Exclude<Role, "SUPERADMIN">, { email: string; fullName: string }> = {
   IRANIAN: { email: "merchant@afa.local", fullName: "بازرگان نمونه" },
   FOREIGN: { email: "foreign@afa.local", fullName: "Sample Trading Co." },
   ADMIN: { email: "admin@afa.local", fullName: "کارشناس سازمان" },
   BANK: { email: "bank@afa.local", fullName: "کارشناس بانک" },
 };
 
-async function accountFor(role: Role) {
+async function accountFor(role: Exclude<Role, "SUPERADMIN">) {
   // Prefer whoever the seed or real use already put there, so an open-access
   // demo shows the data that exists rather than an empty parallel account.
   const existing =
@@ -60,8 +60,11 @@ async function accountFor(role: Role) {
       email: DEMO[role].email,
       fullName: DEMO[role].fullName,
       // A merchant panel is unusable behind the KYC gate, and there is nobody
-      // to clear it when there is nobody signing in.
+      // to clear it when there is nobody signing in. The national id matters
+      // for the same reason: without one an Iranian account is held at the
+      // profile screen and never reaches the panel it was adopted for.
       kyc: "APPROVED",
+      nationalId: role === "IRANIAN" ? `demo-${Date.now()}` : null,
     },
   });
 }

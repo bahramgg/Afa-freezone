@@ -13,6 +13,8 @@ type SessionPayload = {
   user: (User & { role?: string }) | null;
   hasProfile?: boolean;
   hasPassedKyc?: boolean;
+  /** The panel this account belongs to, returned by a successful sign-in. */
+  home?: string;
   /** Panels are open to anyone with the link; there is no sign-in. */
   openAccess?: boolean;
 };
@@ -33,17 +35,15 @@ type AuthState = {
   load: () => Promise<void>;
   /** Adopts the account a panel belongs to. Only works while open access is on. */
   enterPortal: (portal: PortalKey) => Promise<void>;
-  requestOtp: (email: string) => Promise<{ expiresAt: string; devCode?: string }>;
-  verifyOtp: (email: string, code: string) => Promise<void>;
-  loginPassword: (
-    email: string,
-    password: string,
-    portal: "foreign" | "admin" | "bank",
-  ) => Promise<void>;
+  /** Emails a six-digit code and a one-click link. Works for every role. */
+  requestOtp: (email: string) => Promise<{ expiresAt: string; devCode?: string; devLink?: string }>;
+  /** Returns the panel this account belongs to, so the caller can land there. */
+  verifyOtp: (email: string, code: string) => Promise<string>;
+  /** The emailed link, redeemed. Same single-use record as the code. */
+  verifyLink: (token: string) => Promise<string>;
   register: (input: {
     fullName: string;
     email: string;
-    password: string;
     passportNo?: string;
     country?: string;
     phone?: string;
@@ -98,19 +98,24 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 
   requestOtp: (email) =>
-    api.post<{ expiresAt: string; devCode?: string }>("/auth/otp/request", { email }),
+    api.post<{ expiresAt: string; devCode?: string; devLink?: string }>("/auth/otp/request", {
+      email,
+    }),
 
   verifyOtp: async (email, code) => {
     const data = await api.post<SessionPayload>("/auth/otp/verify", { email, code });
     set({ ...fromPayload(data), ready: true });
     pingReload(SLICE);
+    return data.home ?? "/dashboard";
   },
 
-  loginPassword: async (email, password, portal) => {
-    const data = await api.post<SessionPayload>("/auth/login", { email, password, portal });
+  verifyLink: async (token) => {
+    const data = await api.post<SessionPayload>("/auth/otp/verify", { token });
     set({ ...fromPayload(data), ready: true });
     pingReload(SLICE);
+    return data.home ?? "/dashboard";
   },
+
 
   register: async (input) => {
     const data = await api.post<SessionPayload>("/auth/register", input);

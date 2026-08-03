@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -20,19 +20,25 @@ export default function ForeignSettingsPage() {
   const updateProfile = useForeignStore((s) => s.updateProfile);
 
   const [editing, setEditing] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-
-  useEffect(() => {
-    if (user) {
-      setPhone(user.phone);
-      setAddress(user.address);
-    }
-  }, [user]);
+  /**
+   * `null` means untouched, so the field shows whatever the profile currently
+   * holds without copying it into state first.
+   *
+   * A foreign account is registered with a name, a passport and a country —
+   * never a phone or an address — so mirroring those through an effect handed
+   * the input `undefined` on the render the profile arrived, which is what
+   * turns a controlled input uncontrolled.
+   */
+  const [draftPhone, setDraftPhone] = useState<string | null>(null);
+  const [draftAddress, setDraftAddress] = useState<string | null>(null);
+  const phone = draftPhone ?? user?.phone ?? "";
+  const address = draftAddress ?? user?.address ?? "";
 
   function save() {
     updateProfile({ phone, address });
     toast.success("اطلاعات با موفقیت ذخیره شد");
+    setDraftPhone(null);
+    setDraftAddress(null);
     setEditing(false);
   }
 
@@ -85,7 +91,7 @@ export default function ForeignSettingsPage() {
                   <Label>شماره تماس</Label>
                   <Input
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setDraftPhone(e.target.value)}
                     disabled={!editing}
                     dir="ltr"
                   />
@@ -94,7 +100,7 @@ export default function ForeignSettingsPage() {
                   <Label>آدرس</Label>
                   <Input
                     value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    onChange={(e) => setDraftAddress(e.target.value)}
                     disabled={!editing}
                   />
                 </div>

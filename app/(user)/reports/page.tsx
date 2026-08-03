@@ -107,7 +107,7 @@ export default function ReportsPage() {
         title="گزارشات مالی"
         description="فیلتر، تحلیل و خروجی تمام فعالیت‌ها"
         actions={
-          <ExportExcelButton datasets={["invoices", "sends", "settlements"]} />
+          <ExportExcelButton datasets={["invoices", "settlements"]} />
         }
       />
 

@@ -113,7 +113,10 @@ const DATASETS = {
     {
       sheet: "فاکتورها",
       file: "invoices",
-      roles: ["IRANIAN", "ADMIN"],
+      // A foreign account is on both sides of an invoice now: the exports it
+      // was asked to pay and the imports it raised. Its own rows are already
+      // narrowed by invoiceScope, so this hands it nothing it cannot see.
+      roles: ["IRANIAN", "FOREIGN", "ADMIN"],
       columns: [
         { header: "شماره فاکتور", width: 16, value: (r) => text(r.ref) },
         { header: "شناسه تراکنش", width: 16, value: (r) => text(r.trxRef) },

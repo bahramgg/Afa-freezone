@@ -230,7 +230,7 @@ enum BankWalletKind {
 model Wallet {
   id        String          @id @default(cuid())
   /**
-   * Lowercased 0x-prefixed BSC address.
+   * Lowercased 0x-prefixed EVM address.
    */
   address   String
   label     String

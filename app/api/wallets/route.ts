@@ -50,7 +50,7 @@ export const POST = handler(async (request: Request) => {
   const user = await requireUser();
   const input = await readJson(request, CreateBody);
 
-  if (!isAddress(input.address)) throw badRequest("آدرس BSC معتبر نیست");
+  if (!isAddress(input.address)) throw badRequest("آدرس کیف پول معتبر نیست");
   const address = normalizeAddress(input.address);
 
   if (input.scope === "bank") {

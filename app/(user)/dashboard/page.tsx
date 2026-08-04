@@ -19,6 +19,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { useWalletsStore } from "@/lib/stores/wallets";
 import { useHydrated } from "@/lib/stores/hydration";
 import { toPersianDigits, truncateHash } from "@/lib/format";
+import { useInToken } from "@/lib/value";
 import type { Transaction } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -30,12 +31,13 @@ export default function DashboardPage() {
 
   const [openTx, setOpenTx] = useState<Transaction | null>(null);
 
+  const inToken = useInToken();
   const totalReceived = transactions
     .filter((t) => t.direction === "RECEIVE" && t.status === "CONFIRMED")
-    .reduce((acc, t) => acc + t.amount * (t.currency === "BNB" ? 600 : 1), 0);
+    .reduce((acc, t) => acc + inToken(t.amount, t.currency), 0);
   const totalSent = transactions
     .filter((t) => t.direction === "SEND" && t.status === "CONFIRMED")
-    .reduce((acc, t) => acc + t.amount * (t.currency === "BNB" ? 600 : 1), 0);
+    .reduce((acc, t) => acc + inToken(t.amount, t.currency), 0);
   const activeInvoices = invoices.filter(
     (i) => i.status === "PENDING" || i.status === "APPROVED" || i.status === "PAYMENT_PENDING",
   ).length;

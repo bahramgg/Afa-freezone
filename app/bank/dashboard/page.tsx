@@ -6,14 +6,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Banknote, Building2, Coins, Receipt, TrendingUp, Wallet } from "lucide-react";
+import { Banknote, Coins, Receipt, TrendingUp, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +24,7 @@ import { useBankStore } from "@/lib/stores/bank";
 import { useLoad } from "@/lib/stores/useLoad";
 import { api } from "@/lib/api/client";
 import { useHydrated } from "@/lib/stores/hydration";
-import { bankVolumeSeries, usdtRateSeries } from "@/lib/mock/fixtures";
+import { monthlyTotals } from "@/lib/series";
 import { toPersianDigits, formatAmount, formatToken } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
 
@@ -48,12 +46,30 @@ export default function BankDashboardPage() {
   ).length;
   const pendingSettlement = settlements.filter((s) => s.status === "AWAITING_BANK").length;
 
-  const volumeData = useMemo(() => bankVolumeSeries(6), []);
-  const rateData = useMemo(() => usdtRateSeries(30), []);
+  /**
+   * Counted from the imports and settlements this page already loads. It used
+   * to come from a fixtures file, and so did the exchange-rate chart that stood
+   * beside it — which is gone rather than filled in, because the system keeps
+   * no rate history to draw one from.
+   */
+  const volumeData = useMemo(
+    () =>
+      monthlyTotals(
+        [...imports, ...settlements],
+        {
+          send: (r) => ("tradeDirection" in r ? Math.round((r.rialAmount ?? 0) / 1_000_000) : 0),
+          settle: (r) => ("tradeDirection" in r ? 0 : Math.round((r.rialAmount ?? 0) / 1_000_000)),
+        },
+        6,
+      ),
+    [imports, settlements],
+  );
 
   const totalUsdt = wallets.reduce((a, w) => a + w.usdtBalance, 0);
-  const totalBnb = wallets.reduce((a, w) => a + w.bnbBalance, 0);
-  const monthRial = 820_000_000;
+  const totalNative = wallets.reduce((a, w) => a + w.bnbBalance, 0);
+  // The current month is the last bucket, in million toman like the chart.
+  const thisMonth = volumeData.at(-1);
+  const monthVolume = (thisMonth?.send ?? 0) + (thisMonth?.settle ?? 0);
 
   const recentActivity = [
     ...imports
@@ -105,9 +121,7 @@ export default function BankDashboardPage() {
         />
         <StatCard
           label="حجم عملیات ماه"
-          value={hydrated ? `${formatAmount(monthRial / 1_000_000)} میلیون ت` : "—"}
-          delta="+۲۲٪"
-          trend="up"
+          value={hydrated ? `${toPersianDigits(formatAmount(monthVolume))} میلیون ت` : "—"}
           icon={TrendingUp}
           tone="success"
         />
@@ -116,7 +130,7 @@ export default function BankDashboardPage() {
           value={hydrated ? formatToken(totalUsdt, "USDT") : "—"}
           icon={Wallet}
           tone="success"
-          hint={hydrated ? formatToken(totalBnb, "BNB") : ""}
+          hint={hydrated ? formatToken(totalNative, "BNB") : ""}
         />
       </div>
 
@@ -145,10 +159,10 @@ export default function BankDashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>حجم عملیات ۶ ماه گذشته</CardTitle>
+            <CardTitle>حجم عملیات ۶ ماه گذشته (میلیون تومان)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full" dir="ltr">
@@ -167,27 +181,6 @@ export default function BankDashboardPage() {
                   <Bar dataKey="send" fill="oklch(0.55 0.18 240)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="settle" fill="oklch(0.65 0.18 155)" radius={[4, 4, 0, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>نرخ USDT (۳۰ روز)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={rateData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 260)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} tickFormatter={(v) => toPersianDigits(v)} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => toPersianDigits(Math.round(v / 1000)) + "k"} width={45} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }}
-                    formatter={((v: unknown) => [toPersianDigits(Number(v)) + " ت", "نرخ"]) as never}
-                  />
-                  <Line type="monotone" dataKey="rate" stroke="oklch(0.55 0.2 145)" strokeWidth={2} dot={false} />
-                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

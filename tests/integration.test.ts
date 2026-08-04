@@ -6,7 +6,7 @@
  * ways and that the books say what the chain says.
  */
 
-import { check, gatewayArtifacts, run } from "./harness";
+import { check, gatewayArtifacts, run, tokenDecimals } from "./harness";
 
 import {
   createPublicClient,
@@ -53,7 +53,7 @@ const ERC20 = parseAbi([
   "function mint(address to, uint256 v)",
   "function balanceOf(address) view returns (uint256)",
 ]);
-const usdt = (n: string) => parseUnits(n, 18);
+const usdt = (n: string) => parseUnits(n, tokenDecimals());
 
 async function deploy(abi: unknown, bytecode: string, args: unknown[]) {
   const hash = await wallet.deployContract({

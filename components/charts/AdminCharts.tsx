@@ -18,11 +18,15 @@ import {
   CHART_TOOLTIP_STYLE,
 } from "./theme";
 import { useMemo } from "react";
-import { adminVolumeSeries, userGrowthSeries } from "@/lib/mock/fixtures";
+import { monthlyCumulative, monthlyTotals } from "@/lib/series";
+import { useAdminUsersStore } from "@/lib/stores/adminUsers";
+import { useInvoicesStore } from "@/lib/stores/invoices";
 import { toPersianDigits } from "@/lib/format";
 
+/** How many accounts exist, month by month. Counted, not drawn from a table. */
 export function UserGrowthChart() {
-  const data = useMemo(() => userGrowthSeries(6), []);
+  const users = useAdminUsersStore((s) => s.list);
+  const data = useMemo(() => monthlyCumulative(users, 6), [users]);
   return (
     <div className="h-64 w-full" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
@@ -54,8 +58,27 @@ export function UserGrowthChart() {
   );
 }
 
+/**
+ * Invoice volume by direction, month by month.
+ *
+ * Exports and imports rather than "received and sent": those are the two
+ * directions the system actually has, and the amounts are in the settled token
+ * so nothing has to be converted to compare them.
+ */
 export function AdminVolumeChart() {
-  const data = useMemo(() => adminVolumeSeries(6), []);
+  const invoices = useInvoicesStore((s) => s.list);
+  const data = useMemo(
+    () =>
+      monthlyTotals(
+        invoices,
+        {
+          received: (i) => (i.tradeDirection !== "IMPORT" ? i.amount : 0),
+          sent: (i) => (i.tradeDirection === "IMPORT" ? i.amount : 0),
+        },
+        6,
+      ),
+    [invoices],
+  );
   return (
     <div className="h-64 w-full" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">

@@ -14,6 +14,7 @@ import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useTxStore } from "@/lib/stores/transactions";
 import { useHydrated } from "@/lib/stores/hydration";
 import { toPersianDigits } from "@/lib/format";
+import { useInToken } from "@/lib/value";
 import { useAdminUsersStore } from "@/lib/stores/adminUsers";
 import { useLoad } from "@/lib/stores/useLoad";
 
@@ -29,7 +30,8 @@ export default function AdminDashboardPage() {
   useLoad(useAdminUsersStore.getState().load);
   const pendingKyc = users.filter((u) => u.kyc === "PENDING").length;
 
-  const monthVolume = txs.reduce((a, t) => a + t.amount * (t.currency === "BNB" ? 600 : 1), 0);
+  const inToken = useInToken();
+  const monthVolume = txs.reduce((a, t) => a + inToken(t.amount, t.currency), 0);
   const totalUsers = users.length;
 
   const recent = [

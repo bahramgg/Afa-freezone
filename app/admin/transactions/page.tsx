@@ -77,7 +77,7 @@ export default function AdminTransactionsPage() {
                   <th className="text-start font-medium px-4 py-3">مبلغ</th>
                   <th className="text-start font-medium px-4 py-3">وضعیت</th>
                   <th className="text-start font-medium px-4 py-3">تاریخ</th>
-                  <th className="text-start font-medium px-4 py-3">BSCScan</th>
+                  <th className="text-start font-medium px-4 py-3">کاوشگر</th>
                 </tr>
               </thead>
               <tbody>

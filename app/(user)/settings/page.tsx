@@ -106,7 +106,7 @@ export default function SettingsPage() {
                   <WalletIcon className="h-5 w-5 text-primary" />
                   والت‌های متصل
                 </CardTitle>
-                <CardDescription>کیف پول‌های BSC تأیید‌شده شما</CardDescription>
+                <CardDescription>کیف پول‌های تأیید‌شده شما</CardDescription>
               </div>
               <WalletOwnershipDialog onVerified={absorbWallet} />
             </CardHeader>

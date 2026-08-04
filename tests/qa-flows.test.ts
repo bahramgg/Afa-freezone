@@ -5,7 +5,7 @@
  */
 
 import type { Jar } from "./harness";
-import { call, check, gatewayArtifacts, jar, patch, post, run, BASE } from "./harness";
+import { call, check, gatewayArtifacts, jar, patch, post, run, BASE, tokenDecimals } from "./harness";
 
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi, parseUnits, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -32,7 +32,7 @@ const ERC20 = parseAbi(["function mint(address,uint256)", "function balanceOf(ad
 async function main() {
   const { db } = await import("@/lib/server/db");
   const token = process.env.USDT_CONTRACT_ADDRESS as `0x${string}`;
-  const bal = async (a: string) => formatUnits((await pub.readContract({ address: token, abi: ERC20, functionName: "balanceOf", args: [a as `0x${string}`] })) as bigint, 18);
+  const bal = async (a: string) => formatUnits((await pub.readContract({ address: token, abi: ERC20, functionName: "balanceOf", args: [a as `0x${string}`] })) as bigint, tokenDecimals());
   const { runWatcher } = await import("@/lib/server/chain/watcher");
   /** Mines past the confirmation threshold, then lets the cache expire. */
   async function settleChain() {
@@ -96,7 +96,7 @@ async function main() {
     (buyerView.body?.data?.list ?? []).some((i: any) => i.id === expRef), buyerView.body?.error);
 
   console.log("── the buyer pays on chain");
-  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [expAddress as `0x${string}`, parseUnits("1000", 18)] }) });
+  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [expAddress as `0x${string}`, parseUnits("1000", tokenDecimals())] }) });
   await settleChain();
   const expPaid = await db.invoice.findFirst({ where: { ref: expRef } });
   check("the watcher marks it paid", expPaid?.status === "PAID", expPaid?.status);
@@ -172,7 +172,7 @@ async function main() {
   check("the bank records the rial arriving", rial.body?.data?.invoice?.status === "RIAL_RECEIVED", rial.body?.error);
 
   console.log("── the bank funds the contract");
-  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [impAddress as `0x${string}`, parseUnits("122.4", 18)] }) });
+  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [impAddress as `0x${string}`, parseUnits("122.4", tokenDecimals())] }) });
   await settleChain();
   const impPaid = await db.invoice.findFirst({ where: { ref: impRef } });
   check("the invoice is paid", impPaid?.status === "PAID", impPaid?.status);
@@ -210,7 +210,7 @@ async function main() {
   const refInv = await post(merchant, "/api/invoices", { amount: 200, currency: "USDT", description: "برای بازگشت", goodsTitle: "کالا", counterpartyUid: buyerUid });
   const refRef = refInv.body?.data?.invoice?.id;
   const refApproved = await post(admin, `/api/invoices/${refRef}/transition`, { action: "approve" });
-  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [refApproved.body.data.invoice.paymentAddress as `0x${string}`, parseUnits("200", 18)] }) });
+  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [refApproved.body.data.invoice.paymentAddress as `0x${string}`, parseUnits("200", tokenDecimals())] }) });
   await settleChain();
   const created = await post(merchant, "/api/refunds", { invoiceRef: refRef, reason: "لغو سفارش" });
   check("a paid invoice can be refunded", created.body?.data?.refund?.id !== undefined, created.body?.error);

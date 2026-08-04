@@ -1,21 +1,32 @@
 import "server-only";
 import { createPublicClient, defineChain, formatUnits, http, parseAbi } from "viem";
 import { env } from "../env";
+import { chainProfile } from "../../chains";
 
 /**
  * The chain is defined from environment values rather than viem's presets, so
- * moving from BSC testnet to mainnet is a config change and never a code change.
+ * moving between chains is a config change and never a code change. The name
+ * and the native coin come from the profile table, which is the only place any
+ * chain is named.
  */
 export function chain() {
   const { CHAIN_ID, CHAIN_RPC_URL, CHAIN_EXPLORER_URL } = env();
+  const profile = chainProfile(CHAIN_ID);
   return defineChain({
     id: CHAIN_ID,
-    name: CHAIN_ID === 56 ? "BNB Smart Chain" : "BNB Smart Chain Testnet",
-    nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+    name: profile.name,
+    nativeCurrency: {
+      name: profile.nativeSymbol,
+      symbol: profile.nativeSymbol,
+      decimals: 18,
+    },
     rpcUrls: { default: { http: [CHAIN_RPC_URL] } },
-    blockExplorers: { default: { name: "BscScan", url: CHAIN_EXPLORER_URL } },
+    blockExplorers: { default: { name: "explorer", url: CHAIN_EXPLORER_URL } },
   });
 }
+
+/** What gas is paid in on the configured chain. */
+export const nativeSymbol = () => chainProfile(env().CHAIN_ID).nativeSymbol;
 
 let cached: ReturnType<typeof createPublicClient> | null = null;
 
@@ -26,7 +37,7 @@ export function publicClient() {
   return cached;
 }
 
-/** Only the pieces of BEP-20 the gateway needs to read. */
+/** Only the pieces of ERC-20 the gateway needs to read. */
 export const ERC20_ABI = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 value)",
   "function balanceOf(address owner) view returns (uint256)",
@@ -60,10 +71,11 @@ export function toHuman(raw: bigint, currency: "USDT" | "BNB"): string {
 /**
  * The block past which history cannot change.
  *
- * BSC's fast finality makes a finalised block unrevertable, which is a far
- * better signal than counting confirmations on a chain producing a block every
- * half second — 15 confirmations there is seven seconds of protection. Nodes
- * that do not serve the `finalized` tag fall back to counting.
+ * A finalised block is unrevertable, which is a far better signal than counting
+ * confirmations — on BSC fifteen confirmations is seven seconds of protection,
+ * and on Ethereum the number that would be safe depends on the day. Both BSC
+ * and every post-merge Ethereum network serve the `finalized` tag. Nodes that
+ * do not fall back to counting.
  */
 export async function irreversibleBlock(): Promise<bigint> {
   const client = publicClient();

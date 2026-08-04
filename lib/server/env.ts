@@ -22,7 +22,13 @@ const schema = z.object({
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters"),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(72),
 
-  /** BSC mainnet is 56, testnet is 97. */
+  /**
+   * Which chain the gateway settles on.
+   *
+   * 56 BSC · 97 BSC testnet · 1 Ethereum · 11155111 Sepolia · 31337 a local node.
+   * Nothing in the code is tied to any of them: the name, the native coin and
+   * the explorer are all read from here, so moving chains is configuration.
+   */
   CHAIN_ID: z.coerce.number().int().positive().default(56),
   CHAIN_RPC_URL: z.string().url(),
   /**

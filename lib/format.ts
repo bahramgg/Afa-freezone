@@ -1,5 +1,6 @@
 import { dayjs } from "./jalali";
 import type { Currency } from "./types";
+import { currencyLabel, explorerUrl } from "./chains";
 
 const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 
@@ -12,7 +13,7 @@ export function formatCurrency(amount: number, currency: "USDT" | "BNB" | "IRR" 
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
-  return `${formatted} ${currency}`;
+  return `${formatted} ${currencyLabel(currency)}`;
 }
 
 export function formatNumber(n: number): string {
@@ -31,7 +32,7 @@ export function formatAmount(n: number): string {
  * rendered in a table matches the same number rendered in a stat card.
  */
 export function formatToken(amount: number, currency: Currency): string {
-  return `${formatAmount(amount)} ${currency}`;
+  return `${formatAmount(amount)} ${currencyLabel(currency)}`;
 }
 
 export function formatJalali(iso: string | Date, withTime = false): string {
@@ -62,6 +63,10 @@ export function truncateHash(hash: string): string {
   return truncateAddress(hash, 8, 6);
 }
 
+/**
+ * Kept under its old name so every call site does not have to change at once,
+ * but it no longer assumes BscScan: the explorer follows the configured chain.
+ */
 export function bscScanUrl(hashOrAddr: string, type: "tx" | "address" = "tx"): string {
-  return `https://bscscan.com/${type}/${hashOrAddr}`;
+  return explorerUrl(hashOrAddr, type);
 }

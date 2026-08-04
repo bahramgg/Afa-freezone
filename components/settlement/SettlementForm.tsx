@@ -31,6 +31,7 @@ import { useWalletsStore } from "@/lib/stores/wallets";
 import { useAuthStore } from "@/lib/stores/auth";
 import type { Currency } from "@/lib/types";
 import { truncateHash } from "@/lib/format";
+import { nativeSymbol } from "@/lib/chains";
 
 const schema = z.object({
   goodsTitle: z.string().min(1, "مشخصات کالا را وارد کنید"),
@@ -154,7 +155,7 @@ export function SettlementForm() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="USDT">USDT</SelectItem>
-                <SelectItem value="BNB">BNB</SelectItem>
+                <SelectItem value="BNB">{nativeSymbol()}</SelectItem>
               </SelectContent>
             </Select>
           </div>

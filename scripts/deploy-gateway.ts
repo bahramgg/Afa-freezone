@@ -2,6 +2,7 @@ import "dotenv/config";
 import { createPublicClient, createWalletClient, defineChain, formatEther, http, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import artifacts from "../contracts/artifacts/afa-gateway.json";
+import { chainProfile } from "../lib/chains";
 
 /**
  * Deploys the settlement factory.
@@ -29,14 +30,18 @@ const address = (name: string) => {
 };
 
 async function main() {
-  const chainId = Number(process.env.CHAIN_ID ?? 56);
+  const chainId = Number(need("CHAIN_ID"));
   const rpc = need("CHAIN_RPC_URL");
+  // The floor and ceiling below are amounts of the token, so they are scaled by
+  // the token's own decimals. Getting this wrong does not fail loudly — it
+  // deploys a contract whose fee bounds are off by a factor of a trillion.
   const decimals = Number(process.env.USDT_DECIMALS ?? 18);
 
+  const profile = chainProfile(chainId);
   const chain = defineChain({
     id: chainId,
-    name: chainId === 56 ? "BNB Smart Chain" : "BNB Smart Chain Testnet",
-    nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+    name: profile.name,
+    nativeCurrency: { name: profile.nativeSymbol, symbol: profile.nativeSymbol, decimals: 18 },
     rpcUrls: { default: { http: [rpc] } },
   });
 
@@ -64,8 +69,8 @@ async function main() {
   }
 
   const balance = await publicClient.getBalance({ address: account.address });
-  console.log(`chain            : ${chainId}`);
-  console.log(`deployer         : ${account.address}  (${formatEther(balance)} BNB)`);
+  console.log(`chain            : ${profile.name} (${chainId})`);
+  console.log(`deployer         : ${account.address}  (${formatEther(balance)} ${profile.nativeSymbol})`);
   console.log(`token            : ${token}`);
   console.log(`gateway wallet   : ${gatewayWallet}`);
   console.log(`freezone wallet  : ${freezoneWallet}`);
@@ -73,7 +78,9 @@ async function main() {
   console.log(`fee              : ${feeBps / 100}%  (floor ${process.env.GATEWAY_FEE_MIN ?? 1}, ceiling ${process.env.GATEWAY_FEE_MAX ?? 500})`);
   console.log(`organisation cut : ${freezoneBps / 100}% of the fee\n`);
 
-  if (balance === 0n) throw new Error("the deployer has no BNB to pay for gas");
+  if (balance === 0n) {
+    throw new Error(`the deployer has no ${profile.nativeSymbol} to pay for gas`);
+  }
 
   const hash = await wallet.deployContract({
     abi: artifacts.AfaGatewayFactory.abi,

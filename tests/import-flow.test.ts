@@ -6,7 +6,7 @@
  * contract, and the contract sends the seller their exact figure.
  */
 
-import { check, gatewayArtifacts, get, jar, patch, post, run, signIn } from "./harness";
+import { check, gatewayArtifacts, get, jar, patch, post, run, signIn, tokenDecimals } from "./harness";
 
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi, parseUnits, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -30,7 +30,7 @@ async function main() {
   const bal = async (a: string) =>
     formatUnits(
       (await pub.readContract({ address: token, abi: ERC20, functionName: "balanceOf", args: [a as `0x${string}`] })) as bigint,
-      18,
+      tokenDecimals(),
     );
 
   const admin = jar();
@@ -109,7 +109,7 @@ async function main() {
   const deposit = await db.depositAddress.findFirst({ where: { invoice: { ref: inv.id } } });
   const terms = deposit!.terms as any;
   check("whose terms pay the seller, not the bank", terms.beneficiary === SELLER_WALLET, terms.beneficiary);
-  check("and pin the fee to exactly 2.4", terms.feeMin === terms.feeMax && formatUnits(BigInt(terms.feeMin), 18) === "2.4", {
+  check("and pin the fee to exactly 2.4", terms.feeMin === terms.feeMax && formatUnits(BigInt(terms.feeMin), tokenDecimals()) === "2.4", {
     min: terms.feeMin, max: terms.feeMax,
   });
 
@@ -141,7 +141,7 @@ async function main() {
   await pub.waitForTransactionReceipt({
     hash: await w.writeContract({
       address: token, abi: ERC20, functionName: "mint",
-      args: [address as `0x${string}`, parseUnits("122.4", 18)],
+      args: [address as `0x${string}`, parseUnits("122.4", tokenDecimals())],
     }),
   });
   // One more block so the transfer is already past the confirmation threshold

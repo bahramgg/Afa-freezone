@@ -152,7 +152,8 @@ export type Wallet = {
   id: string;
   address: string;
   label: string;
-  network: "BSC";
+  /** What the configured chain is called. Display only. */
+  network: string;
   /** True only once a signature recovered to this address. */
   verified: boolean;
   /** Null until ownership has been proven. */
@@ -217,7 +218,8 @@ export type BankWallet = {
   id: string;
   address: string;
   label: string;
-  network: "BSC";
+  /** What the configured chain is called. Display only. */
+  network: string;
   kind: BankWalletKind;
   usdtBalance: number;
   bnbBalance: number;

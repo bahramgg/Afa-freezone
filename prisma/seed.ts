@@ -114,12 +114,12 @@ async function main() {
   ] as const) {
     if (!address) {
       console.warn(
-        `! skipped ${bankKind} wallet — set SEED_BANK_${bankKind}_WALLET to a BSC address`,
+        `! skipped ${bankKind} wallet — set SEED_BANK_${bankKind}_WALLET to an EVM address`,
       );
       continue;
     }
     if (!/^0x[0-9a-f]{40}$/.test(address)) {
-      throw new Error(`SEED_BANK_${bankKind}_WALLET is not a valid BSC address: ${address}`);
+      throw new Error(`SEED_BANK_${bankKind}_WALLET is not a valid EVM address: ${address}`);
     }
     const existing = await db.wallet.findFirst({ where: { address, ownerKind: "BANK" } });
     if (existing) {

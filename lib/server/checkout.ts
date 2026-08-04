@@ -3,6 +3,7 @@ import { db } from "./db";
 import { env } from "./env";
 import { currentUser } from "./auth/session";
 import { serializeInvoice } from "./serialize";
+import { chainProfile } from "../chains";
 
 /**
  * What the payment page shows.
@@ -16,6 +17,9 @@ export type CheckoutData = {
   invoice: ReturnType<typeof serializeInvoice>;
   chain: {
     id: number;
+    /** How the buyer's wallet names this network. */
+    name: string;
+    testnet: boolean;
     explorerUrl: string;
     token: { address: string; decimals: number; symbol: string };
   };
@@ -24,8 +28,11 @@ export type CheckoutData = {
 /** Chain configuration the buyer's wallet needs. All of it is public. */
 export function publicChainInfo(): CheckoutData["chain"] {
   const { CHAIN_ID, CHAIN_EXPLORER_URL, USDT_CONTRACT_ADDRESS, USDT_DECIMALS } = env();
+  const profile = chainProfile(CHAIN_ID);
   return {
     id: CHAIN_ID,
+    name: profile.enName,
+    testnet: profile.testnet,
     // Deliberately no RPC URL: ours carries a provider key, and the buyer's
     // wallet brings its own node anyway.
     explorerUrl: CHAIN_EXPLORER_URL,

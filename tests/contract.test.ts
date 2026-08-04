@@ -7,7 +7,7 @@
  * already arrived.
  */
 
-import { check, gatewayArtifacts, run } from "./harness";
+import { check, gatewayArtifacts, run, tokenDecimals } from "./harness";
 
 import {
   createPublicClient,
@@ -89,7 +89,7 @@ const ERC20 = parseAbi([
   "function balanceOf(address) view returns (uint256)",
 ]);
 
-const usdt = (n: string) => parseUnits(n, 18);
+const usdt = (n: string) => parseUnits(n, tokenDecimals());
 
 async function main() {
   artifacts = await gatewayArtifacts();

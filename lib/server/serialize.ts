@@ -1,4 +1,6 @@
 import "server-only";
+import { chainProfile } from "@/lib/chains";
+import { env } from "./env";
 import type {
   Invoice,
   Notification,
@@ -49,7 +51,7 @@ export function serializeWallet(w: Wallet) {
     id: w.id,
     address: w.address,
     label: w.label,
-    network: "BSC" as const,
+    network: chainProfile(env().CHAIN_ID).name,
     ownerKind: w.ownerKind,
     bankKind: w.bankKind ?? undefined,
     active: w.active,

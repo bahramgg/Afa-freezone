@@ -16,17 +16,29 @@ import {
   CHART_TOOLTIP_LABEL_STYLE,
   CHART_TOOLTIP_STYLE,
 } from "./theme";
-import { activitySeries } from "@/lib/mock/fixtures";
+import { dailyTotals } from "@/lib/series";
+import { useInvoicesStore } from "@/lib/stores/invoices";
 import { formatJalali, toPersianDigits } from "@/lib/format";
 
+/**
+ * The last thirty days of this merchant's own invoices.
+ *
+ * Split the way the merchant thinks about them: what they are owed for selling
+ * abroad, and what they owe for buying.
+ */
 export function ActivityChart() {
+  const invoices = useInvoicesStore((s) => s.list);
   const data = useMemo(
     () =>
-      activitySeries(30).map((d) => ({
-        ...d,
-        label: formatJalali(d.date).slice(5), // MM/DD
-      })),
-    [],
+      dailyTotals(
+        invoices,
+        {
+          received: (i) => (i.tradeDirection !== "IMPORT" ? i.amount : 0),
+          sent: (i) => (i.tradeDirection === "IMPORT" ? i.amount : 0),
+        },
+        30,
+      ).map((d) => ({ ...d, label: formatJalali(d.date).slice(5) })),
+    [invoices],
   );
 
   return (

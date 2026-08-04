@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { useSettingsStore } from "@/lib/stores/settings";
 import { toPersianDigits, formatAmount } from "@/lib/format";
+import { nativeSymbol } from "@/lib/chains";
 
 export default function BankSettingsPage() {
   const settings = useSettingsStore((s) => s.settings);
@@ -63,7 +64,7 @@ export default function BankSettingsPage() {
                   <p className="text-xs text-muted-foreground">معادل: {toPersianDigits(formatAmount(usdt))} تومان</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>نرخ BNB به تومان</Label>
+                  <Label>نرخ {nativeSymbol()} به تومان</Label>
                   <Input type="number" value={bnb} onChange={(e) => setBnb(Number(e.target.value))} dir="ltr" />
                 </div>
               </div>

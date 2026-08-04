@@ -25,7 +25,9 @@ import { api } from "@/lib/api/client";
 import { useLoad } from "@/lib/stores/useLoad";
 import type { Invoice } from "@/lib/types";
 import { useSettlementsStore } from "@/lib/stores/settlements";
-import { bankVolumeSeries } from "@/lib/mock/fixtures";
+import { currencySplit, monthlyTotals, outcomeSplit } from "@/lib/series";
+import { currencyLabel } from "@/lib/chains";
+import { useInToken } from "@/lib/value";
 import { toPersianDigits, formatAmount } from "@/lib/format";
 
 const STATUS_COLORS = ["oklch(0.55 0.2 145)", "oklch(0.75 0.18 80)", "oklch(0.55 0.22 25)"];
@@ -41,7 +43,39 @@ export default function BankReportsPage() {
   }, []);
   useLoad(load);
 
-  const monthVolume = useMemo(() => bankVolumeSeries(6), []);
+  const inToken = useInToken();
+
+  /**
+   * Counted from the rows this page already loads. All of it used to come from
+   * a fixtures file — six fixed month names and a made-up curve — on a page the
+   * bank reads as a report.
+   */
+  const monthVolume = useMemo(
+    () =>
+      monthlyTotals(
+        [...imports, ...settlements],
+        {
+          send: (r) => ("tradeDirection" in r ? Math.round((r.rialAmount ?? 0) / 1_000_000) : 0),
+          settle: (r) => ("tradeDirection" in r ? 0 : Math.round((r.rialAmount ?? 0) / 1_000_000)),
+        },
+        6,
+      ),
+    [imports, settlements],
+  );
+
+  const cryptoMonthly = useMemo(
+    () =>
+      monthlyTotals(
+        [...imports, ...settlements],
+        {
+          send: (r) =>
+            "tradeDirection" in r ? inToken(r.amount + (r.fee ?? 0), r.currency) : 0,
+          receive: (r) => ("tradeDirection" in r ? 0 : inToken(r.amount, r.currency)),
+        },
+        6,
+      ),
+    [imports, settlements, inToken],
+  );
 
   // The rial the bank took from importers, against currency it supplied.
   const sendVolumeRial = imports
@@ -52,18 +86,24 @@ export default function BankReportsPage() {
     .reduce((a, s) => a + (s.rialAmount ?? 0), 0);
   const cryptoSent = imports
     .filter((i) => i.status === "PAID" || i.status === "PAYMENT_PENDING")
-    .reduce((a, i) => a + (i.amount + (i.fee ?? 0)) * (i.currency === "BNB" ? 280 : 1), 0);
-  const cryptoReceived = settlements.filter((s) => s.status === "SETTLED" || s.status === "CRYPTO_CONFIRMED").reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 280 : 1), 0);
+    .reduce((a, i) => a + inToken(i.amount + (i.fee ?? 0), i.currency), 0);
+  const cryptoReceived = settlements
+    .filter((s) => s.status === "SETTLED" || s.status === "CRYPTO_CONFIRMED")
+    .reduce((a, s) => a + inToken(s.amount, s.currency), 0);
 
-  const statusBreakdown = [
-    { name: "موفق", value: 76 },
-    { name: "در انتظار", value: 14 },
-    { name: "رد شده", value: 10 },
-  ];
-  const currencyBreakdown = [
-    { name: "USDT", value: 84 },
-    { name: "BNB", value: 16 },
-  ];
+  // The bank's own margin, which is the only fee it earns here.
+  const spreadRial =
+    imports.reduce((a, i) => a + (i.bankSpreadRial ?? 0), 0) +
+    settlements.reduce((a, s) => a + (s.bankSpreadRial ?? 0), 0);
+
+  const statusBreakdown = useMemo(
+    () => outcomeSplit([...imports, ...settlements]),
+    [imports, settlements],
+  );
+  const currencyBreakdown = useMemo(
+    () => currencySplit([...imports, ...settlements], currencyLabel),
+    [imports, settlements],
+  );
 
   return (
     <div className="space-y-6">
@@ -84,12 +124,15 @@ export default function BankReportsPage() {
 
         <TabsContent value="overall" className="mt-4 space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard label="حجم واردات ماه (ریال)" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} />
-            <StatCard label="حجم تسویه ماه (ریال)" value={`${toPersianDigits(formatAmount(Math.round(settleVolumeRial / 1_000_000)))} م.ت`} />
+            <StatCard label="حجم واردات" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} />
+            <StatCard label="حجم تسویه" value={`${toPersianDigits(formatAmount(Math.round(settleVolumeRial / 1_000_000)))} م.ت`} />
             <StatCard label="تعداد واردات تسویه‌شده" value={toPersianDigits(imports.filter((i) => i.status === "PAID").length)} />
             <StatCard label="تعداد تسویه" value={toPersianDigits(settlements.filter((s) => s.status === "SETTLED").length)} />
-            <StatCard label="میانگین زمان پاسخ" value="۱.۸ ساعت" />
-            <StatCard label="درآمد کارمزد ماه" value="۱۴.۲ م.ت" />
+            <StatCard label="تعداد کل عملیات" value={toPersianDigits(imports.length + settlements.length)} />
+            <StatCard
+              label="حاشیه ارزی بانک"
+              value={`${toPersianDigits(formatAmount(Math.round(spreadRial / 1_000_000)))} م.ت`}
+            />
           </div>
 
           <Card>
@@ -134,7 +177,9 @@ export default function BankReportsPage() {
                         outerRadius={70}
                         label={(e) => `${toPersianDigits(e.value)}%`}
                       >
-                        {statusBreakdown.map((_, i) => <Cell key={i} fill={STATUS_COLORS[i]} />)}
+                        {statusBreakdown.map((s) => (
+                          <Cell key={s.name} fill={STATUS_COLORS[s.index]} />
+                        ))}
                       </Pie>
                       <Tooltip
                         contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }}
@@ -160,7 +205,9 @@ export default function BankReportsPage() {
                         outerRadius={70}
                         label={(e) => `${e.name} ${toPersianDigits(e.value)}%`}
                       >
-                        {currencyBreakdown.map((_, i) => <Cell key={i} fill={CURRENCY_COLORS[i]} />)}
+                        {currencyBreakdown.map((c) => (
+                          <Cell key={c.name} fill={CURRENCY_COLORS[c.index % CURRENCY_COLORS.length]} />
+                        ))}
                       </Pie>
                       <Tooltip
                         contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }}
@@ -213,24 +260,31 @@ export default function BankReportsPage() {
               hint="تسویه"
             />
             <StatCard
-              label="موجودی خالص ماه"
+              label="خالص ارز"
               value={<MoneyText amount={cryptoReceived - cryptoSent} currency="USDT" />}
               trend={cryptoReceived - cryptoSent >= 0 ? "up" : "down"}
             />
           </div>
           <Card>
             <CardHeader>
-              <CardTitle>جریان روزانه</CardTitle>
+              <CardTitle>جریان ماهانه ارز</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-56 w-full" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthVolume}>
+                  <BarChart data={cryptoMonthly}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 260)" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} reversed />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => toPersianDigits(v)} width={50} />
-                    <Tooltip contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => toPersianDigits(Math.round(v))} width={50} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }}
+                      formatter={((v: unknown, name: unknown) => [
+                        toPersianDigits(Math.round(Number(v))),
+                        name === "send" ? "ارسالی" : "دریافتی",
+                      ]) as never}
+                    />
                     <Bar dataKey="send" fill="oklch(0.55 0.18 240)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="receive" fill="oklch(0.65 0.18 155)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -242,7 +296,7 @@ export default function BankReportsPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <StatCard label="کل دریافتی از کاربران" value={`${toPersianDigits(formatAmount(Math.round(sendVolumeRial / 1_000_000)))} م.ت`} hint="واردات" />
             <StatCard label="کل پرداختی به کاربران" value={`${toPersianDigits(formatAmount(Math.round(settleVolumeRial / 1_000_000)))} م.ت`} hint="تسویه" />
-            <StatCard label="خالص ماه" value={`${toPersianDigits(formatAmount(Math.round((sendVolumeRial - settleVolumeRial) / 1_000_000)))} م.ت`} trend={sendVolumeRial >= settleVolumeRial ? "up" : "down"} />
+            <StatCard label="خالص" value={`${toPersianDigits(formatAmount(Math.round((sendVolumeRial - settleVolumeRial) / 1_000_000)))} م.ت`} trend={sendVolumeRial >= settleVolumeRial ? "up" : "down"} />
           </div>
         </TabsContent>
       </Tabs>

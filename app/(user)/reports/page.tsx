@@ -37,7 +37,9 @@ import { useTxStore } from "@/lib/stores/transactions";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useHydrated } from "@/lib/stores/hydration";
 import { toPersianDigits, truncateHash } from "@/lib/format";
+import { useInToken } from "@/lib/value";
 import type { Transaction, Currency } from "@/lib/types";
+import { nativeSymbol } from "@/lib/chains";
 
 const PAGE = 8;
 
@@ -77,12 +79,13 @@ export default function ReportsPage() {
     });
   }, [txs, tab, direction, currency, status, minAmount, maxAmount, query]);
 
+  const inToken = useInToken();
   const totalReceived = filtered
     .filter((t) => t.direction === "RECEIVE")
-    .reduce((a, t) => a + t.amount * (t.currency === "BNB" ? 600 : 1), 0);
+    .reduce((a, t) => a + inToken(t.amount, t.currency), 0);
   const totalSent = filtered
     .filter((t) => t.direction === "SEND")
-    .reduce((a, t) => a + t.amount * (t.currency === "BNB" ? 600 : 1), 0);
+    .reduce((a, t) => a + inToken(t.amount, t.currency), 0);
   const avgAmount = filtered.length
     ? filtered.reduce((a, t) => a + t.amount, 0) / filtered.length
     : 0;
@@ -162,7 +165,7 @@ export default function ReportsPage() {
                       <SelectContent>
                         <SelectItem value="all">همه</SelectItem>
                         <SelectItem value="USDT">USDT</SelectItem>
-                        <SelectItem value="BNB">BNB</SelectItem>
+                        <SelectItem value="BNB">{nativeSymbol()}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

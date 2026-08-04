@@ -206,6 +206,20 @@ async function main() {
   const runnable = chosen.filter((s) => s.needs.every((n) => world[n] === true));
   const skipped = chosen.filter((s) => !runnable.includes(s));
 
+  // The merchant the suites trade as. Not seeded — the seed bootstraps a real
+  // deployment — so it is made here, once, before anything runs. Without this a
+  // run against a freshly seeded database fails everywhere at once with
+  // `kyc_required`, which says nothing about the system under test.
+  if (runnable.some((s) => s.needs.includes("server") && s.needs.includes("db"))) {
+    try {
+      const { ensureMerchant, STAFF } = await import("./harness");
+      const uid = await ensureMerchant();
+      console.log(`  ✓ merchant ${uid} <${STAFF.merchant}> ready`);
+    } catch (error) {
+      console.log(`  ✗ merchant: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
   let pass = 0;
   let fail = 0;
   const failing: string[] = [];

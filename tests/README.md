@@ -38,8 +38,26 @@ rather than letting a suite fail with a connection error.
 A suite whose world is missing is **skipped and reported**, never quietly
 dropped. A run where nothing could run at all exits non-zero.
 
+### The merchant
+
+Almost every suite trades as one Iranian merchant, `merchant@afa.local`. The
+seed does not create it — the seed bootstraps a real deployment and has no
+business inventing a trading account there — so `npm test` creates it in
+preflight, through the same routes a person would use: signing in makes the
+account, a profile edit completes it, and an admin approves the KYC. In that
+order, because identity fields lock once KYC passes.
+
+Running a single suite directly relies on that account already existing. It will
+after one `npm test`; before that, run the full command once.
+
+If the account is ever left approved but with an empty name, no panel route will
+render for it and the fixture says so rather than looping — delete the row and
+let preflight rebuild it.
+
 `npm run chain:local` deploys a token and the settlement factory onto the local
-node and writes both addresses into `.env`. It is needed after every restart of
+node and writes both addresses into `.env`. It reads `USDT_DECIMALS` from there,
+so the factory's fee floor and ceiling are in the same units the app uses — set
+that value before deploying, not after. It is needed after every restart of
 the node, because a hardhat node keeps nothing — and it refuses to run against
 any chain but the local one, since rewriting those addresses moves every deposit
 address the app would quote.

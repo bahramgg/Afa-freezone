@@ -155,8 +155,14 @@ export async function sessionCookie(email: string) {
 // ─────────────────────────────────────────────────────────── seeded people ──
 
 /**
- * The accounts `prisma/seed.ts` creates. A suite that needs a fresh person
- * registers one; a suite that needs an operator uses these.
+ * The three operators `prisma/seed.ts` creates, plus the merchant the suites
+ * work through. A suite that needs a fresh person registers one.
+ *
+ * The merchant is not seeded — the seed bootstraps a real deployment and has no
+ * business inventing a trading account there. `ensureMerchant` creates it on
+ * first use instead, which is also why a run against an empty database works:
+ * the address used to resolve only because some earlier run had left one
+ * behind, and the suites passed for a reason nobody had written down.
  */
 export const STAFF = {
   admin: process.env.SEED_ADMIN_EMAIL ?? "admin@afa.local",
@@ -164,6 +170,64 @@ export const STAFF = {
   system: process.env.SEED_SYSTEM_EMAIL ?? "system@afa.local",
   merchant: process.env.SEED_MERCHANT_EMAIL ?? "merchant@afa.local",
 } as const;
+
+/**
+ * Brings the suites' Iranian merchant into being, and through KYC, once.
+ *
+ * Both steps go through the routes a person would use — an Iranian merchant is
+ * created by signing in, and approved by an admin — so the fixture is not
+ * privileged: if either route breaks, this breaks with it rather than reaching
+ * past them into the database.
+ *
+ * Called from `run.ts` before any suite starts, and deliberately not from
+ * `run()`: touching the database loads `lib/server/env`, which caches on first
+ * read, and a suite that points the app at a factory it just deployed has to
+ * set `process.env` before anything reads it.
+ */
+export async function ensureMerchant(): Promise<string> {
+  const { db } = await import("@/lib/server/db");
+
+  const seen = await db.user.findUnique({ where: { email: STAFF.merchant } });
+  if (seen?.kyc === "APPROVED" && seen.fullName && seen.nationalId) return seen.uid;
+
+  const merchant = jar();
+  await signIn(merchant, STAFF.merchant);
+
+  const user = await db.user.findUnique({ where: { email: STAFF.merchant } });
+  if (!user) throw new Error(`signing in did not create ${STAFF.merchant}`);
+  if (user.role !== "IRANIAN") {
+    throw new Error(`${STAFF.merchant} is a ${user.role} account, not a merchant`);
+  }
+
+  // Before approval, not after: the identity fields lock once KYC passes, and
+  // an account without them is bounced to /profile on every panel route.
+  if (!user.fullName || !user.nationalId) {
+    const filled = await patch(merchant, "/api/profile", {
+      fullName: "بازرگان نمونه",
+      nationalId: "0012345678",
+      phone: "09120000000",
+    });
+    // The route drops locked fields silently and still answers ok, so the
+    // answer worth checking is whether the profile actually became complete.
+    if (!filled.body?.data?.hasProfile) {
+      throw new Error(
+        `could not complete the merchant's profile — an approved account cannot ` +
+          `change its identity fields, so delete ${STAFF.merchant} and let this ` +
+          `rebuild it: ${describe(filled.body)}`,
+      );
+    }
+  }
+
+  if (user.kyc !== "APPROVED") {
+    const admin = jar();
+    await signIn(admin, STAFF.admin);
+    const approved = await post(admin, `/api/admin/kyc/${user.uid}`, { action: "approve" });
+    if (!approved.body?.ok) {
+      throw new Error(`could not approve the merchant: ${describe(approved.body)}`);
+    }
+  }
+  return user.uid;
+}
 
 // ─────────────────────────────────────────────────────────────── the chain ──
 
@@ -188,6 +252,16 @@ export const TOKEN_ABI = [
 ];
 
 export const tokenAddress = () => process.env.USDT_CONTRACT_ADDRESS as `0x${string}`;
+
+/**
+ * How many decimals the settled token has, read the way the app reads it.
+ *
+ * Hardcoding 18 here made every suite a test of one particular chain: USDT is
+ * six decimals nearly everywhere it matters, and a suite that mints at 18 while
+ * the app formats at 6 reports a fee of 500 on a payment of 1000 and blames the
+ * contract.
+ */
+export const tokenDecimals = () => Number(process.env.USDT_DECIMALS ?? 18);
 export const factoryAddress = () => process.env.GATEWAY_FACTORY_ADDRESS as `0x${string}`;
 
 /** Loaded lazily so a suite that never touches the chain never needs viem. */
@@ -218,7 +292,7 @@ export async function chain() {
         functionName: "balanceOf",
         args: [who as `0x${string}`],
       })) as bigint,
-      18,
+      tokenDecimals(),
     );
 
   const mint = async (to: string, amount: string) => {
@@ -226,7 +300,7 @@ export async function chain() {
       address: tokenAddress(),
       abi: erc20,
       functionName: "mint",
-      args: [to as `0x${string}`, parseUnits(amount, 18)],
+      args: [to as `0x${string}`, parseUnits(amount, tokenDecimals())],
     });
     return publicClient.waitForTransactionReceipt({ hash });
   };
@@ -236,7 +310,7 @@ export async function chain() {
       address: tokenAddress(),
       abi: erc20,
       functionName: "transfer",
-      args: [to as `0x${string}`, parseUnits(amount, 18)],
+      args: [to as `0x${string}`, parseUnits(amount, tokenDecimals())],
     });
     return publicClient.waitForTransactionReceipt({ hash });
   };

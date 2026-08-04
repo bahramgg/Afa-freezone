@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/shared/StatCard";
-import { MoneyText } from "@/components/shared/MoneyText";
 import { CopyButton } from "@/components/shared/CopyButton";
 import {
   Dialog,
@@ -24,6 +23,7 @@ import {
 import { useBankStore } from "@/lib/stores/bank";
 import { useSettingsStore } from "@/lib/stores/settings";
 import { truncateAddress, formatAmount, formatToken, toPersianDigits } from "@/lib/format";
+import { nativeSymbol } from "@/lib/chains";
 import type { BankWalletKind } from "@/lib/types";
 
 const KIND_LABEL: Record<BankWalletKind, string> = {
@@ -50,7 +50,7 @@ export default function BankWalletsPage() {
 
   function handleAdd() {
     if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-      toast.error("آدرس BSC معتبر نیست");
+      toast.error("آدرس کیف پول معتبر نیست");
       return;
     }
     add({ address, label: label || "کیف پول جدید", kind });
@@ -84,7 +84,7 @@ export default function BankWalletsPage() {
                   <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="کیف پول جدید" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>آدرس BSC</Label>
+                  <Label>آدرس کیف پول</Label>
                   <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="0x..." dir="ltr" className="font-mono" />
                 </div>
                 <div className="space-y-1.5">
@@ -118,7 +118,7 @@ export default function BankWalletsPage() {
           hint={`${formatAmount(usdtRial)} ت`}
         />
         <StatCard
-          label="موجودی BNB"
+          label={`موجودی ${nativeSymbol()}`}
           value={formatToken(totalBnb, "BNB")}
           icon={Coins}
           tone="success"
@@ -152,7 +152,7 @@ export default function BankWalletsPage() {
                   <th className="text-start font-medium px-4 py-3">شبکه</th>
                   <th className="text-start font-medium px-4 py-3">نوع</th>
                   <th className="text-start font-medium px-4 py-3">USDT</th>
-                  <th className="text-start font-medium px-4 py-3">BNB</th>
+                  <th className="text-start font-medium px-4 py-3">{nativeSymbol()}</th>
                   <th className="text-start font-medium px-4 py-3">وضعیت</th>
                   <th className="text-start font-medium px-4 py-3"></th>
                 </tr>

@@ -12,7 +12,7 @@ const Body = z.object({ address: z.string().trim() });
 export const POST = handler(async (request: Request) => {
   const user = await requireUser();
   const { address } = await readJson(request, Body);
-  if (!isAddress(address)) throw badRequest("آدرس BSC معتبر نیست");
+  if (!isAddress(address)) throw badRequest("آدرس کیف پول معتبر نیست");
 
   const challenge = await issueWalletChallenge(user, address);
 

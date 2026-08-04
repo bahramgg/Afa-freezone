@@ -18,6 +18,7 @@
     "chain:local": "tsx --conditions=react-server scripts/local-chain.ts",
     "contracts:build": "tsx scripts/compile-contracts.ts",
     "contracts:deploy": "tsx scripts/deploy-gateway.ts",
+    "contracts:token": "tsx scripts/deploy-test-token.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

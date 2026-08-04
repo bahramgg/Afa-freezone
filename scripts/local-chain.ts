@@ -63,6 +63,7 @@ const readEnv = (key: string) =>
   new RegExp(`^${key}=(.*)$`, "m").exec(readFileSync(envPath, "utf8"))?.[1]?.trim() ?? "";
 
 async function main() {
+  const decimals = Number(readEnv("USDT_DECIMALS") || 18);
   const live = await pub.getChainId();
   if (live !== LOCAL_CHAIN_ID) {
     throw new Error(
@@ -107,8 +108,12 @@ async function main() {
       readEnv("BANK_TREASURY_WALLET"),
       Math.round(Number(readEnv("GATEWAY_FEE_PERCENT") || 2) * 100),
       Math.round(Number(readEnv("FREEZONE_SHARE_PERCENT") || 50) * 100),
-      parseUnits(readEnv("GATEWAY_FEE_MIN") || "1", 18),
-      parseUnits(readEnv("GATEWAY_FEE_MAX") || "500", 18),
+      // The floor and the ceiling are token units, so they follow the token's
+      // decimals and not the native coin's. Hardcoding 18 here put the floor a
+      // trillion times too high the moment USDT_DECIMALS became 6, and nothing
+      // said so — the contract simply charged the ceiling on every payment.
+      parseUnits(readEnv("GATEWAY_FEE_MIN") || "1", decimals),
+      parseUnits(readEnv("GATEWAY_FEE_MAX") || "500", decimals),
     ] as never,
   });
   const factory = (await pub.waitForTransactionReceipt({ hash: factoryHash })).contractAddress!;

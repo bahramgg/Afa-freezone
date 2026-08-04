@@ -3,7 +3,7 @@
  */
 
 import type { Jar } from "./harness";
-import { call, check, gatewayArtifacts, jar, patch, post, run } from "./harness";
+import { call, check, gatewayArtifacts, jar, patch, post, run, tokenDecimals } from "./harness";
 
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi, parseUnits, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -60,7 +60,7 @@ async function main() {
     imp.body?.data?.invoice?.amount === 120 && imp.body?.data?.invoice?.fee === 2.4, imp.body?.data?.invoice);
 
   console.log("── the bank sends only the principal, as it used to");
-  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [address as `0x${string}`, parseUnits("120", 18)] }) });
+  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [address as `0x${string}`, parseUnits("120", tokenDecimals())] }) });
   await settle();
   const short = await db.invoice.findFirst({ where: { ref } });
   check("it is NOT marked paid", short?.status !== "PAID", short?.status);
@@ -69,12 +69,12 @@ async function main() {
   check("and the shortfall is named against 122.4", /122\.4/.test(partial?.body ?? ""), partial?.body);
 
   console.log("── the rest arrives");
-  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [address as `0x${string}`, parseUnits("2.4", 18)] }) });
+  await pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: token, abi: ERC20, functionName: "mint", args: [address as `0x${string}`, parseUnits("2.4", tokenDecimals())] }) });
   await settle();
   const full = await db.invoice.findFirst({ where: { ref } });
   check("now it is paid", full?.status === "PAID", full?.status);
 
-  const bal = async (a: string) => formatUnits((await pub.readContract({ address: token, abi: ERC20, functionName: "balanceOf", args: [a as `0x${string}`] })) as bigint, 18);
+  const bal = async (a: string) => formatUnits((await pub.readContract({ address: token, abi: ERC20, functionName: "balanceOf", args: [a as `0x${string}`] })) as bigint, tokenDecimals());
   const dep = await db.depositAddress.findFirst({ where: { invoiceId: full!.id } });
   const t = dep!.terms as any;
   const before = await bal(WALLET);

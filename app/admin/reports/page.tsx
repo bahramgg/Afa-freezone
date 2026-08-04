@@ -24,10 +24,12 @@ import { MoneyText } from "@/components/shared/MoneyText";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { useInvoicesStore } from "@/lib/stores/invoices";
 import { useSettlementsStore } from "@/lib/stores/settlements";
-import { adminVolumeSeries } from "@/lib/mock/fixtures";
+import { currencySplit, monthlyTotals, outcomeSplit } from "@/lib/series";
+import { currencyLabel } from "@/lib/chains";
 import { useAdminUsersStore } from "@/lib/stores/adminUsers";
 import { useLoad } from "@/lib/stores/useLoad";
 import { toPersianDigits } from "@/lib/format";
+import { useInToken } from "@/lib/value";
 
 const STATUS_COLORS = ["oklch(0.55 0.2 145)", "oklch(0.75 0.18 80)", "oklch(0.55 0.22 25)"];
 const CURRENCY_COLORS = ["oklch(0.55 0.18 240)", "oklch(0.75 0.18 80)"];
@@ -36,11 +38,35 @@ export default function AdminReportsPage() {
   const invoices = useInvoicesStore((s) => s.list);
   const settlements = useSettlementsStore((s) => s.list);
 
-  const monthly = useMemo(() => adminVolumeSeries(6), []);
-  const monthlyWithSettle = monthly.map((m, i) => ({
-    ...m,
-    settle: [380, 520, 440, 620, 680, 790][i] ?? 0,
-  }));
+  /**
+   * Counted from the invoices and settlements this page already loads.
+   * Everything here used to come from a fixtures file — fixed months, invented
+   * volumes — on a page an official reads as a report.
+   */
+  const monthlyWithSettle = useMemo(
+    () =>
+      monthlyTotals(
+        [...invoices, ...settlements] as ({ createdAt?: string } & Record<string, unknown>)[],
+        {
+          received: (r) =>
+            "tradeDirection" in r && r.tradeDirection !== "IMPORT" ? Number(r.amount) : 0,
+          sent: (r) => ("tradeDirection" in r && r.tradeDirection === "IMPORT" ? Number(r.amount) : 0),
+          settle: (r) => (!("tradeDirection" in r) ? Number(r.amount) : 0),
+        },
+        6,
+      ).map((m) => ({ ...m, volume: m.received + m.sent })),
+    [invoices, settlements],
+  );
+
+  const byCurrency = useMemo(
+    () => currencySplit([...invoices, ...settlements], currencyLabel),
+    [invoices, settlements],
+  );
+
+  const byOutcome = useMemo(
+    () => outcomeSplit([...invoices, ...settlements]),
+    [invoices, settlements],
+  );
 
   const users = useAdminUsersStore((s) => s.list);
   useLoad(useAdminUsersStore.getState().load);
@@ -49,14 +75,23 @@ export default function AdminReportsPage() {
   const pendingKyc = users.filter((u) => u.kyc === "PENDING").length;
   const rejectedKyc = users.filter((u) => u.kyc === "REJECTED").length;
 
-  const totalVolume = invoices.reduce((a, i) => a + i.amount * (i.currency === "BNB" ? 600 : 1), 0)
-    + settlements.reduce((a, s) => a + s.amount * (s.currency === "BNB" ? 600 : 1), 0);
-  const totalReceive = invoices.filter((i) => i.status === "PAID").reduce((a, i) => a + i.amount * (i.currency === "BNB" ? 600 : 1), 0);
+  const inToken = useInToken();
+  const totalVolume = invoices.reduce((a, i) => a + inToken(i.amount, i.currency), 0)
+    + settlements.reduce((a, s) => a + inToken(s.amount, s.currency), 0);
+  const totalReceive = invoices.filter((i) => i.status === "PAID").reduce((a, i) => a + inToken(i.amount, i.currency), 0);
   const importInvoices = invoices.filter((i) => i.tradeDirection === "IMPORT");
   const totalImport = importInvoices
     .filter((i) => i.status === "PAID")
-    .reduce((a, i) => a + i.amount * (i.currency === "BNB" ? 600 : 1), 0);
+    .reduce((a, i) => a + inToken(i.amount, i.currency), 0);
   const settled = settlements.filter((s) => s.status === "SETTLED");
+
+  // The gateway's fee, as it was charged on each record — not a rate applied
+  // to the total, which would report a fee nobody was billed.
+  const totalFee =
+    invoices.reduce((a, i) => a + inToken(i.fee ?? 0, i.currency), 0) +
+    settlements.reduce((a, s) => a + inToken(s.feeAmount ?? 0, s.currency), 0);
+  const count = invoices.length + settlements.length;
+  const avgAmount = count ? totalVolume / count : 0;
 
   return (
     <div className="space-y-6">
@@ -84,9 +119,9 @@ export default function AdminReportsPage() {
             <StatCard label="کل حجم تراکنش‌ها" value={<MoneyText amount={totalVolume} currency="USDT" />} />
             <StatCard label="کل دریافت وجه" value={<MoneyText amount={totalReceive} currency="USDT" />} />
             <StatCard label="کل واردات" value={<MoneyText amount={totalImport} currency="USDT" />} />
-            <StatCard label="درآمد کارمزد" value={<MoneyText amount={totalVolume * 0.02} currency="USDT" />} />
+            <StatCard label="درآمد کارمزد" value={<MoneyText amount={totalFee} currency="USDT" />} />
             <StatCard label="تعداد کل تراکنش‌ها" value={toPersianDigits(invoices.length + settlements.length)} />
-            <StatCard label="میانگین مبلغ" value={<MoneyText amount={328} currency="USDT" />} />
+            <StatCard label="میانگین مبلغ" value={<MoneyText amount={avgAmount} currency="USDT" />} />
           </div>
 
           <Card>
@@ -116,15 +151,15 @@ export default function AdminReportsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={[{ name: "موفق", value: 76 }, { name: "در انتظار", value: 14 }, { name: "رد شده", value: 10 }]}
+                        data={byOutcome}
                         dataKey="value"
                         nameKey="name"
                         outerRadius={70}
                         label={(e) => `${toPersianDigits(e.value)}%`}
                       >
-                        <Cell fill={STATUS_COLORS[0]} />
-                        <Cell fill={STATUS_COLORS[1]} />
-                        <Cell fill={STATUS_COLORS[2]} />
+                        {byOutcome.map((slice) => (
+                          <Cell key={slice.name} fill={STATUS_COLORS[slice.index]} />
+                        ))}
                       </Pie>
                       <Tooltip contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }} />
                     </PieChart>
@@ -139,14 +174,18 @@ export default function AdminReportsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={[{ name: "USDT", value: 82 }, { name: "BNB", value: 18 }]}
+                        data={byCurrency}
                         dataKey="value"
                         nameKey="name"
                         outerRadius={70}
                         label={(e) => `${e.name} ${toPersianDigits(e.value)}%`}
                       >
-                        <Cell fill={CURRENCY_COLORS[0]} />
-                        <Cell fill={CURRENCY_COLORS[1]} />
+                        {byCurrency.map((slice) => (
+                          <Cell
+                            key={slice.name}
+                            fill={CURRENCY_COLORS[slice.index % CURRENCY_COLORS.length]}
+                          />
+                        ))}
                       </Pie>
                       <Tooltip contentStyle={{ borderRadius: 8, fontFamily: "var(--font-vazirmatn)", direction: "rtl" }} />
                     </PieChart>

@@ -2,7 +2,9 @@ import { z } from "zod";
 import { db } from "@/lib/server/db";
 import { issueOtp, normalizeEmail } from "@/lib/server/auth/otp";
 import { audit } from "@/lib/server/audit";
-import { forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
+import { clientIp, forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
+import { rateLimit } from "@/lib/server/ratelimit";
+import { env } from "@/lib/server/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +20,16 @@ const Body = z.object({ email: z.string().min(4) });
  * address nobody has seen before is a registration rather than an error.
  */
 export const POST = handler(async (request: Request) => {
+  // Before anything else, and before the address is even read: the per-address
+  // cooldown further down stops someone hammering one inbox, and this stops the
+  // same caller walking a list of thousands, each of which would otherwise be a
+  // first request and a real email.
+  rateLimit(`otp:${clientIp(request) ?? "unknown"}`, {
+    limit: env().AUTH_RATE_LIMIT * 1,
+    windowMs: 10 * 60_000,
+    message: "درخواست‌های ورود از این دستگاه بیش از حد مجاز است",
+  });
+
   const { email } = await readJson(request, Body);
   const normalized = normalizeEmail(email);
 

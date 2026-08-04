@@ -43,6 +43,8 @@ type Deposit = {
   address: string;
   invoiceRef?: string;
   direction?: "EXPORT" | "IMPORT";
+  /** What should have arrived: the amount, plus the fee on an import. */
+  expectedAmount?: number;
   currency: string;
   receivedAmount: number;
   released: boolean;
@@ -205,7 +207,27 @@ export default function DepositsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {toPersianDigits(formatAmount(d.receivedAmount))} {d.currency}
+                        <div>
+                          {toPersianDigits(formatAmount(d.receivedAmount))} {d.currency}
+                        </div>
+                        {/* Releasing pays out whatever is here. On an import the
+                            surplus goes to the foreign seller and out of reach,
+                            so a mismatch has to be visible before the button is
+                            pressed, not explained afterwards. */}
+                        {(() => {
+                          if (d.released || d.expectedAmount === undefined || d.receivedAmount === 0) return null;
+                          const diff = Math.round((d.receivedAmount - d.expectedAmount) * 1e6) / 1e6;
+                          if (diff === 0) return null;
+                          return (
+                            <div className={`mt-1 text-[11px] ${diff > 0 ? "text-warning" : "text-destructive"}`}>
+                              {diff > 0 ? "بیش از انتظار: +" : "کسری: "}
+                              {toPersianDigits(formatAmount(Math.abs(diff)))}
+                              <span className="text-muted-foreground">
+                                {" "}(انتظار {toPersianDigits(formatAmount(d.expectedAmount))})
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs">
                         {(() => {

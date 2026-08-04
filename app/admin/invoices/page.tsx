@@ -27,11 +27,21 @@ import { useHydrated } from "@/lib/stores/hydration";
 import { truncateAddress, toPersianDigits } from "@/lib/format";
 import type { Invoice, InvoiceStatus } from "@/lib/types";
 
-type AdminTabKey = "ALL" | "PENDING" | "APPROVED_OR_PENDING_PAYMENT" | "PAID" | "EXPIRED" | "REJECTED";
+type AdminTabKey =
+  | "ALL"
+  | "PENDING"
+  | "APPROVED_OR_PENDING_PAYMENT"
+  | "WITH_BANK"
+  | "PAID"
+  | "EXPIRED"
+  | "REJECTED";
 
 const TABS: { value: AdminTabKey; label: string }[] = [
   { value: "PENDING", label: "در انتظار تأیید" },
   { value: "APPROVED_OR_PENDING_PAYMENT", label: "تأیید شده (در انتظار پرداخت)" },
+  // An import spends most of its life here, and until this tab existed those
+  // two statuses were reachable only by scrolling "همه".
+  { value: "WITH_BANK", label: "واردات نزد بانک" },
   { value: "PAID", label: "موفق" },
   { value: "EXPIRED", label: "منقضی" },
   { value: "REJECTED", label: "رد شده" },
@@ -42,10 +52,31 @@ const ADMIN_STATUSES_FOR: Record<AdminTabKey, InvoiceStatus[] | "ALL"> = {
   ALL: "ALL",
   PENDING: ["PENDING"],
   APPROVED_OR_PENDING_PAYMENT: ["APPROVED", "PAYMENT_PENDING"],
+  WITH_BANK: ["BANK_RATE_LOCKED", "RIAL_RECEIVED"],
   PAID: ["PAID"],
   EXPIRED: ["EXPIRED"],
   REJECTED: ["REJECTED"],
 };
+
+/**
+ * Which way the goods are going, said plainly.
+ *
+ * Approving an export lets currency into the country; approving an import sends
+ * it out. They are not the same decision, and the screen that makes it was not
+ * telling the operator which one they were looking at.
+ */
+function DirectionTag({ direction }: { direction?: "EXPORT" | "IMPORT" }) {
+  const importing = direction === "IMPORT";
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
+        importing ? "bg-info/10 text-info" : "bg-success/10 text-success"
+      }`}
+    >
+      {importing ? "واردات" : "صادرات"}
+    </span>
+  );
+}
 
 export default function AdminInvoicesPage() {
   const list = useInvoicesStore((s) => s.list);
@@ -139,6 +170,7 @@ export default function AdminInvoicesPage() {
                       <tr className="text-xs text-muted-foreground">
                         <th className="text-start font-medium px-4 py-3">TRX</th>
                         <th className="text-start font-medium px-4 py-3">INV</th>
+                        <th className="text-start font-medium px-4 py-3">جهت</th>
                         <th className="text-start font-medium px-4 py-3">کاربر</th>
                         <th className="text-start font-medium px-4 py-3">مبلغ</th>
                         <th className="text-start font-medium px-4 py-3">والت گیرنده</th>
@@ -153,6 +185,9 @@ export default function AdminInvoicesPage() {
                         <tr key={inv.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 font-mono text-xs">{inv.trxId}</td>
                           <td className="px-4 py-3 font-mono text-xs">{inv.id}</td>
+                          <td className="px-4 py-3">
+                            <DirectionTag direction={inv.tradeDirection} />
+                          </td>
                           <td className="px-4 py-3">
                             {inv.userName ?? "—"}
                             <div className="text-[10px] text-muted-foreground">{inv.userUid ?? ""}</div>
@@ -191,6 +226,7 @@ export default function AdminInvoicesPage() {
               <Row label="کاربر" value={`${reviewing.userName ?? "—"} (${reviewing.userUid ?? "—"})`} />
               <Row label="ارسال کننده" value={reviewing.senderName || "—"} />
               <Row label="کالای صادره" value={reviewing.goodsTitle || "—"} />
+              <Row label="جهت تجارت" value={<DirectionTag direction={reviewing.tradeDirection} />} />
               <Row label="مبلغ" value={<MoneyText amount={reviewing.amount} currency={reviewing.currency} />} />
               <Row label="والت گیرنده" value={reviewing.walletAddress ? (
                 <span className="font-mono text-xs flex items-center gap-2" dir="ltr">

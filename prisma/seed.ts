@@ -20,10 +20,31 @@ function hashSecret(plain: string) {
 }
 
 
+/**
+ * Staff sign in by emailed code like everyone else, so a staff address that
+ * cannot receive mail is a locked panel rather than a placeholder.
+ *
+ * The .local defaults are fine on a laptop, where the code comes back in the
+ * response. In production they silently create three accounts nobody can ever
+ * open — the free zone, the bank and the system administrator all shut out —
+ * and the failure only shows up when someone tries to sign in.
+ */
+function staffEmail(name: string, fallback: string): string {
+  const value = process.env[name] ?? fallback;
+  const undeliverable = /\.(local|test|invalid|example)$/i.test(value.split("@")[1] ?? "");
+  if (undeliverable && process.env.NODE_ENV === "production") {
+    throw new Error(
+      `${name} is "${value}", which cannot receive email. Sign-in is by emailed code, ` +
+        `so this account would be unreachable. Set ${name} to a real address.`,
+    );
+  }
+  return value;
+}
+
 async function main() {
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@afa.local";
-  const bankEmail = process.env.SEED_BANK_EMAIL ?? "bank@afa.local";
-  const systemEmail = process.env.SEED_SYSTEM_EMAIL ?? "system@afa.local";
+  const adminEmail = staffEmail("SEED_ADMIN_EMAIL", "admin@afa.local");
+  const bankEmail = staffEmail("SEED_BANK_EMAIL", "bank@afa.local");
+  const systemEmail = staffEmail("SEED_SYSTEM_EMAIL", "system@afa.local");
 
   await db.settings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
   console.log("· settings row ready");

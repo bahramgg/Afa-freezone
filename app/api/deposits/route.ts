@@ -30,7 +30,12 @@ export const GET = handler(async () => {
   const rows = await db.depositAddress.findMany({
     where: { invoiceId: { not: null } },
     include: {
-      invoice: { select: { ref: true, currency: true, status: true, direction: true } },
+      invoice: {
+        select: {
+          ref: true, currency: true, status: true, direction: true,
+          amount: true, feeAmount: true,
+        },
+      },
     },
     orderBy: [{ sweptAt: "asc" }, { createdAt: "desc" }],
     take: 200,
@@ -71,6 +76,21 @@ export const GET = handler(async () => {
         address: d.address,
         invoiceRef: d.invoice?.ref,
         direction: d.invoice?.direction,
+        /**
+         * What should have arrived, so the operator can see a mismatch before
+         * releasing rather than after.
+         *
+         * Releasing is irreversible and pays out whatever is sitting there: an
+         * export sends the surplus to the bank's own treasury, but an import
+         * sends it to the foreign seller, out of the country and out of reach.
+         */
+        expectedAmount: d.invoice
+          ? Number(
+              d.invoice.direction === "IMPORT"
+                ? d.invoice.amount.add(d.invoice.feeAmount ?? 0)
+                : d.invoice.amount,
+            )
+          : undefined,
         currency: d.invoice?.currency ?? "USDT",
         receivedAmount: Number(d.receivedAmount),
         released: d.sweptAt !== null,

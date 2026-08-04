@@ -81,6 +81,15 @@ const schema = z.object({
   SMTP_PASSWORD: optional(z.string()),
   RESEND_API_KEY: optional(z.string()),
 
+  /**
+   * How many sign-in requests one caller may make in ten minutes.
+   *
+   * Tuned for a person, not a test run: two or three is a bad day. Raised
+   * locally so a suite that signs in as five roles in a row is not throttled by
+   * a protection aimed at someone walking a list of ten thousand addresses.
+   */
+  AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
+
   OTP_TTL_MINUTES: z.coerce.number().int().positive().default(3),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 

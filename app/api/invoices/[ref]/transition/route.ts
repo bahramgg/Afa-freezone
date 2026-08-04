@@ -257,12 +257,21 @@ export const POST = handler(
         if (!txHash) throw badRequest("هش تراکنش الزامی است");
         if (!invoice.paymentAddress) throw badRequest("آدرس پرداخت این فاکتور تعیین نشده است");
 
+        // Importing, the fee rides on top of what the seller is owed, so the
+        // bank has to send both. Accepting the principal alone would settle the
+        // invoice while the contract paid the seller the fee less than their
+        // own figure.
+        const required =
+          invoice.direction === "IMPORT"
+            ? invoice.amount.add(invoice.feeAmount ?? 0)
+            : invoice.amount;
+
         let verified;
         try {
           verified = await verifyTransfer(txHash, {
             to: invoice.paymentAddress,
             currency: invoice.currency,
-            minAmount: invoice.amount.toString(),
+            minAmount: required.toString(),
           });
         } catch (error) {
           if (error instanceof ChainVerificationError) throw badRequest(error.message);

@@ -4,6 +4,8 @@ import { normalizeEmail, redeemLink, redeemOtp } from "@/lib/server/auth/otp";
 import { createSession } from "@/lib/server/auth/session";
 import { audit } from "@/lib/server/audit";
 import { badRequest, clientIp, forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
+import { rateLimit } from "@/lib/server/ratelimit";
+import { env } from "@/lib/server/env";
 import { serializeUser } from "@/lib/server/serialize";
 import { nextUid } from "@/lib/server/uid";
 
@@ -37,6 +39,14 @@ const HOME = {
 } as const;
 
 export const POST = handler(async (request: Request) => {
+  // The per-code attempt counter resets every time a new code is asked for, so
+  // on its own it does not bound guessing across codes. This does.
+  rateLimit(`verify:${clientIp(request) ?? "unknown"}`, {
+    limit: env().AUTH_RATE_LIMIT * 2,
+    windowMs: 10 * 60_000,
+    message: "تلاش‌های ورود از این دستگاه بیش از حد مجاز است",
+  });
+
   const body = await readJson(request, Body);
 
   // The link carries no address of its own — the record it opens supplies one,

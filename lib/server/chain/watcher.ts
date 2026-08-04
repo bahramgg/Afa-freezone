@@ -373,8 +373,23 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
 
   if (invoice.status === "PAID" || invoice.status === "REJECTED") return false;
 
-  if (total.lessThan(invoice.amount)) {
-    // Short. The invoice stays open on the same address so the buyer can finish.
+  /**
+   * What has to arrive before the invoice is settled.
+   *
+   * Exporting, the buyer pays the invoice amount and the fee comes out of it —
+   * the merchant is credited the remainder. Importing, the fee goes on top:
+   * the seller is owed the figure on their contract in full, so the bank has to
+   * send that plus the fee. Measuring an import against the amount alone marked
+   * it paid on the principal and left the seller short by exactly the fee, with
+   * nothing anywhere saying so.
+   */
+  const required =
+    invoice.direction === "IMPORT"
+      ? invoice.amount.add(invoice.feeAmount ?? 0)
+      : invoice.amount;
+
+  if (total.lessThan(required)) {
+    // Short. The invoice stays open on the same address so the payer can finish.
     await db.invoice.update({
       where: { id: invoice.id },
       data: { status: "PAYMENT_PENDING", receivedAmount: total },
@@ -382,7 +397,7 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     await notifyInvoiceParties(invoice, {
       kind: "PAYMENT_PARTIAL",
       title: "پرداخت ناقص دریافت شد",
-      body: `برای فاکتور ${invoice.ref} تاکنون ${total} از ${invoice.amount} دریافت شده است`,
+      body: `برای فاکتور ${invoice.ref} تاکنون ${total} از ${required} دریافت شده است`,
     });
     return false;
   }

@@ -1,3 +1,4 @@
+import { GuideGrid } from "@/components/landing/GuideGrid";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { PortalGrid } from "@/components/landing/PortalGrid";
@@ -25,6 +26,20 @@ export default function Home() {
         <h2 className="mt-10 text-sm font-medium text-muted-foreground">انتخاب پنل</h2>
         <div className="mt-3">
           <PortalGrid />
+        </div>
+
+        {/* Below the directory, because it answers a different question: not
+            "which panel is mine" but "what does this system actually do". */}
+        <div className="mt-14 border-t border-border pt-10">
+          <h2 className="text-lg font-semibold tracking-tight">راهنمای کارکرد سامانه</h2>
+          <p className="mt-2 max-w-2xl text-pretty text-sm leading-7 text-muted-foreground">
+            برای هر پنل یک ویدئوی راهنما و یک سند متنی تهیه شده است: مسیر کامل یک معامله از صدور
+            فاکتور تا تسویهٔ نهایی، به‌صورت نمودار و گام‌به‌گام. ویدئوها صدا ندارند و همهٔ توضیحات
+            روی تصویر نوشته شده است.
+          </p>
+          <div className="mt-5">
+            <GuideGrid />
+          </div>
         </div>
       </main>
 

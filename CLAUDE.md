@@ -56,6 +56,18 @@ prisma/
 - Stores start empty; `DataBootstrap` in each layout loads what that persona
   needs. A new store needs a loader added there, not a fetch in the page.
 
+## The guides
+
+`scripts/media/` builds a silent captioned video and a PDF per panel, served
+from the landing page. The copy lives in `scripts/media/content.ts` and it is
+written for the free zone's officials, not for engineers — no technology is
+named, and nothing is left out because it is obvious to whoever built it.
+
+Changing a flow means changing that file. A guide that describes a flow the
+system no longer has is worse than no guide.
+
+`npm run guides` rebuilds; output lands in `public/guide/` and is committed.
+
 ## Tests
 
 `tests/` holds end-to-end suites — real database, real routes, real chain,

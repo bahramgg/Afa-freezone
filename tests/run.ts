@@ -41,6 +41,7 @@ const SUITES: Suite[] = [
   { file: "staff-access.test.ts", title: "who may be the bank or the organisation", needs: ["server", "db"] },
   { file: "hardening.test.ts", title: "the edges money escapes through", needs: ["server", "db", "chain"] },
   { file: "qa-flows.test.ts", title: "both trade flows, step by step", needs: ["server", "db", "chain"] },
+  { file: "landing.test.ts", title: "the front page and its guides", needs: ["server", "browser"] },
   { file: "login.test.ts", title: "signing in, in a browser", needs: ["server", "db", "browser"] },
   { file: "pages.test.ts", title: "every page of every panel", needs: ["server", "db", "browser"] },
   { file: "direction.test.ts", title: "direction on screen", needs: ["server", "db", "browser"] },

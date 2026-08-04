@@ -47,3 +47,7 @@ next-env.d.ts
 # Hardhat, used only to run a local chain for contract tests
 /artifacts
 /cache
+
+# Frames the guide renderer shoots on its way to an MP4. The finished video and
+# document in public/guide are committed; these are scratch.
+/public/guide/.frames-*

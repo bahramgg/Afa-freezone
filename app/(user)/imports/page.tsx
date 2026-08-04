@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Landmark } from "lucide-react";
+import { AlertTriangle, Ban, Landmark, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
@@ -14,6 +14,9 @@ import { api } from "@/lib/api/client";
 import { useLoad } from "@/lib/stores/useLoad";
 import { formatAmount, toPersianDigits } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
+import { Button } from "@/components/ui/Button";
+import { CancelImportDialog } from "@/components/invoice/CancelImportDialog";
+import { useInvoicesStore } from "@/lib/stores/invoices";
 
 /**
  * What a foreign seller has billed this importer, and what it costs in rial.
@@ -26,6 +29,8 @@ import type { Invoice } from "@/lib/types";
  */
 export default function ImportsPage() {
   const [list, setList] = useState<Invoice[]>([]);
+  const [cancelling, setCancelling] = useState<Invoice | null>(null);
+  const requestCancel = useInvoicesStore((s) => s.requestCancel);
 
   const load = useCallback(async () => {
     const data = await api.get<{ list: Invoice[] }>("/invoices?status=ALL");
@@ -34,6 +39,16 @@ export default function ImportsPage() {
   useLoad(load);
 
   const payable = list.filter((i) => i.status === "BANK_RATE_LOCKED");
+  /**
+   * Where the importer's money is committed but the trade has not completed.
+   *
+   * These are the only invoices worth offering a way out of: before the rate is
+   * locked nothing is owed, and after payment the currency has gone.
+   */
+  const inFlight = list.filter((i) =>
+    ["BANK_RATE_LOCKED", "RIAL_RECEIVED"].includes(i.status),
+  );
+  const owedBack = list.filter((i) => i.status === "CANCELLING");
 
   return (
     <div className="space-y-6">
@@ -83,6 +98,82 @@ export default function ImportsPage() {
           </CardContent>
         </Card>
       ))}
+
+      {/* Money the bank owes back. Shown to the importer without being asked
+          for, because it is theirs and the alternative is finding out by
+          telephone. */}
+      {owedBack.map((i) => (
+        <Card key={`back-${i.id}`} className="border-warning/50">
+          <CardContent className="space-y-2 py-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <RotateCcw className="h-4 w-4 text-warning" />
+              فاکتور {i.id} لغو شد — ریال شما در حال بازگشت است
+            </div>
+            {i.cancelReason ? (
+              <p className="text-xs leading-6 text-muted-foreground">دلیل: {i.cancelReason}</p>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              {i.rialAmount
+                ? `${toPersianDigits(formatAmount(i.rialAmount))} ریال به حساب شما بازگردانده می‌شود. `
+                : ""}
+              پس از انجام، بانک شمارهٔ رسید را ثبت می‌کند و همین‌جا نمایش داده می‌شود.
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+
+      {/* Asking to call it off. Deliberately not a cancel button: the importer
+          does not know whether the bank has already sent the currency, so what
+          they get is a way to say so inside the system rather than outside it. */}
+      {inFlight.length > 0 ? (
+        <Card>
+          <CardContent className="space-y-3 py-4">
+            <div className="text-sm font-medium">لغو معامله</div>
+            <p className="text-xs leading-6 text-muted-foreground">
+              اگر معامله به هم خورده، درخواست لغو ثبت کنید. تصمیم با سازمان و بانک است، چون تنها
+              بانک می‌داند ارز ارسال شده یا نه. اگر ریالی واریز کرده باشید، بازگردانده می‌شود.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {inFlight.map((i) =>
+                i.cancelRequestedAt ? (
+                  <span
+                    key={i.id}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-warning/40 bg-warning/5 px-3 text-xs"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    درخواست لغو {i.id} ثبت شده است
+                  </span>
+                ) : (
+                  <Button
+                    key={i.id}
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setCancelling(i)}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    درخواست لغو {i.id}
+                  </Button>
+                ),
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {cancelling ? (
+        <CancelImportDialog
+          open
+          onOpenChange={(open) => !open && setCancelling(null)}
+          mode="request"
+          invoiceRef={cancelling.id}
+          rialHeld={cancelling.status === "RIAL_RECEIVED"}
+          onConfirm={async (reason) => {
+            await requestCancel(cancelling.id, reason);
+            await load();
+          }}
+        />
+      ) : null}
 
       <Card>
         <CardContent className="p-0">

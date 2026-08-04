@@ -18,12 +18,13 @@ datasource db {
 enum Role {
   IRANIAN
   FOREIGN
-  /** Free-zone staff: KYC, invoice approval, oversight of the trade flows. */
+  /**
+   * Free-zone staff: KYC, invoice approval, oversight of the trade flows.
+   */
   ADMIN
   BANK
   /**
    * Runs the system rather than the business.
-   *
    * Separate from ADMIN on purpose: approving an invoice and disabling an
    * account are different powers, and an organization operator has no business
    * holding the second one.
@@ -38,16 +39,22 @@ enum KycStatus {
 }
 
 model User {
-  id        String @id @default(cuid())
-  /** Human-facing identifier shown in the UI: IR-001, FOR-042, ... */
-  uid       String @unique
-  role      Role
+  id   String @id @default(cuid())
+  /**
+   * Human-facing identifier shown in the UI: IR-001, FOR-042, ...
+   */
+  uid  String @unique
+  role Role
 
-  fullName  String
-  email     String? @unique
-  /** Normalised to +989xxxxxxxxx before storage. */
-  phone     String? @unique
-  /** Argon2id hash. Null for Iranian users, who authenticate by OTP. */
+  fullName     String
+  email        String? @unique
+  /**
+   * Normalised to +989xxxxxxxxx before storage.
+   */
+  phone        String? @unique
+  /**
+   * Argon2id hash. Null for Iranian users, who authenticate by OTP.
+   */
   passwordHash String?
 
   // Iranian merchants
@@ -75,34 +82,37 @@ model User {
   wallets          Wallet[]
   walletChallenges WalletChallenge[]
   sessions         Session[]
-  otpCodes      OtpCode[]
-  notifications Notification[]
-  statusEvents  StatusEvent[]
+  otpCodes         OtpCode[]
+  notifications    Notification[]
+  statusEvents     StatusEvent[]
 
   ledgerEntries      LedgerEntry[]
-  refundsRequested   Refund[]      @relation("RefundRequester")
-  invoices           Invoice[]     @relation("InvoiceOwner")
-  invoicesToPay      Invoice[]     @relation("InvoiceCounterparty")
-  sendRequests       SendRequest[] @relation("SendOwner")
-  sendCounterparties SendRequest[] @relation("SendCounterparty")
-  settlements        Settlement[]  @relation("SettlementOwner")
-  auditLogs          AuditLog[]    @relation("AuditActor")
+  refundsRequested   Refund[]       @relation("RefundRequester")
+  invoices           Invoice[]      @relation("InvoiceOwner")
+  invoicesToPay      Invoice[]      @relation("InvoiceCounterparty")
+  cancelsRequested   Invoice[]      @relation("InvoiceCancelRequester")
+  sendRequests       SendRequest[]  @relation("SendOwner")
+  sendCounterparties SendRequest[]  @relation("SendCounterparty")
+  settlements        Settlement[]   @relation("SettlementOwner")
+  auditLogs          AuditLog[]     @relation("AuditActor")
   allowlistEntries   AllowedEmail[] @relation("AllowlistAuthor")
 
   @@index([role, kyc])
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  /** SHA-256 of the opaque token; the raw token only ever lives in the cookie. */
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  /**
+   * SHA-256 of the opaque token; the raw token only ever lives in the cookie.
+   */
+  tokenHash String    @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userAgent String?
   ip        String?
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -113,25 +123,28 @@ enum OtpPurpose {
 }
 
 model OtpCode {
-  id    String @id @default(cuid())
-  /** Lowercased email the code was sent to. */
-  email String
-  /** Argon2id hash of the code — a leaked table must not hand over live codes. */
-  codeHash  String
+  id            String     @id @default(cuid())
+  /**
+   * Lowercased email the code was sent to.
+   */
+  email         String
+  /**
+   * Argon2id hash of the code — a leaked table must not hand over live codes.
+   */
+  codeHash      String
   /**
    * Hash of the single-use token in the emailed sign-in link.
-   *
    * A link cannot carry the six-digit code: a URL is logged by proxies, kept in
    * history and pasted into chats, and six digits are guessable enough that the
    * attempt counter is what protects them. This is 32 random bytes instead, and
    * it opens the same record the code does.
    */
   linkTokenHash String?
-  purpose   OtpPurpose @default(LOGIN)
-  attempts  Int        @default(0)
-  consumedAt DateTime?
-  expiresAt DateTime
-  createdAt DateTime   @default(now())
+  purpose       OtpPurpose @default(LOGIN)
+  attempts      Int        @default(0)
+  consumedAt    DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime   @default(now())
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -141,31 +154,29 @@ model OtpCode {
 
 /**
  * An address cleared to register.
- *
  * The list is only consulted when Settings.registrationRestricted is on. Until
  * then anyone may sign up and this is a standing invitation list rather than a
  * gate.
  */
 /**
  * Which addresses may hold which role.
- *
  * Two lists in one table, because they are the same question asked of two
  * populations and splitting them would let the answers drift apart.
- *
  * A merchant entry (IRANIAN, FOREIGN) is only consulted when
  * `Settings.registrationRestricted` is on — the gateway can be open to anyone
  * while the list is being built.
- *
  * A staff entry (ADMIN, BANK, SUPERADMIN) is **always** consulted, switch or
  * no switch, and it is the only thing that grants an operator role. Nobody
  * reaches the bank's or the organization's panel by any other route, and taking
  * an address off this list takes the panel away — which is the point.
  */
 model AllowedEmail {
-  id    String @id @default(cuid())
-  email String @unique
-  /** What this address is admitted as. */
-  role  Role   @default(IRANIAN)
+  id    String  @id @default(cuid())
+  email String  @unique
+  /**
+   * What this address is admitted as.
+   */
+  role  Role    @default(IRANIAN)
   note  String?
 
   addedById String?
@@ -178,16 +189,17 @@ model AllowedEmail {
 
 /**
  * What people did, as distinct from what money did.
- *
  * StatusEvent already records every movement of a trade. This records the acts
  * around it — who signed in, who was disabled, who was let in — which have no
  * flow to attach to and would otherwise leave no trace at all.
  */
 model AuditLog {
-  id     String @id @default(cuid())
-  action String
-  /** Free-form target: an email, a uid, a ref. Kept as text so a deleted row
-      does not take its own history with it. */
+  id      String  @id @default(cuid())
+  action  String
+  /**
+   * Free-form target: an email, a uid, a ref. Kept as text so a deleted row
+   * does not take its own history with it.
+   */
   subject String?
   detail  String?
 
@@ -217,7 +229,9 @@ enum BankWalletKind {
 
 model Wallet {
   id        String          @id @default(cuid())
-  /** Lowercased 0x-prefixed BSC address. */
+  /**
+   * Lowercased 0x-prefixed BSC address.
+   */
   address   String
   label     String
   ownerKind WalletOwnerKind @default(USER)
@@ -225,14 +239,20 @@ model Wallet {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  /** Only meaningful for bank-owned wallets. */
+  /**
+   * Only meaningful for bank-owned wallets.
+   */
   bankKind BankWalletKind?
   active   Boolean         @default(true)
 
-  /** True only once a signature recovered to this address. Never set by hand. */
-  verified   Boolean   @default(false)
-  verifiedAt DateTime?
-  /** The signature that proved control, kept so the proof stays auditable. */
+  /**
+   * True only once a signature recovered to this address. Never set by hand.
+   */
+  verified       Boolean   @default(false)
+  verifiedAt     DateTime?
+  /**
+   * The signature that proved control, kept so the proof stays auditable.
+   */
   proofSignature String?
 
   createdAt DateTime @default(now())
@@ -244,7 +264,6 @@ model Wallet {
 
 /**
  * A nonce the user must sign with their wallet to prove they control it.
- *
  * The system holds no keys, so ownership can only be established by asking the
  * holder to sign something the system chose. The nonce makes a captured
  * signature useless: it is single-use, short-lived, and bound to one address
@@ -281,10 +300,12 @@ enum Actor {
 
 /// Append-only audit trail. One row per state transition, on any flow.
 model StatusEvent {
-  id        String   @id @default(cuid())
-  /** "invoice" | "send" | "settlement" */
-  subject   String
-  subjectId String
+  id         String  @id @default(cuid())
+  /**
+   * "invoice" | "send" | "settlement"
+   */
+  subject    String
+  subjectId  String
   fromStatus String?
   toStatus   String
   actor      Actor
@@ -303,27 +324,40 @@ model StatusEvent {
 enum InvoiceStatus {
   PENDING
   APPROVED
-  /** Import only: the bank has priced it and named the rial account. */
+  /**
+   * Import only: the bank has priced it and named the rial account.
+   */
   BANK_RATE_LOCKED
-  /** Import only: the importer's rial has arrived at the bank. */
+  /**
+   * Import only: the importer's rial has arrived at the bank.
+   */
   RIAL_RECEIVED
   PAYMENT_PENDING
   PAID
   EXPIRED
   REJECTED
+  /**
+   * Import only: called off after the importer's rial had already reached the
+   * bank, and the rial has not been returned yet.
+   * A state of its own rather than a flag, because it is the one moment where
+   * the system owes somebody money. It cannot be skipped: the only way out is
+   * the bank recording that it sent the rial back.
+   */
+  CANCELLING
+  /**
+   * Called off, and nothing is outstanding.
+   */
+  CANCELLED
 }
 
 /**
  * Which way the goods — and therefore the money — are going.
- *
  * Both directions are the same shape: a seller raises an invoice against a
  * buyer, it is paid into an address derived for it alone, and the contract
  * splits what arrives. What differs is who stands where.
- *
  * EXPORT: an Iranian merchant sells abroad. The foreign buyer pays crypto
  * straight in, and what is left after the fees goes to the bank, which pays the
  * merchant in rial.
- *
  * IMPORT: a foreign seller sells to an Iranian importer. The importer pays rial
  * to the bank, the bank pays the crypto in, and what is left after the fees
  * goes to the seller's own wallet.
@@ -335,15 +369,21 @@ enum TradeDirection {
 
 model Invoice {
   id     String @id @default(cuid())
-  /** INV-1042 */
+  /**
+   * INV-1042
+   */
   ref    String @unique
-  /** TRX-1042 — the identifier both parties quote to each other. */
+  /**
+   * TRX-1042 — the identifier both parties quote to each other.
+   */
   trxRef String @unique
 
   ownerId String
   owner   User   @relation("InvoiceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
-  /** Stored in the token's smallest unit as a decimal to avoid float drift. */
+  /**
+   * Stored in the token's smallest unit as a decimal to avoid float drift.
+   */
   amount   Decimal  @db.Decimal(38, 18)
   currency Currency
 
@@ -351,12 +391,13 @@ model Invoice {
 
   description String
   goodsTitle  String
-  /** The payer's name, taken from their account rather than typed. */
+  /**
+   * The payer's name, taken from their account rather than typed.
+   */
   senderName  String
 
   /**
    * Where the money goes once the fees are off it.
-   *
    * Null on an export — the contract is deployed against the bank's treasury,
    * which is configured on the factory. On an import it is the foreign seller's
    * own wallet, which they supply when raising the invoice.
@@ -364,20 +405,49 @@ model Invoice {
   beneficiaryWallet String?
 
   // ── the rial leg, on imports only ──────────────────────────────────────
-  /** Bank account the importer pays the rial into. Named by the bank. */
+  /**
+   * /** Bank account the importer pays the rial into. Named by the bank.
+   */
   depositAccount String?
   exchangeRate   Decimal?  @db.Decimal(24, 4)
   rateLockedAt   DateTime?
-  /** What the importer owes in rial: the amount plus the fee, at that rate. */
+  /**
+   * What the importer owes in rial: the amount plus the fee, at that rate.
+   */
   rialAmount     Decimal?  @db.Decimal(24, 2)
   rialReceiptNo  String?
   rialDepositAt  DateTime?
-  /** The bank's exchange margin on supplying the currency, in rial. */
+  /**
+   * The bank's exchange margin on supplying the currency, in rial.
+   */
   bankSpreadRial Decimal?  @db.Decimal(24, 2)
+
+  // ── calling an import off ───────────────────────────────────────────────
+  /**
+   * /**
+   * Asking to call it off and calling it off are separate.
+   * The importer knows the deal is dead; only the bank knows whether the
+   * currency has already left. Recording the request without moving the status
+   * lets the party who is out of pocket start the conversation inside the
+   * system rather than by telephone, and leaves the decision where the facts
+   * are.
+   */
+  cancelRequestedAt   DateTime?
+  cancelRequestedById String?
+  cancelRequestedBy   User?     @relation("InvoiceCancelRequester", fields: [cancelRequestedById], references: [id], onDelete: SetNull)
+  /**
+   * Why, in the words of whoever called it off. Required to cancel.
+   */
+  cancelReason        String?
+  cancelledAt         DateTime?
+  /**
+   * The bank's receipt for putting the importer's rial back.
+   */
+  rialReturnReceiptNo String?
+  rialReturnedAt      DateTime?
 
   /**
    * The foreign buyer this invoice is addressed to.
-   *
    * Required: an export brings currency into the country, so who sent it is
    * exactly what has to be known. The buyer registers, quotes their uid to the
    * merchant, and the invoice then appears in their own dashboard to pay.
@@ -393,9 +463,13 @@ model Invoice {
    */
   paymentAddress String?
   depositAddress DepositAddress?
-  /** What actually arrived, which may differ from `amount`. */
-  receivedAmount Decimal? @db.Decimal(38, 18)
-  /** Merchant wallet that receives the settled funds. */
+  /**
+   * What actually arrived, which may differ from `amount`.
+   */
+  receivedAmount Decimal?        @db.Decimal(38, 18)
+  /**
+   * Merchant wallet that receives the settled funds.
+   */
   walletAddress  String?
 
   feeAmount Decimal? @db.Decimal(38, 18)
@@ -408,10 +482,12 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  chainTxId String?      @unique
-  chainTx   ChainTx?     @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
+  chainTxId String?  @unique
+  chainTx   ChainTx? @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
 
-  /** The payout settlement raised once this invoice was paid. */
+  /**
+   * The payout settlement raised once this invoice was paid.
+   */
   settlement Settlement? @relation("InvoiceSettlement")
 
   documents TradeDocument[]
@@ -424,7 +500,6 @@ model Invoice {
 
 /**
  * The commercial paper a currency transfer rests on.
- *
  * A bank supplying foreign currency to an importer, or buying it from an
  * exporter, cannot do so against a free-text description of the goods — the
  * transfer has to be tied to a document the customs authority and the free zone
@@ -432,30 +507,38 @@ model Invoice {
  * stays with the parties.
  */
 enum TradeDocumentKind {
-  /** پیش‌فاکتور */
+  /**
+   * پیش‌فاکتور
+   */
   PROFORMA
-  /** ثبت سفارش */
+  /**
+   * ثبت سفارش
+   */
   ORDER_REGISTRATION
-  /** کوتاژ / اظهارنامه گمرکی */
+  /**
+   * کوتاژ / اظهارنامه گمرکی
+   */
   CUSTOMS_DECLARATION
-  /** قرارداد */
+  /**
+   * قرارداد
+   */
   CONTRACT
 }
 
 model TradeDocument {
-  id     String            @id @default(cuid())
-  kind   TradeDocumentKind
-  number String
+  id       String            @id @default(cuid())
+  kind     TradeDocumentKind
+  number   String
   issuedAt DateTime?
   issuer   String?
   note     String?
 
-  invoiceId String?
-  invoice   Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  sendId    String?
-  send      SendRequest? @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  invoiceId    String?
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sendId       String?
+  send         SendRequest? @relation(fields: [sendId], references: [id], onDelete: Cascade)
   settlementId String?
-  settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  settlement   Settlement?  @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -494,18 +577,22 @@ model SendRequest {
   ownerId String
   owner   User   @relation("SendOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
-  counterpartyId String?
-  counterparty   User?   @relation("SendCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
+  counterpartyId     String?
+  counterparty       User?   @relation("SendCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
   /**
    * Free-text identifier for the counterparty. An importer usually has their
    * supplier's details from the proforma and the supplier has no account here,
    * so this is a name or reference rather than a uid in the common case.
    */
-  counterpartyUid String
-  /** Supplier's name as it appears on the commercial documents. */
-  counterpartyName  String?
-  /** Optional, only so the supplier can be told the transfer is on its way. */
-  counterpartyEmail String?
+  counterpartyUid    String
+  /**
+   * Supplier's name as it appears on the commercial documents.
+   */
+  counterpartyName   String?
+  /**
+   * Optional, only so the supplier can be told the transfer is on its way.
+   */
+  counterpartyEmail  String?
   /**
    * True when the destination wallet was confirmed by the counterparty rather
    * than only typed by the importer. Recorded, never required: a supplier
@@ -519,13 +606,17 @@ model SendRequest {
 
   status SendStatus @default(AWAITING_COUNTERPARTY)
 
-  /** Rial per token. Locked by the bank; not editable afterwards. */
-  exchangeRate Decimal? @db.Decimal(24, 4)
-  rateLocked   Boolean  @default(false)
+  /**
+   * Rial per token. Locked by the bank; not editable afterwards.
+   */
+  exchangeRate Decimal?  @db.Decimal(24, 4)
+  rateLocked   Boolean   @default(false)
   rateLockedAt DateTime?
-  rialAmount   Decimal? @db.Decimal(24, 2)
+  rialAmount   Decimal?  @db.Decimal(24, 2)
 
-  /** Gateway fee, in the token. Charged once per journey. */
+  /**
+   * Gateway fee, in the token. Charged once per journey.
+   */
   feeAmount Decimal? @db.Decimal(38, 18)
   /**
    * The token amount the rial leg is computed from — always the merchant's side
@@ -534,10 +625,14 @@ model SendRequest {
    */
   netAmount Decimal? @db.Decimal(38, 18)
 
-  /** The bank's exchange margin on this request, in rial. */
+  /**
+   * The bank's exchange margin on this request, in rial.
+   */
   bankSpreadRial Decimal? @db.Decimal(24, 2)
 
-  /** Bank account the merchant must deposit the rial into. Named by the bank. */
+  /**
+   * Bank account the merchant must deposit the rial into. Named by the bank.
+   */
   depositAccount String?
   rialReceiptNo  String?
   rialDepositAt  DateTime?
@@ -591,7 +686,9 @@ model Settlement {
    * a paid invoice, where the crypto is already sitting in the bank's wallet.
    */
   walletAddress String?
-  /** Rial account the proceeds are paid into. Named by the merchant. */
+  /**
+   * Rial account the proceeds are paid into. Named by the merchant.
+   */
   payoutAccount String?
 
   status SettlementStatus @default(AWAITING_ADMIN)
@@ -601,11 +698,17 @@ model Settlement {
   rateLockedAt DateTime?
   rialAmount   Decimal?  @db.Decimal(24, 2)
 
-  /** Gateway fee, in the token. Zero when the source invoice already paid it. */
-  feeAmount Decimal? @db.Decimal(38, 18)
-  /** The token amount the rial leg is computed from: amount less the fee. */
-  netAmount Decimal? @db.Decimal(38, 18)
-  /** The bank's exchange margin on this settlement, in rial. */
+  /**
+   * Gateway fee, in the token. Zero when the source invoice already paid it.
+   */
+  feeAmount      Decimal? @db.Decimal(38, 18)
+  /**
+   * The token amount the rial leg is computed from: amount less the fee.
+   */
+  netAmount      Decimal? @db.Decimal(38, 18)
+  /**
+   * The bank's exchange margin on this settlement, in rial.
+   */
   bankSpreadRial Decimal? @db.Decimal(24, 2)
 
   /**
@@ -632,7 +735,9 @@ model Settlement {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /** The merchant's payout transaction, verified on chain. */
+  /**
+   * The merchant's payout transaction, verified on chain.
+   */
   chainTxId String?  @unique
   chainTx   ChainTx? @relation(fields: [chainTxId], references: [id], onDelete: SetNull)
 
@@ -642,7 +747,6 @@ model Settlement {
 
 /**
  * Money going back the way it came.
- *
  * A trade can fall through after the buyer has paid, and until now there was no
  * way to return anything: the only paths money could take were forwards. The
  * destination is never typed by anyone — it is the address the payment arrived
@@ -662,9 +766,11 @@ model Refund {
   invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
-  amount   Decimal  @db.Decimal(38, 18)
-  currency Currency
-  /** Read from the deposit that funded the invoice, never supplied by a caller. */
+  amount    Decimal  @db.Decimal(38, 18)
+  currency  Currency
+  /**
+   * Read from the deposit that funded the invoice, never supplied by a caller.
+   */
   toAddress String
 
   status RefundStatus @default(REQUESTED)
@@ -673,7 +779,9 @@ model Refund {
   requestedById String?
   requestedBy   User?   @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: SetNull)
 
-  /** The operator's transfer, verified on chain before the refund is closed. */
+  /**
+   * The operator's transfer, verified on chain before the refund is closed.
+   */
   txHash String?
   sentAt DateTime?
 
@@ -690,33 +798,49 @@ model Refund {
 
 /**
  * Where value sits, or who has a claim on it.
- *
  * The bank's wallet holds one pile of tokens with several owners: money still
  * owed to merchants, fee the gateway has earned, and the bank's own. Without
  * naming those claims the balance is a single number nobody can reconcile.
  */
 enum LedgerAccount {
-  /** Arrived at a per-invoice deposit address, not yet swept. */
+  /**
+   * Arrived at a per-invoice deposit address, not yet swept.
+   */
   DEPOSIT_HELD
-  /** Swept into the bank's treasury wallet. */
+  /**
+   * Swept into the bank's treasury wallet.
+   */
   BANK_HELD
-  /** Owed to merchants and not yet paid out in rial. */
+  /**
+   * Owed to merchants and not yet paid out in rial.
+   */
   MERCHANT_PAYABLE
-  /** The gateway's share of the fee. */
+  /**
+   * The gateway's share of the fee.
+   */
   GATEWAY_SHARE
-  /** The Free Zone Organization's share of the same fee. */
+  /**
+   * The Free Zone Organization's share of the same fee.
+   */
   FREEZONE_SHARE
-  /** The bank's exchange margin, in rial. */
+  /**
+   * The bank's exchange margin, in rial.
+   */
   BANK_SPREAD
-  /** Returned to a buyer after a trade fell through. */
+  /**
+   * Returned to a buyer after a trade fell through.
+   */
   REFUNDED
-  /** The gateway's fee, actually received on chain. */
+  /**
+   * The gateway's fee, actually received on chain.
+   */
   GATEWAY_PAID
-  /** The organization's share, actually received on chain. */
+  /**
+   * The organization's share, actually received on chain.
+   */
   FREEZONE_PAID
   /**
    * Paid on chain to a foreign seller for an import.
-   *
    * Unlike an export, where the remainder moves from the deposit into the
    * bank's treasury and stays inside the system, this leaves it altogether —
    * booking it as a bank holding would credit the bank with currency it never
@@ -733,7 +857,6 @@ enum LedgerUnit {
 
 /**
  * Append-only record of every movement of value.
- *
  * Balances are the sum of the entries for an account, never a stored total, so
  * a wrong figure can always be traced to the entry that caused it rather than
  * being silently overwritten.
@@ -741,20 +864,30 @@ enum LedgerUnit {
 model LedgerEntry {
   id      String        @id @default(cuid())
   account LedgerAccount
-  /** Positive adds to the account, negative takes from it. */
+  /**
+   * Positive adds to the account, negative takes from it.
+   */
   amount  Decimal       @db.Decimal(38, 18)
   unit    LedgerUnit
 
-  /** What happened: INVOICE_PAID, DEPOSIT_SWEPT, SETTLEMENT_SETTLED, ... */
+  /**
+   * What happened: INVOICE_PAID, DEPOSIT_SWEPT, SETTLEMENT_SETTLED, ...
+   */
   kind String
 
-  /** "invoice" | "send" | "settlement" | "deposit" */
+  /**
+   * "invoice" | "send" | "settlement" | "deposit"
+   */
   subject    String?
   subjectId  String?
-  /** The human-facing reference, so a report reads without a join. */
+  /**
+   * The human-facing reference, so a report reads without a join.
+   */
   subjectRef String?
 
-  /** Whose claim this is, where the account is per-merchant. */
+  /**
+   * Whose claim this is, where the account is per-merchant.
+   */
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -783,8 +916,8 @@ enum ChainTxDirection {
 /// A transaction observed on chain. Written only by the watcher and the
 /// verification endpoint — never trusted straight from a client.
 model ChainTx {
-  id     String @id @default(cuid())
-  hash   String @unique
+  id      String @id @default(cuid())
+  hash    String @unique
   chainId Int
 
   direction ChainTxDirection
@@ -794,9 +927,13 @@ model ChainTx {
   toAddress   String
 
   currency Currency
-  /** Human-scale amount, decoded using the token's decimals. */
-  amount   Decimal @db.Decimal(38, 18)
-  /** Raw on-chain integer value, kept for exact re-verification. */
+  /**
+   * Human-scale amount, decoded using the token's decimals.
+   */
+  amount   Decimal  @db.Decimal(38, 18)
+  /**
+   * Raw on-chain integer value, kept for exact re-verification.
+   */
   rawValue String
 
   blockNumber   BigInt?
@@ -806,7 +943,9 @@ model ChainTx {
   seenAt      DateTime  @default(now())
   confirmedAt DateTime?
 
-  /** Set once the deposit is matched to an invoice or settlement. */
+  /**
+   * Set once the deposit is matched to an invoice or settlement.
+   */
   matchedAt DateTime?
 
   invoice     Invoice?
@@ -819,20 +958,20 @@ model ChainTx {
 
 /**
  * A deposit address derived for one payment.
- *
  * Held so the watcher knows which addresses to scan, and so the operator can
  * see what is sitting where before sweeping. The system never holds the key to
  * any of these — see lib/server/chain/hd.ts.
  */
 model DepositAddress {
-  id String @id @default(cuid())
-  /** Sequence number, kept only so the operator has something short to quote. */
+  id      String @id @default(cuid())
+  /**
+   * Sequence number, kept only so the operator has something short to quote.
+   */
   index   Int    @unique
   address String @unique
 
   /**
    * The split this address is bound to, as the contract received it.
-   *
    * Releasing needs exactly these terms — the address is their hash — so they
    * are kept beside it rather than re-read from the factory, whose current
    * terms will have moved on by then.
@@ -842,22 +981,25 @@ model DepositAddress {
   invoiceId String?  @unique
   invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
-  /** Everything seen at this address so far, summed across deposits. */
-  receivedAmount Decimal @db.Decimal(38, 18) @default(0)
+  /**
+   * Everything seen at this address so far, summed across deposits.
+   */
+  receivedAmount Decimal @default(0) @db.Decimal(38, 18)
 
-  /** Set once the contract split the balance three ways. */
-  sweptAt     DateTime?
-  sweepTxHash String?
+  /**
+   * Set once the contract split the balance three ways.
+   */
+  sweptAt           DateTime?
+  sweepTxHash       String?
   /**
    * What the contract actually paid out, read back from its own event.
-   *
    * The remainder goes to whoever the terms name as beneficiary — the bank's
    * treasury on an export, the foreign seller on an import — so it is not a
    * bank figure and must not be booked as one.
    */
-  gatewayAmount     Decimal? @db.Decimal(38, 18)
-  freezoneAmount    Decimal? @db.Decimal(38, 18)
-  beneficiaryAmount Decimal? @db.Decimal(38, 18)
+  gatewayAmount     Decimal?  @db.Decimal(38, 18)
+  freezoneAmount    Decimal?  @db.Decimal(38, 18)
+  beneficiaryAmount Decimal?  @db.Decimal(38, 18)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -867,9 +1009,9 @@ model DepositAddress {
 
 /// Bookmark for the deposit watcher, so a restart resumes where it left off.
 model ChainCursor {
-  chainId         Int    @id
+  chainId          Int      @id
   lastScannedBlock BigInt
-  updatedAt       DateTime @updatedAt
+  updatedAt        DateTime @updatedAt
 }
 
 // ─────────────────────────── Notifications & settings ───────────────────────────
@@ -894,9 +1036,9 @@ model Notification {
 model Settings {
   id Int @id @default(1)
 
-  feeBasePercent Decimal @db.Decimal(6, 3) @default(2)
-  feeMin         Decimal @db.Decimal(38, 18) @default(1)
-  feeMax         Decimal @db.Decimal(38, 18) @default(500)
+  feeBasePercent Decimal @default(2) @db.Decimal(6, 3)
+  feeMin         Decimal @default(1) @db.Decimal(38, 18)
+  feeMax         Decimal @default(500) @db.Decimal(38, 18)
 
   /**
    * How long an export invoice stays payable. Minutes is the right unit: the
@@ -905,7 +1047,6 @@ model Settings {
   invoiceValidityMinutes Int     @default(30)
   /**
    * How long an import invoice stays alive, in hours.
-   *
    * Nothing about an import happens in minutes. The organization approves, the
    * bank prices it, the importer wires rial through a bank, and only then does
    * the bank fund the contract — days of work by people, not one wallet
@@ -913,27 +1054,32 @@ model Settings {
    * bank ever opened its queue.
    */
   importValidityHours    Int     @default(72)
-  invoiceMinAmount       Decimal @db.Decimal(38, 18) @default(10)
-  invoiceMaxAmount       Decimal @db.Decimal(38, 18) @default(100000)
+  invoiceMinAmount       Decimal @default(10) @db.Decimal(38, 18)
+  invoiceMaxAmount       Decimal @default(100000) @db.Decimal(38, 18)
 
-  usdtRate Decimal @db.Decimal(24, 4) @default(66800)
-  bnbRate  Decimal @db.Decimal(24, 4) @default(222000)
+  usdtRate Decimal @default(66800) @db.Decimal(24, 4)
+  bnbRate  Decimal @default(222000) @db.Decimal(24, 4)
 
-  dailySendLimit       Decimal @db.Decimal(38, 18) @default(50000)
-  dailySettlementLimit Decimal @db.Decimal(38, 18) @default(50000)
-  minTxAmount          Decimal @db.Decimal(38, 18) @default(10)
+  dailySendLimit       Decimal @default(50000) @db.Decimal(38, 18)
+  dailySettlementLimit Decimal @default(50000) @db.Decimal(38, 18)
+  minTxAmount          Decimal @default(10) @db.Decimal(38, 18)
 
-  /** Rate a bank-locked exchange rate may deviate from the reference, percent. */
-  rateTolerancePercent Decimal @db.Decimal(6, 3) @default(10)
-  /** The Free Zone Organization's cut of the gateway fee, percent of the fee. */
   /**
+   * Rate a bank-locked exchange rate may deviate from the reference, percent.
+   */
+  rateTolerancePercent   Decimal @default(10) @db.Decimal(6, 3)
+  /**
+   * The Free Zone Organization's cut of the gateway fee, percent of the fee.
+   */
+  /**
+   * /**
    * When on, only an address on the allowlist may register. Off to begin with:
    * the gateway is opening, and turning people away before anyone is inside is
    * a way to have no users.
    */
   registrationRestricted Boolean @default(false)
 
-  freezoneSharePercent Decimal @db.Decimal(6, 3) @default(50)
+  freezoneSharePercent Decimal @default(50) @db.Decimal(6, 3)
 
   updatedAt DateTime @updatedAt
 }

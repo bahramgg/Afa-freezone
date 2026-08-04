@@ -31,6 +31,12 @@ type InvoicesState = {
   lockRate: (ref: string, rate: number, depositAccount: string) => Promise<void>;
   /** Import only, bank: the importer's rial arrived. */
   confirmRialDeposit: (ref: string, receiptNo: string) => Promise<void>;
+  /** Import only: either trader asks for the deal to be called off. */
+  requestCancel: (ref: string, reason: string) => Promise<void>;
+  /** Import only, organisation or bank: calls it off. */
+  cancelImport: (ref: string, reason: string) => Promise<void>;
+  /** Import only, bank: the importer's rial has gone back. */
+  confirmRialReturn: (ref: string, receiptNo: string) => Promise<void>;
   startPayment: (ref: string) => Promise<void>;
   /** Buyer reports the hash of the transfer they made; verified on chain. */
   confirmPayment: (ref: string, txHash: string) => Promise<void>;
@@ -104,6 +110,33 @@ export const useInvoicesStore = create<InvoicesState>()((set, get) => ({
   confirmRialDeposit: async (ref, receiptNo) => {
     const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
       action: "confirmRialDeposit",
+      receiptNo,
+    });
+    set({ list: replace(get().list, invoice) });
+    pingReload(SLICE);
+  },
+
+  requestCancel: async (ref, reason) => {
+    const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
+      action: "requestCancel",
+      reason,
+    });
+    set({ list: replace(get().list, invoice) });
+    pingReload(SLICE);
+  },
+
+  cancelImport: async (ref, reason) => {
+    const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
+      action: "cancel",
+      reason,
+    });
+    set({ list: replace(get().list, invoice) });
+    pingReload(SLICE);
+  },
+
+  confirmRialReturn: async (ref, receiptNo) => {
+    const { invoice } = await api.post<{ invoice: Invoice }>(`/invoices/${ref}/transition`, {
+      action: "confirmRialReturn",
       receiptNo,
     });
     set({ list: replace(get().list, invoice) });

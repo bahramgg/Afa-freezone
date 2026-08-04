@@ -58,6 +58,8 @@ const STATUS_FA: Record<string, string> = {
   AWAITING_BANK: "در انتظار بانک",
   BANK_RATE_LOCKED: "نرخ قفل شده",
   RIAL_RECEIVED: "ریال دریافت شد",
+  CANCELLING: "لغو شده — در انتظار بازگشت ریال",
+  CANCELLED: "لغو شده",
   CRYPTO_SENT: "کریپتو ارسال شد",
   CRYPTO_RECEIVED: "کریپتو دریافت شد",
   CRYPTO_CONFIRMED: "کریپتو تأیید شد",

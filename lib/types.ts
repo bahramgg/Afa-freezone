@@ -12,7 +12,10 @@ export type InvoiceStatus =
   | "PAYMENT_PENDING"
   | "PAID"
   | "EXPIRED"
-  | "REJECTED";
+  | "REJECTED"
+  /** Import only: called off, and the importer's rial has not gone back yet. */
+  | "CANCELLING"
+  | "CANCELLED";
 
 export type TradeDirection = "EXPORT" | "IMPORT";
 
@@ -52,6 +55,15 @@ export type Invoice = {
   rialDepositAt?: string;
   bankSpreadRial?: number;
   rejectReason?: string;
+  /**
+   * Calling an import off. A request that is set while `cancelledAt` is not is
+   * the state worth showing differently: somebody has asked, nobody has decided.
+   */
+  cancelRequestedAt?: string;
+  cancelReason?: string;
+  cancelledAt?: string;
+  rialReturnReceiptNo?: string;
+  rialReturnedAt?: string;
 };
 
 
@@ -230,6 +242,9 @@ export type NotificationKind =
   | "INVOICE_ADDRESSED"
   | "INVOICE_RATE_LOCKED"
   | "INVOICE_RIAL_RECEIVED"
+  | "INVOICE_CANCEL_REQUESTED"
+  | "INVOICE_CANCELLED"
+  | "INVOICE_RIAL_RETURNED"
   | "REFUND_REQUESTED"
   | "REFUND_UPDATED";
 

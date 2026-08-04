@@ -12,6 +12,8 @@ const INVOICE_LABELS: Record<InvoiceStatus, { label: string; tone: Tone }> = {
   PAID: { label: "موفق — واریز شد", tone: "success" },
   EXPIRED: { label: "منقضی", tone: "neutral" },
   REJECTED: { label: "رد شده", tone: "destructive" },
+  CANCELLING: { label: "لغو شده — در انتظار بازگشت ریال", tone: "warning" },
+  CANCELLED: { label: "لغو شده", tone: "neutral" },
 };
 
 

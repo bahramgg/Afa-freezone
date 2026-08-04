@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Ban, Loader2, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +19,7 @@ import { useSettingsStore } from "@/lib/stores/settings";
 import { useLoad } from "@/lib/stores/useLoad";
 import { formatAmount, toPersianDigits, truncateAddress } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
+import { CancelImportDialog } from "@/components/invoice/CancelImportDialog";
 
 /**
  * The bank's side of an import.
@@ -33,6 +34,8 @@ import type { Invoice } from "@/lib/types";
 export default function BankImportsPage() {
   const lockRate = useInvoicesStore((s) => s.lockRate);
   const confirmRialDeposit = useInvoicesStore((s) => s.confirmRialDeposit);
+  const cancelImport = useInvoicesStore((s) => s.cancelImport);
+  const confirmRialReturn = useInvoicesStore((s) => s.confirmRialReturn);
   const reference = useSettingsStore((s) => s.settings.usdtRate);
 
   const [list, setList] = useState<Invoice[]>([]);
@@ -40,6 +43,8 @@ export default function BankImportsPage() {
   const [account, setAccount] = useState<Record<string, string>>({});
   const [receipt, setReceipt] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<Invoice | null>(null);
+  const [returnReceipt, setReturnReceipt] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const data = await api.get<{ list: Invoice[] }>("/invoices?status=ALL");
@@ -60,8 +65,10 @@ export default function BankImportsPage() {
     }
   }
 
+  // CANCELLING is in the queue because it is work the bank still owes: the
+  // importer's rial has not gone back yet, and nowhere else would show it.
   const waiting = list.filter((i) =>
-    ["APPROVED", "BANK_RATE_LOCKED", "RIAL_RECEIVED"].includes(i.status),
+    ["APPROVED", "BANK_RATE_LOCKED", "RIAL_RECEIVED", "CANCELLING"].includes(i.status),
   );
 
   return (
@@ -122,8 +129,9 @@ export default function BankImportsPage() {
               {i.status === "APPROVED" ? (
                 <div className="grid gap-3 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
                   <div className="space-y-1.5">
-                    <label className="text-xs text-muted-foreground">نرخ هر واحد (ریال)</label>
+                    <label htmlFor={`rate-${i.id}`} className="text-xs text-muted-foreground">نرخ هر واحد (ریال)</label>
                     <Input
+                      id={`rate-${i.id}`}
                       inputMode="numeric"
                       dir="ltr"
                       className="font-mono"
@@ -133,10 +141,11 @@ export default function BankImportsPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs text-muted-foreground">
+                    <label htmlFor={`account-${i.id}`} className="text-xs text-muted-foreground">
                       شماره حساب برای واریز واردکننده
                     </label>
                     <Input
+                      id={`account-${i.id}`}
                       dir="ltr"
                       className="font-mono"
                       placeholder="IR…"
@@ -190,8 +199,9 @@ export default function BankImportsPage() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <div className="space-y-1.5">
-                      <label className="text-xs text-muted-foreground">شماره رسید واریز ریالی</label>
+                      <label htmlFor={`receipt-${i.id}`} className="text-xs text-muted-foreground">شماره رسید واریز ریالی</label>
                       <Input
+                        id={`receipt-${i.id}`}
                         dir="ltr"
                         className="font-mono"
                         value={receipt[i.id] ?? ""}
@@ -215,6 +225,69 @@ export default function BankImportsPage() {
                 </div>
               ) : null}
 
+              {/* A trader has asked for this to be called off. It is the bank's
+                  decision because only the bank knows whether the currency has
+                  already gone out — so it is shown before the "send it" panel,
+                  not after. */}
+              {i.cancelRequestedAt && !i.cancelledAt ? (
+                <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-3">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <div className="min-w-0 text-sm">
+                      <div className="font-medium">درخواست لغو ثبت شده است</div>
+                      <p className="mt-0.5 text-xs leading-6 text-muted-foreground">
+                        {i.cancelReason}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {i.status === "CANCELLING" ? (
+                <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3">
+                  <p className="text-sm font-medium">
+                    این فاکتور لغو شده — ریال واردکننده باید بازگردانده شود
+                  </p>
+                  {i.rialAmount ? (
+                    <p className="text-xs text-muted-foreground">
+                      مبلغ دریافتی: {toPersianDigits(formatAmount(i.rialAmount))} ریال
+                      {i.rialReceiptNo ? ` · رسید دریافت ${toPersianDigits(i.rialReceiptNo)}` : ""}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-48 flex-1 space-y-1">
+                      <label htmlFor={`return-${i.id}`} className="text-xs text-muted-foreground">شمارهٔ رسید بازگشت</label>
+                      <Input
+                        id={`return-${i.id}`}
+                        dir="ltr"
+                        className="font-mono"
+                        value={returnReceipt[i.id] ?? ""}
+                        onChange={(e) =>
+                          setReturnReceipt((s) => ({ ...s, [i.id]: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <Button
+                      disabled={busy === i.id || !returnReceipt[i.id]?.trim()}
+                      onClick={() =>
+                        run(
+                          i.id,
+                          () => confirmRialReturn(i.id, returnReceipt[i.id]!.trim()),
+                          "بازگشت ریال ثبت شد — فاکتور بسته شد",
+                        )
+                      }
+                    >
+                      {busy === i.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      )}
+                      ثبت بازگشت ریال
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               {i.status === "RIAL_RECEIVED" ? (
                 <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-3">
                   <p className="text-sm font-medium">
@@ -233,10 +306,38 @@ export default function BankImportsPage() {
                   </p>
                 </div>
               ) : null}
+
+              {["BANK_RATE_LOCKED", "RIAL_RECEIVED"].includes(i.status) ? (
+                <div className="flex justify-end border-t border-border pt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setCancelling(i)}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    لغو فاکتور
+                  </Button>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         );
       })}
+
+      {cancelling ? (
+        <CancelImportDialog
+          open
+          onOpenChange={(open) => !open && setCancelling(null)}
+          mode="cancel"
+          invoiceRef={cancelling.id}
+          rialHeld={cancelling.status === "RIAL_RECEIVED"}
+          onConfirm={async (reason) => {
+            await cancelImport(cancelling.id, reason);
+            await load();
+          }}
+        />
+      ) : null}
 
       <Card>
         <CardContent className="p-0">

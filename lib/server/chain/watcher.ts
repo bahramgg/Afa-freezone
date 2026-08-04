@@ -13,6 +13,7 @@ import { invoiceHref, notify } from "../notify";
 import { openDepositAddresses } from "../gateway";
 import { parseTerms, splitForAmount } from "./gateway-contract";
 import { raisePayoutSettlement } from "../payout";
+import type { InvoiceStatus } from "@/lib/generated/prisma/client";
 import { postInvoicePaid } from "../postings";
 import type { Prisma, Role } from "@/lib/generated/prisma/client";
 
@@ -371,7 +372,26 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     data: { receivedAmount: total },
   });
 
-  if (invoice.status === "PAID" || invoice.status === "REJECTED") return false;
+  /**
+   * Money can still arrive at an address whose invoice is over.
+   *
+   * Promoting a called-off import because the bank's transfer landed a moment
+   * later would pay the seller for a trade that was cancelled, and leave the
+   * importer owed rial that the books say was already spent. The deposit's
+   * balance is recorded above either way — the bank sees it on the deposits
+   * screen and can release or return it deliberately — but the invoice does
+   * not move.
+   */
+  const closed: InvoiceStatus[] = ["PAID", "REJECTED", "CANCELLING", "CANCELLED"];
+  if (closed.includes(invoice.status)) {
+    if (invoice.status === "CANCELLING" || invoice.status === "CANCELLED") {
+      console.warn(
+        `[watcher] ${total} ${invoice.currency} arrived at ${tx.toAddress} for ${invoice.ref}, ` +
+          `which was cancelled — left for the bank to deal with`,
+      );
+    }
+    return false;
+  }
 
   /**
    * What has to arrive before the invoice is settled.

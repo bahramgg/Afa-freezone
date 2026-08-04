@@ -48,6 +48,11 @@ const Body = z.object({
     "startPayment",
     "confirmPayment",
     "expire",
+    // Import only: calling it off once the bank is involved, and — when the
+    // importer's rial had already landed — putting it back.
+    "requestCancel",
+    "cancel",
+    "confirmRialReturn",
   ]),
   reason: z.string().trim().max(500).optional(),
   txHash: z.string().trim().optional(),
@@ -322,6 +327,91 @@ export const POST = handler(
           kind: "INVOICE_EXPIRED",
           title: "فاکتور منقضی شد",
           body: `مهلت پرداخت فاکتور ${invoice.ref} به پایان رسید`,
+          to: "both",
+        };
+        break;
+      }
+
+      /**
+       * Asking to call it off.
+       *
+       * Deliberately not a status change. The importer knows the deal is dead;
+       * only the bank knows whether the currency has already left for the
+       * seller. Letting either trader move the status themselves would race the
+       * bank's transfer — so the party who is out of pocket gets to raise it
+       * inside the system, and the decision stays where the facts are.
+       */
+      case "requestCancel": {
+        if (invoice.direction !== "IMPORT") throw badRequest("این اقدام فقط برای واردات است");
+        const isParty = invoice.ownerId === user.id || invoice.counterpartyId === user.id;
+        if (!isParty && user.role !== "ADMIN") throw forbidden("این فاکتور برای حساب دیگری است");
+        assertTransition(from, ["BANK_RATE_LOCKED", "RIAL_RECEIVED"], "درخواست لغو");
+        if (!reason) throw badRequest("دلیل درخواست لغو الزامی است");
+        if (invoice.cancelRequestedAt) throw conflict("برای این فاکتور قبلاً درخواست لغو ثبت شده است");
+
+        to = from;
+        actor = user.role === "ADMIN" ? "ADMIN" : invoice.ownerId === user.id ? "USER" : "COUNTERPARTY";
+        data = {
+          cancelRequestedAt: new Date(),
+          cancelRequestedBy: { connect: { id: user.id } },
+          cancelReason: reason,
+        };
+        recipientNote = {
+          kind: "INVOICE_CANCEL_REQUESTED",
+          title: "درخواست لغو فاکتور",
+          body: `برای فاکتور ${invoice.ref} درخواست لغو ثبت شد: ${reason}`,
+          to: "both",
+        };
+        break;
+      }
+
+      /**
+       * Calling it off.
+       *
+       * Where the rial has not arrived yet there is nothing to unwind and the
+       * file closes here. Where it has, it closes at CANCELLING instead — the
+       * one state that says the system owes somebody money — and only the bank
+       * recording the return can finish it. Skipping that would shut the file
+       * with the importer's rial still at the bank and no record of it.
+       */
+      case "cancel": {
+        if (invoice.direction !== "IMPORT") throw badRequest("این اقدام فقط برای واردات است");
+        if (user.role !== "ADMIN" && user.role !== "BANK") {
+          throw forbidden("لغو فاکتور فقط توسط سازمان یا بانک انجام می‌شود");
+        }
+        assertTransition(from, ["BANK_RATE_LOCKED", "RIAL_RECEIVED"], "لغو فاکتور");
+        if (!reason) throw badRequest("دلیل لغو الزامی است");
+
+        const owesRial = from === "RIAL_RECEIVED";
+        to = owesRial ? "CANCELLING" : "CANCELLED";
+        actor = user.role === "BANK" ? "BANK" : "ADMIN";
+        data = {
+          cancelReason: reason,
+          cancelledAt: new Date(),
+          ...(owesRial ? {} : { rialReturnedAt: null }),
+        };
+        recipientNote = {
+          kind: "INVOICE_CANCELLED",
+          title: owesRial ? "فاکتور لغو شد — بازگشت ریال در جریان است" : "فاکتور لغو شد",
+          body: owesRial
+            ? `فاکتور ${invoice.ref} لغو شد: ${reason}. ریال واریزی به حساب واردکننده بازگردانده می‌شود.`
+            : `فاکتور ${invoice.ref} لغو شد: ${reason}`,
+          to: "both",
+        };
+        break;
+      }
+
+      case "confirmRialReturn": {
+        if (user.role !== "BANK") throw forbidden("ثبت بازگشت ریال فقط توسط بانک انجام می‌شود");
+        assertTransition(from, ["CANCELLING"], "ثبت بازگشت ریال");
+        if (!body.receiptNo) throw badRequest("شماره رسید بازگشت الزامی است");
+        to = "CANCELLED";
+        actor = "BANK";
+        data = { rialReturnReceiptNo: body.receiptNo, rialReturnedAt: new Date() };
+        recipientNote = {
+          kind: "INVOICE_RIAL_RETURNED",
+          title: "ریال بازگردانده شد",
+          body: `ریال فاکتور ${invoice.ref} به حساب واردکننده بازگردانده شد`,
           to: "both",
         };
         break;

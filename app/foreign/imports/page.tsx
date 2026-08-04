@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { AlertTriangle, Ban } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
@@ -15,6 +16,9 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { useLoad } from "@/lib/stores/useLoad";
 import { truncateAddress } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
+import { Button } from "@/components/ui/Button";
+import { CancelImportDialog } from "@/components/invoice/CancelImportDialog";
+import { useInvoicesStore } from "@/lib/stores/invoices";
 
 /**
  * What this seller has billed Iranian importers.
@@ -27,6 +31,8 @@ import type { Invoice } from "@/lib/types";
 export default function ForeignImportsPage() {
   const uid = useAuthStore((s) => s.user?.uid);
   const [list, setList] = useState<Invoice[]>([]);
+  const [cancelling, setCancelling] = useState<Invoice | null>(null);
+  const requestCancel = useInvoicesStore((s) => s.requestCancel);
 
   const load = useCallback(async () => {
     const data = await api.get<{ list: Invoice[] }>("/invoices?status=ALL");
@@ -37,6 +43,9 @@ export default function ForeignImportsPage() {
   useLoad(load);
 
   const mine = list.filter((i) => i.userUid === uid);
+  // The seller can call off their own sale too — they may know before anyone
+  // else that they cannot ship. Same rule: they ask, the bank decides.
+  const inFlight = mine.filter((i) => ["BANK_RATE_LOCKED", "RIAL_RECEIVED"].includes(i.status));
 
   return (
     <div className="space-y-6">
@@ -45,6 +54,56 @@ export default function ForeignImportsPage() {
         description="فاکتورهایی که برای واردکنندگان ایرانی صادر کرده‌اید — اصل مبلغ مستقیماً به کیف پول شما واریز می‌شود"
         actions={<CreateImportInvoiceDialog />}
       />
+
+      {inFlight.length > 0 ? (
+        <Card>
+          <CardContent className="space-y-3 py-4">
+            <div className="text-sm font-medium">لغو فروش</div>
+            <p className="text-xs leading-6 text-muted-foreground">
+              اگر نمی‌توانید بار را ارسال کنید، درخواست لغو ثبت کنید. تصمیم نهایی با سازمان و بانک
+              است، و ریالی که واردکننده پرداخته به او بازگردانده می‌شود.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {inFlight.map((i) =>
+                i.cancelRequestedAt ? (
+                  <span
+                    key={i.id}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-warning/40 bg-warning/5 px-3 text-xs"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    درخواست لغو {i.id} ثبت شده است
+                  </span>
+                ) : (
+                  <Button
+                    key={i.id}
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setCancelling(i)}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    درخواست لغو {i.id}
+                  </Button>
+                ),
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {cancelling ? (
+        <CancelImportDialog
+          open
+          onOpenChange={(open) => !open && setCancelling(null)}
+          mode="request"
+          invoiceRef={cancelling.id}
+          rialHeld={cancelling.status === "RIAL_RECEIVED"}
+          onConfirm={async (reason) => {
+            await requestCancel(cancelling.id, reason);
+            await load();
+          }}
+        />
+      ) : null}
 
       <Card>
         <CardContent className="p-0">

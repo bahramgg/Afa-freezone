@@ -35,6 +35,7 @@ const SUITES: Suite[] = [
   { file: "export-flow.test.ts", title: "export, addressed to a buyer", needs: ["server", "db"] },
   { file: "import-flow.test.ts", title: "import, end to end", needs: ["server", "db", "chain"] },
   { file: "import-fixes.test.ts", title: "what an import settles on", needs: ["server", "db", "chain"] },
+  { file: "import-cancel.test.ts", title: "calling an import off", needs: ["server", "db", "chain"] },
   { file: "fee-authority.test.ts", title: "who decides the fee", needs: ["server", "db", "chain"] },
   { file: "phase3.test.ts", title: "documents, refunds, and the retired flow", needs: ["server", "db", "chain"] },
   { file: "email-login.test.ts", title: "one email door for every panel", needs: ["server", "db"] },

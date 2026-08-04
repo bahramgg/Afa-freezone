@@ -91,6 +91,14 @@ export function serializeInvoice(
     rialDepositAt: iso(i.rialDepositAt),
     bankSpreadRial: num(i.bankSpreadRial),
     rejectReason: i.rejectReason ?? undefined,
+    // Calling an import off. `cancelRequestedAt` without `cancelledAt` is the
+    // state a screen has to show differently: somebody has asked, and nobody
+    // has decided yet.
+    cancelRequestedAt: iso(i.cancelRequestedAt),
+    cancelReason: i.cancelReason ?? undefined,
+    cancelledAt: iso(i.cancelledAt),
+    rialReturnReceiptNo: i.rialReturnReceiptNo ?? undefined,
+    rialReturnedAt: iso(i.rialReturnedAt),
     txHash: i.chainTx?.hash ?? undefined,
     confirmations: i.chainTx?.confirmations,
     userUid: i.owner?.uid,

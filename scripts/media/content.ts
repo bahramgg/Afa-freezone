@@ -166,6 +166,78 @@ const guaranteeSection = (): DocSection => ({
   steps: GUARANTEES,
 });
 
+
+/**
+ * What happens when an import falls through.
+ *
+ * The one place in the system where somebody can be out of pocket: the importer
+ * has paid rial and the currency has not gone out. Every guide that touches an
+ * import says the same thing about it, in the same words, because it is the
+ * question an official will ask first.
+ */
+const CANCELLATION: { title: string; text: string }[] = [
+  {
+    title: "هر یک از دو طرف می‌تواند درخواست لغو بدهد",
+    text:
+      "اگر معامله به هم بخورد — بار ارسال نشود، اختلافی پیش بیاید — واردکننده یا فروشندهٔ خارجی " +
+      "می‌تواند از پنل خود درخواست لغو ثبت کند. درخواست با ذکر دلیل ثبت می‌شود و برای سازمان و " +
+      "بانک نمایش داده می‌شود.",
+  },
+  {
+    title: "تصمیم با سازمان یا بانک است",
+    text:
+      "درخواست به‌تنهایی وضعیت فاکتور را عوض نمی‌کند. تنها بانک می‌داند ارز را فرستاده یا نه، و " +
+      "اگر طرفین می‌توانستند خودشان لغو کنند، ممکن بود درست هم‌زمان با ارسال ارز لغو ثبت شود. " +
+      "بنابراین تصمیم نهایی با سازمان یا بانک است.",
+  },
+  {
+    title: "اگر هنوز ریالی نرسیده، پرونده همان‌جا بسته می‌شود",
+    text:
+      "لغو پیش از واریز ریال چیزی برای برگرداندن ندارد؛ فاکتور بسته می‌شود و کار تمام است.",
+  },
+  {
+    title: "اگر ریال رسیده باشد، پرونده تا بازگشت آن باز می‌ماند",
+    text:
+      "فاکتور به وضعیت «لغو شده — در انتظار بازگشت ریال» می‌رود. این وضعیت قابل رد شدن نیست: تنها " +
+      "چیزی که آن را می‌بندد، ثبت شمارهٔ رسید بازگشت توسط بانک است. تا آن لحظه، مبلغ در پنل " +
+      "واردکننده به‌عنوان بدهی سامانه به او دیده می‌شود.",
+  },
+  {
+    title: "فاکتور لغوشده دیگر پرداخت نمی‌شود",
+    text:
+      "اگر ارزی پس از لغو به نشانی فاکتور برسد، سامانه آن را به پای فاکتور نمی‌گذارد. مبلغ در " +
+      "صفحهٔ واریزهای بانک دیده می‌شود تا اپراتور آگاهانه دربارهٔ آن تصمیم بگیرد.",
+  },
+];
+
+const cancellationBeats = (): Beat[] => [
+  {
+    kind: "section",
+    heading: "اگر معامله به هم بخورد",
+    body:
+      "واردات تنها جایی است که ممکن است پول کسی در میانهٔ راه بماند: واردکننده ریال را پرداخته و " +
+      "ارز هنوز نرفته است. مسیر خروج از این وضعیت در سامانه پیش‌بینی شده است.",
+    seconds: 12,
+  },
+  ...CANCELLATION.map((c) => ({
+    kind: "point" as const,
+    heading: c.title,
+    body: c.text,
+    seconds: 9,
+  })),
+];
+
+const cancellationSection = (): DocSection => ({
+  heading: "لغو معاملهٔ وارداتی",
+  breakBefore: true,
+  paragraphs: [
+    "واردات تنها نقطه‌ای است که ممکن است وجهی در میانهٔ مسیر بماند: واردکننده ریال را پرداخته و " +
+      "ارز هنوز برای فروشنده ارسال نشده است. برای این حالت مسیر مشخصی در سامانه وجود دارد و هیچ " +
+      "بخشی از آن خارج از سامانه انجام نمی‌شود.",
+  ],
+  steps: CANCELLATION,
+});
+
 // ───────────────────────────────────────────────────── بازرگان داخلی ──
 
 const USER: Panel = {
@@ -342,6 +414,7 @@ const USER: Panel = {
       body: "ورود به هر پنل با ایمیل انجام می‌شود: کد یا پیوندی که به نشانی ثبت‌شده ارسال می‌شود.",
       seconds: 13,
     },
+    ...cancellationBeats(),
     ...guaranteeBeats(),
     {
       kind: "close",
@@ -493,6 +566,7 @@ const USER: Panel = {
         "ورود — با نشانی ایمیل ثبت‌شده انجام می‌شود: کد ورود یا پیوند مستقیم به همان نشانی ارسال می‌شود.",
       ],
     },
+    cancellationSection(),
     guaranteeSection(),
   ],
 };
@@ -637,6 +711,7 @@ const FOREIGN: Panel = {
       ],
       seconds: 11,
     },
+    ...cancellationBeats(),
     ...guaranteeBeats(),
     {
       kind: "close",
@@ -746,6 +821,7 @@ const FOREIGN: Panel = {
         "تنظیمات — اطلاعات هویتی و مدارک احراز هویت.",
       ],
     },
+    cancellationSection(),
     guaranteeSection(),
   ],
 };
@@ -871,6 +947,7 @@ const ADMIN: Panel = {
         "صدور خود را نگه می‌دارند.",
       seconds: 14,
     },
+    ...cancellationBeats(),
     ...guaranteeBeats(),
     {
       kind: "close",
@@ -987,6 +1064,7 @@ const ADMIN: Panel = {
           "نمی‌تواند به گذشته بازگردد.",
       ],
     },
+    cancellationSection(),
     guaranteeSection(),
   ],
 };
@@ -1130,6 +1208,7 @@ const BANK: Panel = {
       ],
       seconds: 12,
     },
+    ...cancellationBeats(),
     ...guaranteeBeats(),
     {
       kind: "close",
@@ -1252,6 +1331,7 @@ const BANK: Panel = {
         "گزارش‌ها — خروجی اکسل از تسویه‌ها، تراکنش‌ها و دفتر کل.",
       ],
     },
+    cancellationSection(),
     guaranteeSection(),
   ],
 };

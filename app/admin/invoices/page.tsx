@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Ban, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { CancelImportDialog } from "@/components/invoice/CancelImportDialog";
 import { Ltr } from "@/components/shared/Ltr";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -34,7 +35,8 @@ type AdminTabKey =
   | "WITH_BANK"
   | "PAID"
   | "EXPIRED"
-  | "REJECTED";
+  | "REJECTED"
+  | "CANCELLED";
 
 const TABS: { value: AdminTabKey; label: string }[] = [
   { value: "PENDING", label: "در انتظار تأیید" },
@@ -42,6 +44,10 @@ const TABS: { value: AdminTabKey; label: string }[] = [
   // An import spends most of its life here, and until this tab existed those
   // two statuses were reachable only by scrolling "همه".
   { value: "WITH_BANK", label: "واردات نزد بانک" },
+  // Cancelled imports live here rather than under "رد شده": one was refused
+  // before it started, the other was unwound after money had moved, and an
+  // auditor reading the two together would draw the wrong conclusion.
+  { value: "CANCELLED", label: "لغو شده" },
   { value: "PAID", label: "موفق" },
   { value: "EXPIRED", label: "منقضی" },
   { value: "REJECTED", label: "رد شده" },
@@ -56,6 +62,7 @@ const ADMIN_STATUSES_FOR: Record<AdminTabKey, InvoiceStatus[] | "ALL"> = {
   PAID: ["PAID"],
   EXPIRED: ["EXPIRED"],
   REJECTED: ["REJECTED"],
+  CANCELLED: ["CANCELLING", "CANCELLED"],
 };
 
 /**
@@ -82,11 +89,13 @@ export default function AdminInvoicesPage() {
   const list = useInvoicesStore((s) => s.list);
   const approve = useInvoicesStore((s) => s.approve);
   const reject = useInvoicesStore((s) => s.reject);
+  const cancelImport = useInvoicesStore((s) => s.cancelImport);
   const hydrated = useHydrated();
 
   const [tab, setTab] = useState<AdminTabKey>("PENDING");
   const [search, setSearch] = useState("");
   const [reviewing, setReviewing] = useState<Invoice | null>(null);
+  const [cancelling, setCancelling] = useState<Invoice | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -235,6 +244,12 @@ export default function AdminInvoicesPage() {
                 </span>
               ) : "—"} />
               <Row label="توضیحات" value={reviewing.description || "—"} />
+              {reviewing.cancelReason ? (
+                <Row
+                  label={reviewing.cancelledAt ? "دلیل لغو" : "درخواست لغو"}
+                  value={<span className="text-warning">{reviewing.cancelReason}</span>}
+                />
+              ) : null}
             </div>
           ) : null}
           {rejectMode ? (
@@ -246,6 +261,20 @@ export default function AdminInvoicesPage() {
           <DialogFooter>
             {!rejectMode ? (
               <>
+                {reviewing &&
+                reviewing.tradeDirection === "IMPORT" &&
+                ["BANK_RATE_LOCKED", "RIAL_RECEIVED"].includes(reviewing.status) ? (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setCancelling(reviewing);
+                      setReviewing(null);
+                    }}
+                  >
+                    <Ban className="h-4 w-4" />
+                    لغو
+                  </Button>
+                ) : null}
                 <Button variant="destructive" onClick={() => setRejectMode(true)}>
                   <X className="h-4 w-4" />
                   رد
@@ -264,6 +293,17 @@ export default function AdminInvoicesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {cancelling ? (
+        <CancelImportDialog
+          open
+          onOpenChange={(open) => !open && setCancelling(null)}
+          mode="cancel"
+          invoiceRef={cancelling.id}
+          rialHeld={cancelling.status === "RIAL_RECEIVED"}
+          onConfirm={(reason) => cancelImport(cancelling.id, reason)}
+        />
+      ) : null}
     </div>
   );
 }

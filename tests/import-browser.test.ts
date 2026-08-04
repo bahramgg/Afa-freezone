@@ -154,9 +154,17 @@ async function main() {
     step("the bank confirms the rial and is told where to send the currency");
     {
       const s = await open(bankCookie, "/bank/imports");
-      await s.page.getByRole("button", { name: "تأیید دریافت ریال" }).waitFor({ timeout: 6000 });
-      await s.page.locator('input.font-mono[dir="ltr"]').last().fill("TR-BROWSER-1");
-      await s.page.getByRole("button", { name: "تأیید دریافت ریال" }).click();
+      // Scoped to this invoice's own card. The bank's queue holds whatever
+      // other suites left behind, and a selector that assumes it is alone
+      // there fails on the day the system gets busier — which is not a fact
+      // about the system worth failing over.
+      const receipt = s.page.locator(`#receipt-${invoice.id}`);
+      await receipt.waitFor({ timeout: 6000 });
+      await receipt.fill("TR-BROWSER-1");
+      await receipt
+        .locator("xpath=ancestor::div[2]")
+        .getByRole("button", { name: "تأیید دریافت ریال" })
+        .click();
       await s.page.getByText("واریز ریالی ثبت شد", { exact: false }).waitFor({ timeout: 10_000 });
       const text = await s.page.innerText("body");
       check(

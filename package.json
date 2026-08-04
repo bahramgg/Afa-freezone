@@ -7,15 +7,17 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate",
+    "test": "tsx --conditions=react-server tests/run.ts",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "check:chain": "tsx --conditions=react-server scripts/check-chain.ts",
     "watch:chain": "tsx --conditions=react-server scripts/watch-chain.ts",
+    "chain:local": "tsx --conditions=react-server scripts/local-chain.ts",
     "contracts:build": "tsx scripts/compile-contracts.ts",
-    "contracts:deploy": "tsx scripts/deploy-gateway.ts"
+    "contracts:deploy": "tsx scripts/deploy-gateway.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -71,6 +73,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "hardhat": "^2.29.0",
+    "playwright": "^1.62.1",
     "solc": "^0.8.28",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",

@@ -15,6 +15,13 @@ const eslintConfig = defineConfig([
     // Prisma's generated client is rebuilt by `npm install`; linting it is noise.
     "lib/generated/**",
   ]),
+  {
+    // The suites read whatever the API actually returned, which is the point —
+    // typing a response would assert what we already believe instead of what
+    // came back. `any` there is the honest description of untyped JSON.
+    files: ["tests/**/*.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
 ]);
 
 export default eslintConfig;

@@ -56,10 +56,22 @@ prisma/
 - Stores start empty; `DataBootstrap` in each layout loads what that persona
   needs. A new store needs a loader added there, not a fetch in the page.
 
+## Tests
+
+`tests/` holds end-to-end suites — real database, real routes, real chain,
+nothing mocked. `npm test` runs them, `npm test -- --list` shows what there is,
+`tests/README.md` says what has to be running first. A suite whose world is
+missing is skipped and reported, never quietly dropped.
+
+Changing behaviour means changing or adding a suite. Where the change is a fix,
+confirm the new check goes red against the old behaviour before trusting the
+green — a check that cannot fail is not a check.
+
 ## Before declaring a task done
 
 - [ ] `npx tsc --noEmit` is clean.
 - [ ] `npm run build` succeeds.
+- [ ] `npm test` is green, with nothing skipped that the change touched.
 - [ ] If routes or flows changed, walk them in a browser — not just unit-level.
 - [ ] No page-level horizontal scroll at 390px.
 

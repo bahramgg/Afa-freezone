@@ -3,6 +3,7 @@ import { db } from "@/lib/server/db";
 import { audit } from "@/lib/server/audit";
 import { badRequest, handler, jsonOk, notFound, readJson, readQuery, requireRole } from "@/lib/server/http";
 import { revokeAllSessions } from "@/lib/server/auth/session";
+import { isStaffRole, STAFF_ROLES } from "@/lib/server/auth/access";
 import { serializeUser } from "@/lib/server/serialize";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -108,6 +109,29 @@ export const PATCH = handler(async (request: Request) => {
   if (action === "setRole") {
     if (!role) throw badRequest("نقش جدید مشخص نشده است");
     if (role === target.role) throw badRequest("این حساب از قبل همین نقش را دارد");
+
+    // The access list is what sign-in consults, so a role granted only here
+    // would be taken straight back the next time they signed in. Whichever
+    // screen the change is made from, both records move together.
+    if (target.email) {
+      if (isStaffRole(role)) {
+        await db.allowedEmail.upsert({
+          where: { email: target.email },
+          create: {
+            email: target.email,
+            role,
+            note: "افزوده‌شده از فهرست کاربران",
+            addedById: me.id,
+          },
+          update: { role },
+        });
+      } else {
+        await db.allowedEmail.deleteMany({
+          where: { email: target.email, role: { in: [...STAFF_ROLES] } },
+        });
+      }
+    }
+
     await db.user.update({ where: { id: target.id }, data: { role } });
     // The old role's sessions carry the old permissions until they are cut.
     await revokeAllSessions(target.id);

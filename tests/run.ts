@@ -38,6 +38,7 @@ const SUITES: Suite[] = [
   { file: "fee-authority.test.ts", title: "who decides the fee", needs: ["server", "db", "chain"] },
   { file: "phase3.test.ts", title: "documents, refunds, and the retired flow", needs: ["server", "db", "chain"] },
   { file: "email-login.test.ts", title: "one email door for every panel", needs: ["server", "db"] },
+  { file: "staff-access.test.ts", title: "who may be the bank or the organisation", needs: ["server", "db"] },
   { file: "hardening.test.ts", title: "the edges money escapes through", needs: ["server", "db", "chain"] },
   { file: "qa-flows.test.ts", title: "both trade flows, step by step", needs: ["server", "db", "chain"] },
   { file: "login.test.ts", title: "signing in, in a browser", needs: ["server", "db", "browser"] },

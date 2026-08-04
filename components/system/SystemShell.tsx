@@ -14,7 +14,7 @@ import { cn } from "@/lib/cn";
 export const SYSTEM_NAV = [
   { href: "/system/users", label: "کاربران", icon: Users },
   { href: "/system/logs", label: "گزارش رویدادها", icon: ListTree },
-  { href: "/system/access", label: "دسترسی ثبت‌نام", icon: KeyRound },
+  { href: "/system/access", label: "دسترسی‌ها", icon: KeyRound },
 ] as const;
 
 /**

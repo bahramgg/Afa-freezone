@@ -84,7 +84,7 @@ async function main() {
       for (const [path, heading] of [
         ["/system/users", "کاربران"],
         ["/system/logs", "گزارش رویدادها"],
-        ["/system/access", "دسترسی ثبت‌نام"],
+        ["/system/access", "دسترسی‌ها"],
       ]) {
         await visit(s.page, path);
         check(`${path} renders`, await s.page.getByRole("heading", { name: heading }).isVisible());

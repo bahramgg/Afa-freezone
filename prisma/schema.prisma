@@ -146,15 +146,34 @@ model OtpCode {
  * then anyone may sign up and this is a standing invitation list rather than a
  * gate.
  */
+/**
+ * Which addresses may hold which role.
+ *
+ * Two lists in one table, because they are the same question asked of two
+ * populations and splitting them would let the answers drift apart.
+ *
+ * A merchant entry (IRANIAN, FOREIGN) is only consulted when
+ * `Settings.registrationRestricted` is on — the gateway can be open to anyone
+ * while the list is being built.
+ *
+ * A staff entry (ADMIN, BANK, SUPERADMIN) is **always** consulted, switch or
+ * no switch, and it is the only thing that grants an operator role. Nobody
+ * reaches the bank's or the organization's panel by any other route, and taking
+ * an address off this list takes the panel away — which is the point.
+ */
 model AllowedEmail {
   id    String @id @default(cuid())
   email String @unique
+  /** What this address is admitted as. */
+  role  Role   @default(IRANIAN)
   note  String?
 
   addedById String?
   addedBy   User?   @relation("AllowlistAuthor", fields: [addedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+
+  @@index([role])
 }
 
 /**

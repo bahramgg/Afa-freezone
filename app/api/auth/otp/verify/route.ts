@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { db } from "@/lib/server/db";
 import { normalizeEmail, redeemLink, redeemOtp } from "@/lib/server/auth/otp";
-import { createSession } from "@/lib/server/auth/session";
+import { createSession, revokeAllSessions } from "@/lib/server/auth/session";
+import { admits, isStaffRole } from "@/lib/server/auth/access";
 import { audit } from "@/lib/server/audit";
-import { badRequest, clientIp, forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
+import { clientIp, forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
 import { rateLimit } from "@/lib/server/ratelimit";
 import { env } from "@/lib/server/env";
 import { serializeUser } from "@/lib/server/serialize";
@@ -63,24 +64,31 @@ export const POST = handler(async (request: Request) => {
   let user = await db.user.findUnique({ where: { email } });
   if (user?.disabledAt) throw forbidden("حساب کاربری شما غیرفعال شده است");
 
+  // The same question the request route asked. Asking it again matters: the
+  // list can change between the code being sent and the code being typed, and
+  // the moment that counts is the one that hands out a session.
+  const verdict = await admits(email);
+  if (!verdict.allowed) throw forbidden(verdict.reason);
+
   const isNew = !user;
   if (!user) {
-    const settings = await db.settings.findUnique({ where: { id: 1 } });
-    if (settings?.registrationRestricted) {
-      const allowed = await db.allowedEmail.findUnique({ where: { email } });
-      if (!allowed) throw badRequest("ثبت‌نام با این نشانی مجاز نیست");
-    }
-    // An address nobody has seen becomes an Iranian merchant awaiting KYC.
-    // Staff and foreign accounts are made deliberately, never by signing in.
+    // An address nobody has seen becomes whatever the list admits it as —
+    // a merchant awaiting KYC unless an operator was expected here.
+    const role = verdict.role ?? "IRANIAN";
     user = await db.user.create({
       data: {
-        uid: await nextUid("IRANIAN"),
-        role: "IRANIAN",
+        uid: await nextUid(role),
+        role,
         email,
         fullName: "",
-        kyc: "PENDING",
+        kyc: isStaffRole(role) ? "APPROVED" : "PENDING",
       },
     });
+  } else if (verdict.role && verdict.role !== user.role) {
+    // The list is the authority on who operates what. An address moved from
+    // the bank to the organization takes its account with it.
+    user = await db.user.update({ where: { id: user.id }, data: { role: verdict.role } });
+    await revokeAllSessions(user.id);
   }
 
   await createSession(user.id, {

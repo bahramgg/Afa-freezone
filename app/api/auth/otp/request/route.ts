@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/server/db";
 import { issueOtp, normalizeEmail } from "@/lib/server/auth/otp";
+import { admits } from "@/lib/server/auth/access";
 import { audit } from "@/lib/server/audit";
 import { clientIp, forbidden, handler, jsonOk, readJson } from "@/lib/server/http";
 import { rateLimit } from "@/lib/server/ratelimit";
@@ -42,15 +43,9 @@ export const POST = handler(async (request: Request) => {
   // wait on an email that will never work is worse than saying so.
   if (user?.disabledAt) throw forbidden("حساب کاربری شما غیرفعال شده است");
 
-  if (!user) {
-    const settings = await db.settings.findUnique({ where: { id: 1 } });
-    if (settings?.registrationRestricted) {
-      const allowed = await db.allowedEmail.findUnique({ where: { email: normalized } });
-      if (!allowed) {
-        throw forbidden("ثبت‌نام با این نشانی مجاز نیست — با پشتیبانی تماس بگیرید");
-      }
-    }
-  }
+  // Asked here as well as at verify, so nobody is sent a code that cannot work.
+  const verdict = await admits(normalized);
+  if (!verdict.allowed) throw forbidden(verdict.reason);
 
   const origin = new URL(request.url).origin;
   const { expiresAt, devCode, devLink } = await issueOtp(normalized, origin);

@@ -92,6 +92,17 @@ async function main() {
   });
   console.log(`· system administrator ${system.uid} <${system.email}>`);
 
+  // A staff role is only valid while its address is on the access list, so
+  // three operator accounts without three list entries are three locked panels.
+  for (const staff of [admin, bank, system]) {
+    await db.allowedEmail.upsert({
+      where: { email: staff.email! },
+      create: { email: staff.email!, role: staff.role, note: "حساب اولیهٔ سامانه" },
+      update: { role: staff.role },
+    });
+  }
+  console.log("· access list carries the three operator addresses");
+
   // Gateway wallets. Without at least one RECEIVE wallet no invoice can be
   // approved, because there is nowhere to quote for payment.
   const receive = process.env.SEED_BANK_RECEIVE_WALLET?.toLowerCase();

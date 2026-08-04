@@ -25,6 +25,7 @@ export type AuditAction =
   | "USER_ROLE_CHANGED"
   | "ALLOWLIST_ADDED"
   | "ALLOWLIST_REMOVED"
+  | "ALLOWLIST_ROLE_CHANGED"
   | "REGISTRATION_POLICY_CHANGED";
 
 export async function audit(

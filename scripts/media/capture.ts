@@ -153,18 +153,27 @@ export async function capture(browser: Browser, shots: Shot[], outDir: string) {
       await page.waitForTimeout(500);
     }
     if (shot.ring) {
-      await page.evaluate((sel) => {
-        const el = document.querySelector(sel);
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const ring = document.createElement("div");
-        ring.style.cssText = `position:fixed;left:${r.left - 6}px;top:${r.top - 6}px;
-          width:${r.width + 12}px;height:${r.height + 12}px;border:3px solid oklch(0.62 0.2 25);
-          border-radius:12px;box-shadow:0 0 0 9999px rgba(15,23,42,.45);z-index:2147483647;
-          pointer-events:none`;
-        document.body.appendChild(ring);
-      }, shot.ring).catch(() => {});
-      await page.waitForTimeout(200);
+      // Resolved through the locator, not `querySelector`: the shot list uses
+      // Playwright selectors (`text=…`) that CSS cannot parse, and the earlier
+      // version silently drew nothing for every one of them.
+      const target = await page.locator(shot.ring).first().boundingBox().catch(() => null);
+      if (target) {
+        await page.evaluate((r) => {
+          const pad = 8;
+          const ring = document.createElement("div");
+          ring.style.cssText = `position:fixed;left:${r.x - pad}px;top:${r.y - pad}px;
+            width:${r.width + pad * 2}px;height:${r.height + pad * 2}px;
+            border:4px solid #f97316;border-radius:14px;
+            box-shadow:0 0 0 9999px rgba(9,14,26,.42), 0 0 26px rgba(249,115,22,.55);
+            z-index:2147483647;pointer-events:none`;
+          document.body.appendChild(ring);
+        }, target);
+        await page.waitForTimeout(220);
+      } else {
+        // Loud, because a highlight that quietly does not appear is a caption
+        // pointing at nothing.
+        process.stdout.write(`    ! ${shot.name}: nothing matched ring "${shot.ring}"\n`);
+      }
     }
 
     let box: { x: number; y: number; width: number; height: number } | null = null;

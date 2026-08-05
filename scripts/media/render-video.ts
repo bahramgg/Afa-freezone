@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import type { Browser } from "playwright";
 import type { Panel } from "./content";
 import { BEATS, beatSeconds, runtimeOf, type Beat } from "./storyboard";
-import { flowSvg, videoShell, type Frame } from "./video-stage";
+import { videoShell, type Frame } from "./video-stage";
 
 /**
  * Turns a panel's storyboard into an MP4.
@@ -40,10 +40,13 @@ function shotData(name: string): string {
 function frameFor(beat: Beat): Frame {
   if (beat.kind === "title") return { kind: "title", heading: beat.heading, sub: beat.sub };
   if (beat.kind === "shot") {
-    return { kind: "shot", image: shotData(beat.shot), caption: beat.caption };
+    return { kind: "shot", image: shotData(beat.shot), caption: beat.caption, step: beat.step };
   }
-  return { kind: "flow", svg: flowSvg(beat.flow, beat.active), caption: beat.caption };
+  return { kind: "flow", svg: beat.svg, caption: beat.caption, step: beat.step };
 }
+
+/** The bed, if one has been generated. Absent is not an error — just silence. */
+const SCORE = resolve(import.meta.dirname, "assets", "score.wav");
 
 export async function renderVideo(
   browser: Browser,
@@ -115,6 +118,7 @@ export async function renderVideo(
   writeFileSync(listFile, list);
 
   const mp4 = resolve(outDir, `${panel.key}.mp4`);
+  const scored = existsSync(SCORE);
   execFileSync(
     ffmpeg,
     [
@@ -123,6 +127,21 @@ export async function renderVideo(
       "-f", "concat",
       "-safe", "0",
       "-i", listFile,
+      // The bed, looped to the length of the film and faded at both ends. Well
+      // under the picture in level: it is there so a silent room does not feel
+      // like a fault, not to be listened to.
+      ...(scored ? ["-stream_loop", "-1", "-i", SCORE] : []),
+      ...(scored
+        ? [
+            "-filter_complex",
+            `[1:a]volume=0.16,afade=t=in:st=0:d=3,afade=t=out:st=${Math.max(0, total - 4)}:d=4[a]`,
+            "-map", "0:v",
+            "-map", "[a]",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-shortest",
+          ]
+        : []),
       "-vf", `fps=${FPS},format=yuv420p`,
       // H.264 in an MP4, and only that. It is the one video format that plays
       // everywhere without asking — which for a file an official will open on

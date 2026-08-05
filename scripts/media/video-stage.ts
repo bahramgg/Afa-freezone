@@ -20,8 +20,10 @@ const fa = (s: string | number) =>
 
 export type Frame =
   | { kind: "title"; heading: string; sub?: string }
-  | { kind: "shot"; image: string; caption: string }
-  | { kind: "flow"; svg: string; caption: string };
+  /** A real screen, with the part being described ringed on it. */
+  | { kind: "shot"; image: string; caption: string; step?: string }
+  /** Any drawn explanation. The kinds are in `diagrams.ts`. */
+  | { kind: "flow"; svg: string; caption: string; step?: string };
 
 const ACTOR_COLOR: Record<string, string> = {
   merchant: "#818cf8",
@@ -162,12 +164,18 @@ body{
 #progress{position:absolute;inset:auto 0 0 0;height:5px;background:rgba(255,255,255,.09);z-index:6}
 #progress i{display:block;height:100%;width:0;background:${panel.accent}}
 #label{position:absolute;top:26px;inset-inline-end:44px;font-size:22px;color:#7f8db0;z-index:6}
+/* Which numbered step of the walkthrough this is. The point of the rebuild is
+   that a viewer always knows where they are in the path. */
+#step{position:absolute;top:24px;left:50%;translate:-50% 0;font-size:23px;font-weight:600;
+  color:#0b1120;background:${panel.accent};padding:7px 22px;border-radius:99px;
+  z-index:6;display:none}
 #clock{position:absolute;top:26px;inset-inline-start:44px;font-size:22px;color:#7f8db0;
   font-variant-numeric:tabular-nums;z-index:6}
 </style></head><body>
 <div id="accent"></div>
 <div id="label">${esc(panel.title)}</div>
 <div id="clock"></div>
+<div id="step"></div>
 
 <div id="stage">
   <img id="shot" alt="">
@@ -191,12 +199,14 @@ const fa = (s) => String(s).replace(/\\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number
  */
 window.paint = (frame, t, elapsed) => {
   const shot = $("#shot"), flow = $("#flowbox"), title = $("#title"),
-        cap = $("#caption"), bar = $("#bar");
+        cap = $("#caption"), bar = $("#bar"), stepBadge = $("#step");
   const ease = t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
 
   shot.style.display = "none";
   flow.style.display = "none";
   title.style.display = "none";
+  stepBadge.style.display = frame.step ? "block" : "none";
+  if (frame.step) stepBadge.textContent = frame.step;
   bar.style.display = "flex";
   document.body.style.setProperty("--bar", "168px");
 

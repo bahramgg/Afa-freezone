@@ -100,17 +100,43 @@ async function main() {
   const { parseTerms, previewSplit } = await import("@/lib/server/chain/gateway-contract");
 
   // ── an invoice, approved ────────────────────────────────────────────────
-  const owner = await db.user.findFirst({ where: { role: "IRANIAN" } });
+  //
+  // Both parties are made here rather than looked up. Reaching for "any Iranian
+  // merchant" found one only because some earlier suite had left one behind: on
+  // a freshly seeded database this suite died on `owner!.id` before its first
+  // check, and reported one failure for a system that was working.
+  const { nextUid } = await import("@/lib/server/uid");
+  const owner = await db.user.upsert({
+    where: { email: "integration.merchant@afa.local" },
+    update: {},
+    create: {
+      uid: await nextUid("IRANIAN"),
+      role: "IRANIAN",
+      fullName: "بازرگان آزمون یکپارچگی",
+      email: "integration.merchant@afa.local",
+      kyc: "APPROVED",
+    },
+  });
   // An invoice now names the buyer it was raised for, so the fixture needs one.
-  const buyer = await db.user.findFirst({ where: { role: "FOREIGN" } });
+  const buyer = await db.user.upsert({
+    where: { email: "integration.buyer@example.com" },
+    update: {},
+    create: {
+      uid: await nextUid("FOREIGN"),
+      role: "FOREIGN",
+      fullName: "Integration Buyer Ltd",
+      email: "integration.buyer@example.com",
+      kyc: "APPROVED",
+    },
+  });
   const { nextRef } = await import("@/lib/server/refs");
   const { ref, trxRef } = await nextRef("invoice", db);
   const invoice = await db.invoice.create({
     data: {
       ref,
       trxRef,
-      ownerId: owner!.id,
-      counterpartyId: buyer!.id,
+      ownerId: owner.id,
+      counterpartyId: buyer.id,
       amount: "1000",
       currency: "USDT",
       description: "اتصال قرارداد",

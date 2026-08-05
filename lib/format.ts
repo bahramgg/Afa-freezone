@@ -1,6 +1,6 @@
 import { dayjs } from "./jalali";
 import type { Currency } from "./types";
-import { currencyLabel, explorerUrl } from "./chains";
+import { currencyLabel } from "./chains";
 
 const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 
@@ -63,10 +63,3 @@ export function truncateHash(hash: string): string {
   return truncateAddress(hash, 8, 6);
 }
 
-/**
- * Kept under its old name so every call site does not have to change at once,
- * but it no longer assumes BscScan: the explorer follows the configured chain.
- */
-export function bscScanUrl(hashOrAddr: string, type: "tx" | "address" = "tx"): string {
-  return explorerUrl(hashOrAddr, type);
-}

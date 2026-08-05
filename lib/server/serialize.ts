@@ -173,7 +173,9 @@ export function serializeSettlement(s: Settlement & WithOwner & WithChainTx) {
   };
 }
 
-export function serializeChainTx(t: ChainTx) {
+export function serializeChainTx(
+  t: ChainTx & { flaggedBy?: { fullName: string; uid: string } | null },
+) {
   return {
     id: t.id,
     txHash: t.hash,
@@ -187,6 +189,11 @@ export function serializeChainTx(t: ChainTx) {
     fee: num(t.gasFee) ?? 0,
     blockNumber: t.blockNumber?.toString(),
     matched: !!t.matchedAt,
+    /** An operator has taken this unmatched deposit on. */
+    flaggedAt: iso(t.flaggedAt),
+    flaggedBy: t.flaggedBy?.fullName,
+    flaggedByUid: t.flaggedBy?.uid,
+    flagNote: t.flagNote ?? undefined,
     createdAt: t.seenAt.toISOString(),
   };
 }

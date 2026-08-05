@@ -25,7 +25,8 @@ import { api } from "@/lib/api/client";
 import { useLoad } from "@/lib/stores/useLoad";
 import type { Invoice } from "@/lib/types";
 import { useForeignStore } from "@/lib/stores/foreign";
-import { truncateAddress, truncateHash, bscScanUrl, toPersianDigits } from "@/lib/format";
+import { truncateAddress, truncateHash, toPersianDigits } from "@/lib/format";
+import { explorerUrl } from "@/lib/chains";
 
 const MONTH_DATA = [
   { month: "شهریور", received: 180 },
@@ -149,7 +150,7 @@ export default function ForeignReportsPage() {
                           </td>
                           <td className="px-4 py-3 font-mono text-xs">
                             {s.txHash ? (
-                              <a href={bscScanUrl(s.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-primary">
+                              <a href={explorerUrl(s.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-primary">
                                 {truncateHash(s.txHash)}
                                 <ExternalLink className="h-3 w-3" />
                               </a>

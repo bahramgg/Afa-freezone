@@ -40,6 +40,7 @@ export const GET = handler(async (request: Request) => {
     include: {
       invoice: { select: { ref: true, trxRef: true } },
       settlement: { select: { ref: true, trxRef: true } },
+      flaggedBy: { select: { fullName: true, uid: true } },
     },
   });
 

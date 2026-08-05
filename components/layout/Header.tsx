@@ -49,7 +49,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           <button
             onClick={toggleTheme}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="tap-grow flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             title={isDark ? "حالت روشن" : "حالت تاریک"}
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -59,7 +59,7 @@ export function Header() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-md p-1 hover:bg-muted">
+              <button className="tap-grow flex items-center gap-2 rounded-md p-1 hover:bg-muted">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback
                     style={{ background: user?.avatarColor }}

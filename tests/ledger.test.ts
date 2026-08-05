@@ -60,6 +60,18 @@ async function main() {
   const buyerUid = buyerReg.body?.data?.user?.uid;
 
   const before = await db.ledgerEntry.count();
+  // The position before this suite touches anything. The two checks below used
+  // to assert the running totals crossed a threshold, which said nothing about
+  // this suite's payment and passed only on whatever earlier runs had left in
+  // the books — a release posted by another suite takes the organisation's
+  // share back out, so on a fresh database the totals came in under the bar
+  // while every figure was correct.
+  const positionBefore = await call(admin, "/api/ledger");
+  const was = (a: string) =>
+    Number(
+      (positionBefore.body?.data?.balances ?? []).find((b: { account: string }) => b.account === a)
+        ?.amount ?? 0,
+    );
   const inv = await post(merchant, "/api/invoices", {
     amount: 1000,
     currency: "USDT",
@@ -120,8 +132,19 @@ async function main() {
   const balances: any[] = view.body?.data?.balances ?? [];
   const find = (a: string) => balances.find((b) => b.account === a);
   check("admin can read the position", view.body?.ok === true, view.body?.error);
-  check("it reports what is owed to merchants", Number(find("MERCHANT_PAYABLE")?.amount) >= 980, find("MERCHANT_PAYABLE"));
-  check("it reports the organisation's share", Number(find("FREEZONE_SHARE")?.amount) >= 8, find("FREEZONE_SHARE"));
+  const moved = (a: string) => Math.round((Number(find(a)?.amount ?? 0) - was(a)) * 1e6) / 1e6;
+  check("the payment moved what merchants are owed by 980", moved("MERCHANT_PAYABLE") === 980, {
+    now: find("MERCHANT_PAYABLE")?.amount,
+    was: was("MERCHANT_PAYABLE"),
+  });
+  check("and the organisation's share by 10", moved("FREEZONE_SHARE") === 10, {
+    now: find("FREEZONE_SHARE")?.amount,
+    was: was("FREEZONE_SHARE"),
+  });
+  check("and the gateway's by 10", moved("GATEWAY_SHARE") === 10, {
+    now: find("GATEWAY_SHARE")?.amount,
+    was: was("GATEWAY_SHARE"),
+  });
 
   console.log("── a merchant cannot read the gateway's books");
   const denied = await call(merchant, "/api/ledger");

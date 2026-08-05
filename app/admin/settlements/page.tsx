@@ -24,8 +24,9 @@ import { SettlementStatusBadge } from "@/components/shared/StatusBadge";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useHydrated } from "@/lib/stores/hydration";
-import { truncateHash, truncateAddress, bscScanUrl, toPersianDigits } from "@/lib/format";
+import { truncateHash, truncateAddress, toPersianDigits } from "@/lib/format";
 import type { Settlement, SettlementStatus } from "@/lib/types";
+import { explorerUrl } from "@/lib/chains";
 
 const TABS: { value: SettlementStatus | "ALL" | "WITH_BANK"; label: string }[] = [
   { value: "AWAITING_ADMIN", label: "در انتظار تأیید ادمین" },
@@ -190,7 +191,7 @@ export default function AdminSettlementsPage() {
               <Row
                 label="هش تراکنش"
                 value={
-                  <a href={bscScanUrl(reviewing.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs hover:text-primary" dir="ltr">
+                  <a href={explorerUrl(reviewing.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs hover:text-primary" dir="ltr">
                     {truncateHash(reviewing.txHash)}
                     <ExternalLink className="h-3 w-3" />
                   </a>

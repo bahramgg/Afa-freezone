@@ -19,14 +19,9 @@ import { MoneyText } from "@/components/shared/MoneyText";
 import { SettlementStatusBadge } from "@/components/shared/StatusBadge";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { useSettlementsStore } from "@/lib/stores/settlements";
-import {
-  bscScanUrl,
-  formatAmount,
-  toPersianDigits,
-  truncateAddress,
-  truncateHash,
-} from "@/lib/format";
+import { formatAmount, toPersianDigits, truncateAddress, truncateHash } from "@/lib/format";
 import type { Settlement } from "@/lib/types";
+import { explorerUrl } from "@/lib/chains";
 
 export function SettlementDetailDialog({
   item,
@@ -90,7 +85,7 @@ export function SettlementDetailDialog({
               label="هش تراکنش دریافتی"
               value={truncateHash(item.txHash)}
               copy={item.txHash}
-              link={bscScanUrl(item.txHash)}
+              link={explorerUrl(item.txHash)}
             />
             {item.walletAddress ? (
               <Row label="کیف پول کاربر" value={truncateAddress(item.walletAddress)} copy={item.walletAddress} />
@@ -110,7 +105,7 @@ export function SettlementDetailDialog({
                 label="TX کاربر → بانک"
                 value={truncateHash(item.userPayoutTxHash)}
                 copy={item.userPayoutTxHash}
-                link={bscScanUrl(item.userPayoutTxHash)}
+                link={explorerUrl(item.userPayoutTxHash)}
               />
             ) : null}
             {item.rialReceiptNo ? (

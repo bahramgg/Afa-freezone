@@ -118,6 +118,41 @@ html.dark {
     background: color-mix(in oklch, var(--color-background) 80%, transparent);
     backdrop-filter: blur(8px);
   }
+
+  /*
+   * A hit area a finger can actually land on.
+   *
+   * The pointer on a phone is a fingertip about nine millimetres across, not a
+   * pixel, which is why Apple asks for 44px and Material for 48. A 16px inline
+   * link in a table reads fine and is missed constantly.
+   *
+   * Applied only where the pointer is coarse, and only to the hit area: the
+   * pseudo-element grows past the link without moving it, so a row of table
+   * text keeps its line height and the control keeps its design on a mouse.
+   */
+  .tap-safe {
+    position: relative;
+  }
+
+  @media (pointer: coarse) {
+    .tap-safe::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      translate: -50% -50%;
+      min-width: 44px;
+      min-height: 44px;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Controls that own their box can simply grow — nothing wraps around them. */
+    .tap-grow {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
 }
 
 @keyframes pulse-ring {

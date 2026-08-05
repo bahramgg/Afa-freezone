@@ -26,7 +26,10 @@ export type AuditAction =
   | "ALLOWLIST_ADDED"
   | "ALLOWLIST_REMOVED"
   | "ALLOWLIST_ROLE_CHANGED"
-  | "REGISTRATION_POLICY_CHANGED";
+  | "REGISTRATION_POLICY_CHANGED"
+  /** A deposit nobody's invoice claimed, taken on by an operator or released. */
+  | "CHAINTX_FLAGGED"
+  | "CHAINTX_UNFLAGGED";
 
 export async function audit(
   action: AuditAction,

@@ -14,10 +14,11 @@ import { JalaliDate } from "@/components/shared/JalaliDate";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
 import { useInvoicesStore } from "@/lib/stores/invoices";
-import { bscScanUrl, formatAmount, truncateAddress, truncateHash } from "@/lib/format";
+import { formatAmount, truncateAddress, truncateHash } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
 import type { Invoice } from "@/lib/types";
+import { explorerUrl } from "@/lib/chains";
 
 export function PaymentScreen({ invoice }: { invoice: Invoice }) {
   const expire = useInvoicesStore((s) => s.expire);
@@ -111,7 +112,7 @@ export function PaymentScreen({ invoice }: { invoice: Invoice }) {
                   <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
                     <span className="text-muted-foreground">TX hash:</span>
                     <a
-                      href={bscScanUrl(invoice.txHash)}
+                      href={explorerUrl(invoice.txHash)}
                       target="_blank"
                       rel="noopener"
                       className="text-primary hover:underline font-mono inline-flex items-center gap-1"

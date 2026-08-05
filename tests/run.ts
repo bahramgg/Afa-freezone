@@ -43,6 +43,11 @@ const SUITES: Suite[] = [
     needs: ["server", "db", "chain"],
   },
   { file: "phase3.test.ts", title: "documents, refunds, and the retired flow", needs: ["server", "db", "chain"] },
+  {
+    file: "unmatched-deposit.test.ts",
+    title: "money nobody's invoice claims",
+    needs: ["server", "db"],
+  },
   { file: "email-login.test.ts", title: "one email door for every panel", needs: ["server", "db"] },
   { file: "staff-access.test.ts", title: "who may be the bank or the organisation", needs: ["server", "db"] },
   { file: "hardening.test.ts", title: "the edges money escapes through", needs: ["server", "db", "chain"] },

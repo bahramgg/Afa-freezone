@@ -11,8 +11,9 @@ import {
 import { CopyButton } from "@/components/shared/CopyButton";
 import { JalaliDate } from "@/components/shared/JalaliDate";
 import { MoneyText } from "@/components/shared/MoneyText";
-import { bscScanUrl, toPersianDigits, truncateAddress, truncateHash } from "@/lib/format";
+import { toPersianDigits, truncateAddress, truncateHash } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
+import { explorerUrl } from "@/lib/chains";
 
 export function TransactionDetailModal({
   tx,
@@ -71,7 +72,7 @@ export function TransactionDetailModal({
           <div className="space-y-2 text-sm">
             <Row label="از آدرس" value={truncateAddress(tx.fromAddress)} copy={tx.fromAddress} />
             <Row label="به آدرس" value={truncateAddress(tx.toAddress)} copy={tx.toAddress} />
-            <Row label="هش تراکنش" value={truncateHash(tx.txHash)} copy={tx.txHash} link={bscScanUrl(tx.txHash)} />
+            <Row label="هش تراکنش" value={truncateHash(tx.txHash)} copy={tx.txHash} link={explorerUrl(tx.txHash)} />
           </div>
 
           {tx.counterpartyName ? (

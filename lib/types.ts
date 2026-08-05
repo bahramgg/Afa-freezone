@@ -281,6 +281,14 @@ export type Transaction = {
   toAddress: string;
   confirmations: number;
   fee: number;
+  /**
+   * An operator has taken this unmatched deposit on. Only ever set on one that
+   * matched no invoice — a matched deposit belongs to the flow that owns it.
+   */
+  flaggedAt?: string;
+  flaggedBy?: string;
+  flaggedByUid?: string;
+  flagNote?: string;
 };
 
 export type Settings = {

@@ -96,6 +96,7 @@ model User {
   settlements        Settlement[]   @relation("SettlementOwner")
   auditLogs          AuditLog[]     @relation("AuditActor")
   allowlistEntries   AllowedEmail[] @relation("AllowlistAuthor")
+  chainTxFlagged     ChainTx[]      @relation("ChainTxFlaggedBy")
 
   @@index([role, kyc])
 }
@@ -962,12 +963,26 @@ model ChainTx {
    */
   matchedAt DateTime?
 
+  /**
+   * An operator has taken this one on.
+   *
+   * Money that matched no invoice needs a person, and the only thing the system
+   * can usefully record is which person and when — so a second operator opening
+   * the same queue does not start again on something already in hand, and so
+   * "somebody was looking at this" survives the shift that noticed it.
+   */
+  flaggedAt   DateTime?
+  flaggedById String?
+  flaggedBy   User?     @relation("ChainTxFlaggedBy", fields: [flaggedById], references: [id], onDelete: SetNull)
+  flagNote    String?
+
   invoice     Invoice?
   sendRequest SendRequest?
   settlement  Settlement?
 
   @@index([toAddress, status])
   @@index([status, blockNumber])
+  @@index([matchedAt, flaggedAt])
 }
 
 /**

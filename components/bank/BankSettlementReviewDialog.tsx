@@ -20,14 +20,9 @@ import { CopyButton } from "@/components/shared/CopyButton";
 import { useSettlementsStore } from "@/lib/stores/settlements";
 import { useBankStore } from "@/lib/stores/bank";
 import { useSettingsStore } from "@/lib/stores/settings";
-import {
-  truncateAddress,
-  truncateHash,
-  bscScanUrl,
-  formatAmount,
-  toPersianDigits,
-} from "@/lib/format";
+import { truncateAddress, truncateHash, formatAmount, toPersianDigits } from "@/lib/format";
 import type { Settlement } from "@/lib/types";
+import { explorerUrl } from "@/lib/chains";
 
 type Props = { item: Settlement | null; onOpenChange: (open: boolean) => void };
 
@@ -137,7 +132,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
               label="هش تراکنش کریپتوی دریافتی کاربر"
               value={
                 item.txHash ? (
-                  <a href={bscScanUrl(item.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs hover:text-primary" dir="ltr">
+                  <a href={explorerUrl(item.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs hover:text-primary" dir="ltr">
                     {truncateHash(item.txHash)}
                     <ExternalLink className="h-3 w-3" />
                   </a>
@@ -159,7 +154,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
               <Info
                 label="هش تراکنش کاربر → بانک"
                 value={
-                  <a href={bscScanUrl(item.userPayoutTxHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs hover:text-primary" dir="ltr">
+                  <a href={explorerUrl(item.userPayoutTxHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs hover:text-primary" dir="ltr">
                     {truncateHash(item.userPayoutTxHash)}
                     <ExternalLink className="h-3 w-3" />
                   </a>
@@ -209,7 +204,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
                   <select
                     value={walletAddress}
                     onChange={(e) => setWalletAddress(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm font-mono"
+                    className="tap-grow flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm font-mono"
                   >
                     {wallets.filter((w) => w.active && (w.kind === "RECEIVE" || w.kind === "SHARED")).map((w) => (
                       <option key={w.address} value={w.address}>{w.label}</option>
@@ -242,7 +237,7 @@ export function BankSettlementReviewDialog({ item, onOpenChange }: Props) {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">TX hash:</span>
                   <a
-                    href={item.userPayoutTxHash ? bscScanUrl(item.userPayoutTxHash) : "#"}
+                    href={item.userPayoutTxHash ? explorerUrl(item.userPayoutTxHash) : "#"}
                     target="_blank"
                     rel="noreferrer"
                     className="font-mono inline-flex items-center gap-1 hover:text-primary"

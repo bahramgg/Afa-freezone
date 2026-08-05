@@ -98,7 +98,7 @@ export default function AdminUsersPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            className="tap-grow flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
           >
             <option value="ALL">همه — ایرانی + خارجی</option>
             <option value="IRANIAN">ایرانی</option>
@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
           <select
             value={kycFilter}
             onChange={(e) => setKycFilter(e.target.value as KycFilter)}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            className="tap-grow flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
           >
             <option value="ALL">KYC: همه</option>
             <option value="APPROVED">KYC: تأیید شده</option>

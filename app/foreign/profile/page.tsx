@@ -77,7 +77,7 @@ export default function ForeignProfilePage() {
                   <Label>کشور</Label>
                   <select
                     {...form.register("country")}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    className="tap-grow flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                   >
                     <option value="">انتخاب کنید</option>
                     {COUNTRIES.map((c) => (

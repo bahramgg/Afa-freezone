@@ -12,7 +12,9 @@ import { JalaliDate } from "@/components/shared/JalaliDate";
 import { MoneyText } from "@/components/shared/MoneyText";
 import { useTxStore } from "@/lib/stores/transactions";
 import { useHydrated } from "@/lib/stores/hydration";
-import { bscScanUrl, truncateAddress, truncateHash } from "@/lib/format";
+import { truncateAddress, truncateHash } from "@/lib/format";
+import { api } from "@/lib/api/client";
+import { explorerUrl } from "@/lib/chains";
 
 type Filter = "ALL" | "CONFIRMED" | "PENDING" | "FAILED" | "UNMATCHED";
 
@@ -24,15 +26,61 @@ const LABELS: Record<Filter, string> = {
   UNMATCHED: "بدون تطبیق",
 };
 
+/**
+ * What the API actually returns, against what this page filters on.
+ *
+ * The two had drifted apart. `status` carries the chain's view — seen,
+ * settling, final — while whether a deposit found an invoice is a separate
+ * boolean. Filtering for a status of "UNMATCHED" therefore matched nothing, so
+ * the reconciliation queue below rendered for nobody, and "در انتظار" matched
+ * nothing either because a settling deposit is CONFIRMING, not PENDING.
+ */
+const STATUS_LABELS: Record<string, string> = {
+  SEEN: "دیده شده",
+  CONFIRMING: "در انتظار قطعی‌شدن",
+  CONFIRMED: "تأیید شده",
+  FAILED: "ناموفق",
+};
+
+const matches = (t: { status: string; matched?: boolean }, filter: Filter) => {
+  if (filter === "ALL") return true;
+  if (filter === "UNMATCHED") return !t.matched;
+  if (filter === "PENDING") return t.status === "SEEN" || t.status === "CONFIRMING";
+  return t.status === filter;
+};
+
 export default function AdminTransactionsPage() {
   const list = useTxStore((s) => s.list);
+  const reload = useTxStore((s) => s.load);
   const hydrated = useHydrated();
   const [filter, setFilter] = useState<Filter>("ALL");
   const [search, setSearch] = useState("");
+  const [working, setWorking] = useState<string | null>(null);
+
+  /**
+   * Takes an unmatched deposit on, or puts it back.
+   *
+   * This button used to raise a success toast and write nothing anywhere. On
+   * the one screen that exists for money nobody can account for, telling an
+   * operator it was handled when no record was made is worse than having no
+   * button at all.
+   */
+  async function toggleFlag(txHash: string, flagged: boolean) {
+    setWorking(txHash);
+    try {
+      await api.post(`/transactions/${txHash}/flag`, { flagged });
+      await reload();
+      toast.success(flagged ? "پیگیری این تراکنش به شما سپرده شد" : "پیگیری رها شد");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ثبت نشد");
+    } finally {
+      setWorking(null);
+    }
+  }
 
   const filtered = useMemo(() => {
     return list.filter((t) => {
-      if (filter !== "ALL" && t.status !== filter) return false;
+      if (!matches(t, filter)) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!t.txHash.toLowerCase().includes(q) && !(t.trxId ?? "").toLowerCase().includes(q)) return false;
@@ -41,7 +89,9 @@ export default function AdminTransactionsPage() {
     });
   }, [list, filter, search]);
 
-  const unmatched = list.filter((t) => t.status === "UNMATCHED");
+  // Money that arrived at a watched address and belongs to nothing the system
+  // knows about. A failed transfer moved nothing, so it is not a claim on anyone.
+  const unmatched = list.filter((t) => !t.matched && t.status !== "FAILED");
 
   return (
     <div className="space-y-6">
@@ -54,7 +104,7 @@ export default function AdminTransactionsPage() {
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value as Filter)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+              className="flex h-10 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm tap-grow"
             >
               {(Object.keys(LABELS) as Filter[]).map((k) => (
                 <option key={k} value={k}>{LABELS[k]}</option>
@@ -99,23 +149,21 @@ export default function AdminTransactionsPage() {
                           tone={
                             t.status === "CONFIRMED"
                               ? "success"
-                              : t.status === "PENDING"
-                              ? "warning"
-                              : t.status === "UNMATCHED"
-                              ? "warning"
-                              : "destructive"
+                              : t.status === "FAILED"
+                                ? "destructive"
+                                : "warning"
                           }
                         >
-                          {LABELS[t.status as Filter] ?? t.status}
+                          {STATUS_LABELS[t.status] ?? t.status}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={t.createdAt} withTime /></td>
                       <td className="px-4 py-3">
                         <a
-                          href={bscScanUrl(t.txHash)}
+                          href={explorerUrl(t.txHash)}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-primary hover:underline text-xs"
+                          className="tap-safe inline-flex items-center gap-1 text-primary hover:underline text-xs"
                         >
                           مشاهده
                           <ExternalLink className="h-3 w-3" />
@@ -144,6 +192,7 @@ export default function AdminTransactionsPage() {
                     <th className="text-start font-medium px-4 py-3">مبلغ</th>
                     <th className="text-start font-medium px-4 py-3">از</th>
                     <th className="text-start font-medium px-4 py-3">تاریخ</th>
+                    <th className="text-start font-medium px-4 py-3">پیگیری</th>
                     <th className="text-start font-medium px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -154,13 +203,23 @@ export default function AdminTransactionsPage() {
                       <td className="px-4 py-3"><MoneyText amount={t.amount} currency={t.currency} /></td>
                       <td className="px-4 py-3 font-mono text-xs">{truncateAddress(t.fromAddress)}</td>
                       <td className="px-4 py-3 text-muted-foreground"><JalaliDate iso={t.createdAt} /></td>
+                      <td className="px-4 py-3 text-xs">
+                        {t.flaggedAt ? (
+                          <span className="text-muted-foreground">
+                            {t.flaggedBy ?? "—"} · <JalaliDate iso={t.flaggedAt} />
+                          </span>
+                        ) : (
+                          <span className="text-warning">در انتظار بررسی</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-end">
                         <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => toast.success("این مورد علامت‌گذاری شد")}
+                          variant={t.flaggedAt ? "ghost" : "outline"}
+                          className="min-h-11"
+                          disabled={working === t.txHash}
+                          onClick={() => toggleFlag(t.txHash, !t.flaggedAt)}
                         >
-                          پیگیری
+                          {t.flaggedAt ? "رها کردن" : "پیگیری"}
                         </Button>
                       </td>
                     </tr>

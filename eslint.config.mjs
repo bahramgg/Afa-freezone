@@ -19,7 +19,9 @@ const eslintConfig = defineConfig([
     // The suites read whatever the API actually returned, which is the point —
     // typing a response would assert what we already believe instead of what
     // came back. `any` there is the honest description of untyped JSON.
-    files: ["tests/**/*.ts"],
+    // `live-walk` is the same kind of client, run by hand against a real chain
+    // rather than by `npm test`, which is why it lives outside tests/.
+    files: ["tests/**/*.ts", "scripts/live-walk.ts"],
     rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
 ]);

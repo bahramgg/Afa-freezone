@@ -135,6 +135,8 @@ export async function runWatcher(): Promise<WatcherReport> {
 
       if (confirmed && !tx.matchedAt) {
         if (await matchInvoice(tx)) report.invoicesPaid += 1;
+      } else if (!confirmed) {
+        await notePendingDeposit(to);
       }
     }
   }
@@ -174,6 +176,35 @@ async function retryUnmatchedDeposits(): Promise<number> {
 }
 
 /**
+ * Records money that is visible at a deposit address but not yet irreversible.
+ *
+ * Two things go wrong without this, and both of them only on a chain where
+ * finality takes minutes rather than seconds. The payer, having paid, watches a
+ * page that says nothing has happened. And the invoice, whose window runs out
+ * while the transfer is still settling, is closed as abandoned — it recovers
+ * when the deposit finalises, but in between it tells everyone it expired.
+ *
+ * Summed from the address rather than taken from one transfer, so a buyer
+ * paying in two goes is shown the total, exactly as the confirmed path does.
+ */
+async function notePendingDeposit(address: string) {
+  const deposit = await db.depositAddress.findUnique({
+    where: { address },
+    select: { invoiceId: true, invoice: { select: { currency: true } } },
+  });
+  if (!deposit?.invoiceId || !deposit.invoice) return;
+
+  const seen = await db.chainTx.aggregate({
+    where: { toAddress: address, status: "CONFIRMING", currency: deposit.invoice.currency },
+    _sum: { amount: true },
+  });
+  await db.invoice.update({
+    where: { id: deposit.invoiceId },
+    data: { pendingAmount: seen._sum.amount ?? 0 },
+  });
+}
+
+/**
  * Closes invoices whose window has passed without any payment.
  *
  * `expire` was an admin action nobody was ever going to remember to take, so
@@ -181,12 +212,31 @@ async function retryUnmatchedDeposits(): Promise<number> {
  * and a payment arriving weeks late was still credited against a request the
  * seller had long written off. One that has received something is left alone —
  * money already arrived and a human has to decide what happens to it.
+ *
+ * A payment still settling counts as arrived. Closing an invoice underneath a
+ * transfer that is already on chain reads as "you were too late" to someone who
+ * was not, and the deposit finalising a few minutes later reopens it as paid —
+ * so the invoice announces two contradictory things in a row.
+ *
+ * That grace is a deferral, not an exemption. A sighting that has not finalised
+ * in a day is not settling, it is gone — dropped, or reorganised away — and the
+ * invoice goes back to being expirable rather than staying open forever on the
+ * strength of money that never came.
  */
+const PENDING_DEPOSIT_GRACE_MS = 24 * 60 * 60 * 1000;
+
 async function expireStaleInvoices(): Promise<number> {
+  const now = new Date();
   const stale = await db.invoice.findMany({
     where: {
-      expiresAt: { lt: new Date() },
+      expiresAt: { lt: now },
       OR: [{ receivedAmount: null }, { receivedAmount: { lte: 0 } }],
+      NOT: {
+        AND: [
+          { pendingAmount: { gt: 0 } },
+          { expiresAt: { gt: new Date(now.getTime() - PENDING_DEPOSIT_GRACE_MS) } },
+        ],
+      },
       AND: [
         {
           OR: [
@@ -412,7 +462,9 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
     // Short. The invoice stays open on the same address so the payer can finish.
     await db.invoice.update({
       where: { id: invoice.id },
-      data: { status: "PAYMENT_PENDING", receivedAmount: total },
+      // Whatever is confirmed is no longer in flight. Anything still settling
+      // is re-counted by the next sighting, so this cannot strand a figure.
+      data: { status: "PAYMENT_PENDING", receivedAmount: total, pendingAmount: 0 },
     });
     await notifyInvoiceParties(invoice, {
       kind: "PAYMENT_PARTIAL",
@@ -438,6 +490,7 @@ async function matchInvoice(tx: { id: string; toAddress: string; amount: Prisma.
         paidAt: new Date(),
         chainTxId: tx.id,
         receivedAmount: total,
+        pendingAmount: 0,
         feeAmount: fee,
         netAmount: net,
       },

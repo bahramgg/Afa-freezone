@@ -81,6 +81,8 @@ export function serializeInvoice(
     status: i.status,
     paymentAddress: i.paymentAddress ?? "",
     receivedAmount: num(i.receivedAmount),
+    /** Seen on chain, not yet final. Zero once it settles either way. */
+    pendingAmount: num(i.pendingAmount),
     walletAddress: i.walletAddress ?? undefined,
     feeAmount: num(i.feeAmount),
     fee: num(i.feeAmount),

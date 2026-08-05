@@ -42,6 +42,7 @@ type CheckoutInvoice = {
   trxId: string;
   amount: number;
   receivedAmount?: number;
+  pendingAmount?: number;
   currency: string;
   goodsTitle: string;
   description: string;
@@ -241,6 +242,15 @@ export function Checkout({
                 <p className="text-xs text-warning">
                   {invoice.receivedAmount} of {invoice.amount} {chain.token.symbol} received so
                   far — send the remainder to the same address.
+                </p>
+              ) : null}
+              {/* A transfer is on chain but not yet irreversible. On a network
+                  that finalises in minutes this is the only thing standing
+                  between paying and a page that looks like nothing happened. */}
+              {invoice.pendingAmount ? (
+                <p className="text-xs text-info">
+                  {invoice.pendingAmount} {chain.token.symbol} received and waiting to be
+                  finalised on {chain.name}. Nothing more to do — this settles on its own.
                 </p>
               ) : null}
               {remaining ? (

@@ -29,6 +29,8 @@ export function PaymentScreen({ invoice }: { invoice: Invoice }) {
   const isPayable = invoice.status === "APPROVED" || invoice.status === "PAYMENT_PENDING";
   const isPaid = invoice.status === "PAID";
   const isExpired = invoice.status === "EXPIRED";
+  /** Money is on chain for this invoice but not yet irreversible. */
+  const inFlight = (invoice.pendingAmount ?? 0) > 0 && !isPaid;
 
   /**
    * Deposits are normally picked up by the on-chain watcher. This lets a payer
@@ -158,7 +160,26 @@ export function PaymentScreen({ invoice }: { invoice: Invoice }) {
                   اشتراک‌گذاری درگاه پرداخت
                 </Button>
 
-                {invoice.expiresAt && invoice.status !== "PAID" ? (
+                {/*
+                  A transfer is on chain and settling. The countdown is the wrong
+                  thing to show now — the payer has done everything they were
+                  asked to, and watching a clock run out while their money is in
+                  flight reads as a deadline they are about to miss. They are
+                  not: the invoice is held open until this finalises.
+                */}
+                {inFlight ? (
+                  <div className="rounded-md bg-info/15 px-3 py-2 space-y-1">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-info">
+                      <Clock className="h-4 w-4" />
+                      پرداخت دریافت شد — در انتظار نهایی‌شدن روی شبکه
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      <MoneyText amount={invoice.pendingAmount ?? 0} currency={invoice.currency} />
+                      {" "}دیده شد. کار دیگری لازم نیست؛ پس از قطعی‌شدن روی زنجیره، فاکتور
+                      خودبه‌خود تسویه می‌شود.
+                    </p>
+                  </div>
+                ) : invoice.expiresAt && invoice.status !== "PAID" ? (
                   <div className="flex items-center justify-between rounded-md bg-warning/15 px-3 py-2">
                     <span className="inline-flex items-center gap-1.5 text-warning-foreground text-xs">
                       <Clock className="h-4 w-4" />

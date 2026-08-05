@@ -36,6 +36,8 @@ export type Invoice = {
   paymentAddress: string;
   /** What actually arrived, which may be short of or beyond the amount. */
   receivedAmount?: number;
+  /** Seen on chain but not yet irreversible. Nothing is posted from it. */
+  pendingAmount?: number;
   walletAddress?: string;
   txHash?: string;
   counterpartyUid?: string;

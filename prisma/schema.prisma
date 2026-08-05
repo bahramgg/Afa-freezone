@@ -464,9 +464,23 @@ model Invoice {
   paymentAddress String?
   depositAddress DepositAddress?
   /**
-   * What actually arrived, which may differ from `amount`.
+   * What actually arrived, which may differ from `amount`. Only ever written
+   * from finalised transfers — it is the figure the books are posted from.
    */
   receivedAmount Decimal?        @db.Decimal(38, 18)
+  /**
+   * Seen on chain, not yet irreversible.
+   *
+   * Kept apart from `receivedAmount` because it is a different claim: money is
+   * visible, and may still vanish in a reorg. Nothing is posted from it and no
+   * refund is measured against it — it exists so a payment in flight is neither
+   * invisible to the payer nor mistaken for an abandoned invoice.
+   *
+   * On a chain that finalises in seconds this is set and cleared before anyone
+   * looks. On Ethereum it is a real interval: Sepolia's finalised head runs
+   * about eighteen minutes behind, which is most of an invoice's window.
+   */
+  pendingAmount  Decimal         @default(0) @db.Decimal(38, 18)
   /**
    * Merchant wallet that receives the settled funds.
    */

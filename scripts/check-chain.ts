@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { createPublicClient, defineChain, formatEther, formatUnits, http, parseAbi } from "viem";
+import { chainProfile } from "../lib/chains";
 
 /**
  * Pre-flight for the chain configuration and the gateway's wallets.
@@ -28,11 +29,16 @@ async function main() {
   const token = process.env.USDT_CONTRACT_ADDRESS as `0x${string}`;
   if (!rpc) throw new Error("CHAIN_RPC_URL is not set");
 
+  // The chain's own name and coin, not a guess. Reporting a Sepolia wallet's
+  // gas balance in BNB is the kind of small lie that costs someone an hour.
+  const profile = chainProfile(chainId);
+  const gas = profile.nativeSymbol;
+
   const client = createPublicClient({
     chain: defineChain({
       id: chainId,
-      name: chainId === 56 ? "BNB Smart Chain" : "BNB Smart Chain Testnet",
-      nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+      name: profile.enName,
+      nativeCurrency: { name: gas, symbol: gas, decimals: 18 },
       rpcUrls: { default: { http: [rpc] } },
     }),
     transport: http(rpc),
@@ -116,14 +122,14 @@ async function main() {
 
     console.log(
       `  ${(wallet.bankKind ?? "?").padEnd(7)} ${address}  ${wallet.active ? "active" : "inactive"}\n` +
-        `          ${formatEther(bnb)} BNB · ${formatUnits(balance, Number(decimals))} ${symbol}`,
+        `          ${formatEther(bnb)} ${gas} · ${formatUnits(balance, Number(decimals))} ${symbol}`,
     );
 
     // A sending wallet has to pay its own gas and hold what it sends; a
     // receiving one needs neither, so only warn where it actually matters.
     if (wallet.active && wallet.bankKind !== "RECEIVE") {
       if (bnb === 0n) {
-        warn(`${wallet.bankKind} wallet has no BNB — it cannot pay gas to send anything`);
+        warn(`${wallet.bankKind} wallet has no ${gas} — it cannot pay gas to send anything`);
       }
       if (balance === 0n) {
         warn(`${wallet.bankKind} wallet holds no ${symbol} — it has nothing to send`);

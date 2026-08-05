@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { CreateInvoiceDialog } from "@/components/invoice/CreateInvoiceDialog";
@@ -31,9 +31,20 @@ const STATUSES_FOR: Record<TabKey, InvoiceStatus[] | "ALL"> = {
 };
 
 export default function ReceivePage() {
-  const list = useInvoicesStore((s) => s.list);
+  const all = useInvoicesStore((s) => s.list);
   const hydrated = useHydrated();
   const [tab, setTab] = useState<TabKey>("ALL");
+
+  /**
+   * Exports only.
+   *
+   * The store holds every invoice the merchant is party to, in both
+   * directions, and this page took the lot. A merchant who also imports saw
+   * their import invoices listed here under "صادرات — دریافت وجه", described
+   * as money coming in when it is money going out. `/imports` had always
+   * filtered; this side never did.
+   */
+  const list = useMemo(() => all.filter((i) => i.tradeDirection !== "IMPORT"), [all]);
 
   const filtered =
     tab === "ALL"

@@ -3,6 +3,7 @@ import { decodeEventLog } from "viem";
 import { db } from "@/lib/server/db";
 import { badRequest, handler, jsonOk, notFound, readJson, requireRole } from "@/lib/server/http";
 import { publicClient, toHuman } from "@/lib/server/chain/client";
+import { env } from "@/lib/server/env";
 import {
   DEPOSIT_ABI,
   factoryAddress,
@@ -41,7 +42,11 @@ export const GET = handler(async () => {
     take: 200,
   });
 
-  const decimals = 18;
+  // The token's own decimals, not eighteen. `toHuman` divides by this figure,
+  // so a mismatch does not fail — it shows the bank a preview that is off by a
+  // factor of ten to the twelfth and looks like a contract about to pay out a
+  // fortune.
+  const decimals = env().USDT_DECIMALS;
   return jsonOk({
     factory: (() => {
       try {

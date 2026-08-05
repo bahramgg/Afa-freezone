@@ -28,6 +28,32 @@ async function main() {
       await s.close();
     }
 
+    step("the merchant's two lists do not show each other's invoices");
+    {
+      const s = await openAs(browser, await sessionCookie(STAFF.merchant), DESKTOP);
+      const refs = async (path: string) => {
+        await visit(s.page, path, 1500);
+        return s.page.evaluate(() =>
+          [...document.querySelectorAll("tbody tr")]
+            .map((r) => /INV-\d+/.exec(r.textContent ?? "")?.[0])
+            .filter(Boolean),
+        );
+      };
+      const exports_ = await refs("/receive");
+      const imports_ = await refs("/imports");
+      check("both lists have rows to compare", exports_.length > 0 && imports_.length > 0, {
+        exports: exports_.length,
+        imports: imports_.length,
+      });
+      // The exports page took every invoice the merchant was party to, so an
+      // import appeared under "صادرات — دریافت وجه" — money going out, listed
+      // as money coming in.
+      const overlap = exports_.filter((r) => imports_.includes(r));
+      check("no invoice appears in both", overlap.length === 0, overlap);
+      check("nothing threw", s.errors.length === 0, s.errors.join("\n"));
+      await s.close();
+    }
+
     step("the bank's deposits screen states what it expected");
     {
       const s = await openAs(browser, await sessionCookie(STAFF.bank), DESKTOP);
@@ -42,6 +68,23 @@ async function main() {
         "an import's expectation includes the fee",
         imports.every((d: any) => d.expectedAmount > 0),
         imports.slice(0, 2).map((d: any) => d.expectedAmount),
+      );
+
+      // The split preview is built by scaling the received amount up by the
+      // token's decimals and back down again. Hardcoding eighteen there did not
+      // fail — it showed the bank a preview off by a factor of 10^12, which on
+      // a screen about to release money is worse than an error.
+      const withPreview = (api?.data?.list ?? []).filter((d: any) => d.preview);
+      check("some deposits preview their split", withPreview.length > 0, withPreview.length);
+      const sane = withPreview.every((d: any) => {
+        const sum =
+          Number(d.preview.gateway) + Number(d.preview.freezone) + Number(d.preview.beneficiary);
+        return Math.abs(sum - Number(d.receivedAmount)) < 0.01;
+      });
+      check(
+        "and the three shares add back to what arrived",
+        sane,
+        withPreview.slice(0, 2).map((d: any) => ({ got: d.receivedAmount, split: d.preview })),
       );
       check("nothing threw", s.errors.length === 0, s.errors.join("\n"));
       await s.close();

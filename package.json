@@ -20,7 +20,9 @@
     "contracts:deploy": "tsx scripts/deploy-gateway.ts",
     "contracts:token": "tsx scripts/deploy-test-token.ts",
     "postinstall": "prisma generate",
-    "walk:live": "tsx --conditions=react-server scripts/live-walk.ts"
+    "walk:live": "tsx --conditions=react-server scripts/live-walk.ts",
+    "guides:shoot": "tsx scripts/media/shoot.ts",
+    "guides:demo": "tsx --conditions=react-server scripts/media/demo-world.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

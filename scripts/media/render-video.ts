@@ -1,24 +1,49 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import type { Browser } from "playwright";
-import { beatSeconds, runtimeOf, type Panel } from "./content";
-import { beatPayload, videoShell } from "./stage";
+import type { Panel } from "./content";
+import { BEATS, beatSeconds, runtimeOf, type Beat } from "./storyboard";
+import { flowSvg, videoShell, type Frame } from "./video-stage";
 
 /**
- * Turns a panel's beats into an MP4.
+ * Turns a panel's storyboard into an MP4.
  *
- * There is no soundtrack, so every word has to be on screen and every screen
- * has to stay long enough to be read. That shape — long holds, short moves —
- * is what decides how this is rendered: shooting every frame of a six-minute
- * film would be thousands of identical pictures, so only the moving part is
- * shot and the still part is held by the encoder instead.
+ * There is no soundtrack, so every word is on screen — but the words are now a
+ * caption on a photograph of the panel, not a paragraph on an empty field, and
+ * they are read in a glance rather than studied. That changes the shape of the
+ * render: more beats, each much shorter.
+ *
+ * Only the moving part of a beat is photographed. The rest is one still held by
+ * the encoder, because shooting a hundred identical pictures of a caption
+ * nobody is animating costs minutes and buys nothing.
  */
 const FPS = 25;
-/** How long a beat takes to arrive. Long enough to notice, short enough to skip. */
-const ENTRANCE_SECONDS = 0.52;
+/** How long a beat takes to arrive. Quick — this is a tour, not a slideshow. */
+const ENTRANCE_SECONDS = 0.34;
 
 export type VideoResult = { file: string; seconds: number; frames: number; bytes: number };
+
+const SHOT_DIR = resolve(import.meta.dirname, "shots");
+
+/** A screenshot, inlined so the render page never touches the filesystem. */
+function shotData(name: string): string {
+  const file = resolve(SHOT_DIR, `${name}.png`);
+  if (!existsSync(file)) {
+    throw new Error(
+      `missing screenshot "${name}" — run \`npm run guides:shoot\` against the demo server first`,
+    );
+  }
+  return `data:image/png;base64,${readFileSync(file).toString("base64")}`;
+}
+
+function frameFor(beat: Beat): Frame {
+  if (beat.kind === "title") return { kind: "title", heading: beat.heading, sub: beat.sub };
+  if (beat.kind === "shot") {
+    return { kind: "shot", image: shotData(beat.shot), caption: beat.caption };
+  }
+  return { kind: "flow", svg: flowSvg(beat.flow, beat.active), caption: beat.caption };
+}
 
 export async function renderVideo(
   browser: Browser,
@@ -26,7 +51,8 @@ export async function renderVideo(
   outDir: string,
   ffmpeg: string,
 ): Promise<VideoResult> {
-  const total = runtimeOf(panel);
+  const beats = BEATS[panel.key];
+  const total = runtimeOf(panel.key);
   const work = resolve(outDir, `.frames-${panel.key}`);
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
@@ -42,81 +68,69 @@ export async function renderVideo(
   // does not join Persian letters.
   await page.evaluate(() => document.fonts.ready);
 
-  /** Every still to be shown, with how long it stays up. */
-  const shots: { file: string; seconds: number }[] = [];
-  let index = 0;
+  const stills: { file: string; seconds: number }[] = [];
   let elapsed = 0;
-  const numbered = panel.beats.filter((b) => b.kind !== "cover").length;
 
-  for (const beat of panel.beats) {
+  const paint = async (frame: Frame, progress: number, at: number) => {
+    await page.evaluate(
+      ([f, p, e]) => (window as never as { paint: (...a: unknown[]) => void }).paint(f, p, e),
+      [frame, progress, at] as const,
+    );
+    // A freshly assigned <img src> is not necessarily decoded when the next
+    // screenshot is taken, which shows up as one blank frame at each cut.
+    await page.evaluate(async () => {
+      const img = document.querySelector<HTMLImageElement>("#shot");
+      if (img && img.style.display !== "none" && !img.complete) await img.decode().catch(() => {});
+    });
+  };
+
+  for (const beat of beats) {
     const seconds = beatSeconds(beat);
-    const payload = beatPayload(beat);
-    if (beat.kind !== "cover") index++;
+    const frame = frameFor(beat);
 
     const moving = Math.round(ENTRANCE_SECONDS * FPS);
     for (let f = 0; f < moving; f++) {
-      const progress = (f + 1) / moving;
-      const at = elapsed + (f + 1) / FPS;
-      await page.evaluate(
-        ([b, p, e, i, c]) =>
-          (window as never as { paint: (...a: unknown[]) => void }).paint(b, p, e, i, c),
-        [payload, progress, at, index, numbered] as const,
-      );
-      const file = resolve(work, `${String(shots.length).padStart(5, "0")}.png`);
+      await paint(frame, (f + 1) / moving, elapsed + (f + 1) / FPS);
+      const file = resolve(work, `${String(stills.length).padStart(5, "0")}.png`);
       await page.screenshot({ path: file });
-      shots.push({ file, seconds: 1 / FPS });
+      stills.push({ file, seconds: 1 / FPS });
     }
 
-    // The rest of the beat is one picture, held. Nothing is moving, so nothing
-    // is gained by photographing it five hundred more times.
     const held = Math.max(1 / FPS, seconds - moving / FPS);
-    await page.evaluate(
-      ([b, p, e, i, c]) =>
-        (window as never as { paint: (...a: unknown[]) => void }).paint(b, p, e, i, c),
-      [payload, 1, elapsed + seconds, index, numbered] as const,
-    );
-    const file = resolve(work, `${String(shots.length).padStart(5, "0")}.png`);
+    await paint(frame, 1, elapsed + seconds);
+    const file = resolve(work, `${String(stills.length).padStart(5, "0")}.png`);
     await page.screenshot({ path: file });
-    shots.push({ file, seconds: held });
+    stills.push({ file, seconds: held });
 
     elapsed += seconds;
   }
 
   await context.close();
 
-  // ffmpeg's concat demuxer takes a still and a duration, which is exactly the
-  // shape of what was just shot. The last entry is repeated because the
-  // demuxer ignores the final duration otherwise and drops the closing frame.
-  const list = shots
+  const list = stills
     .map((s) => `file '${s.file}'\nduration ${s.seconds.toFixed(4)}`)
-    .concat(`file '${shots[shots.length - 1]!.file}'`)
+    .concat(`file '${stills[stills.length - 1]!.file}'`)
     .join("\n");
   const listFile = resolve(work, "concat.txt");
   writeFileSync(listFile, list);
-
-  const common = [
-    "-y",
-    "-loglevel", "error",
-    "-f", "concat",
-    "-safe", "0",
-    "-i", listFile,
-    "-vf", `fps=${FPS},format=yuv420p`,
-  ];
 
   const mp4 = resolve(outDir, `${panel.key}.mp4`);
   execFileSync(
     ffmpeg,
     [
-      ...common,
+      "-y",
+      "-loglevel", "error",
+      "-f", "concat",
+      "-safe", "0",
+      "-i", listFile,
+      "-vf", `fps=${FPS},format=yuv420p`,
       // H.264 in an MP4, and only that. It is the one video format that plays
       // everywhere without asking — which for a file an official will open on
       // whatever is on their desk is worth more than a smaller download.
       "-c:v", "libx264",
       "-preset", "medium",
-      // Nearly every frame is identical to the one before it, so the encoder
-      // has almost nothing to store either way. The preset is spent on speed and
-      // the quality on the CRF, because what has to survive is small Persian
-      // text — and that is what a low CRF protects.
+      // What has to survive the encode is small Persian text inside a
+      // screenshot, and that is what a low CRF protects.
       "-crf", "20",
       "-g", String(FPS * 4),
       // Some players refuse a file whose index sits at the end.
@@ -129,5 +143,5 @@ export async function renderVideo(
   rmSync(work, { recursive: true, force: true });
 
   const { statSync } = await import("node:fs");
-  return { file: mp4, seconds: total, frames: shots.length, bytes: statSync(mp4).size };
+  return { file: mp4, seconds: total, frames: stills.length, bytes: statSync(mp4).size };
 }

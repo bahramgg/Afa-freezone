@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PANELS, runtimeOf } from "./content";
+import { PANELS } from "./content";
+import { runtimeOf } from "./storyboard";
 import { renderVideo } from "./render-video";
 import { renderPdf } from "./render-pdf";
 
@@ -83,7 +84,7 @@ async function main() {
         console.log(`  سند     ${(pdf.bytes / 1024).toFixed(0)} KB`);
       }
 
-      manifest[panel.key] = { seconds: runtimeOf(panel), videoBytes, pdfBytes };
+      manifest[panel.key] = { seconds: runtimeOf(panel.key), videoBytes, pdfBytes };
     }
   } finally {
     await browser.close();
@@ -94,7 +95,7 @@ async function main() {
   // drift from the file it describes.
   const runtimes = Object.fromEntries(
     PANELS.map((p) => {
-      const s = runtimeOf(p);
+      const s = runtimeOf(p.key);
       return [p.key, `${fa(Math.floor(s / 60))}:${fa(String(s % 60).padStart(2, "0"))}`];
     }),
   );

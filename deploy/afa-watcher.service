@@ -1,0 +1,40 @@
+# AFA — the deposit watcher.
+#
+#   sudo cp deploy/afa-watcher.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now afa-watcher
+#
+# Without this, a payment that arrives on the chain is never noticed: the
+# invoice stays open until somebody pastes the transaction hash by hand. The
+# panel keeps working either way — that is the point of the manual path — but
+# the automatic one is what makes it a gateway rather than a form.
+
+[Unit]
+Description=AFA — deposit watcher
+After=network-online.target postgresql.service afa-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=afa
+Group=afa
+WorkingDirectory=/srv/afa/app
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run watch:chain
+# A node that drops the connection, or a provider that rate-limits, must not
+# end the watch. Coming straight back would hammer a provider that is already
+# refusing, so it waits.
+Restart=always
+RestartSec=15
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/afa
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=afa-watcher
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,42 @@
+# AFA — the panel itself.
+#
+#   sudo cp deploy/afa-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now afa-web
+#
+# No EnvironmentFile: Next reads `.env` from the working directory itself, the
+# same file every script in this repo reads. One place for the configuration
+# means one place to get it wrong.
+
+[Unit]
+Description=AFA — currency payment gateway (web)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=afa
+Group=afa
+WorkingDirectory=/srv/afa/app
+Environment=NODE_ENV=production
+# Bound to loopback on purpose. nginx terminates TLS and is the only thing that
+# may reach it; a process listening on 0.0.0.0 would serve the panel over plain
+# HTTP to anyone who found the port, and the session cookie is `secure` in
+# production, so a user arriving that way would silently fail to stay signed in.
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=5
+
+# /etc, /usr and /boot are read-only to this process; its own directory is not,
+# because Next caches under `.next` and npm writes its logs under the home.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/afa
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=afa-web
+
+[Install]
+WantedBy=multi-user.target

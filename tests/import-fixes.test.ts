@@ -91,8 +91,15 @@ async function main() {
   const afterSweep = await db.invoice.findUnique({ where: { id: row!.id } });
   check("the sweep leaves it alone", afterSweep?.status === "RIAL_RECEIVED", afterSweep?.status);
 
-  const started = await post(bank, `/api/invoices/${inv.id}/transition`, { action: "startPayment" });
-  check("and the bank may still fund the contract", started.body?.data?.invoice?.status === "PAYMENT_PENDING", started.body?.error ?? started.body?.data?.invoice?.status);
+  // Paying the contract is the importer's job. The bank supplies the currency
+  // outside the system and prices it; it does not make the payment.
+  const byBank = await post(bank, `/api/invoices/${inv.id}/transition`, { action: "startPayment" });
+  check("the bank cannot fund the contract itself", byBank.body?.ok === false, byBank.body?.error);
+
+  const asImporter = jar();
+  await signIn(asImporter, importer!.email!);
+  const started = await post(asImporter, `/api/invoices/${inv.id}/transition`, { action: "startPayment" });
+  check("but the importer may, past the deadline and all", started.body?.data?.invoice?.status === "PAYMENT_PENDING", started.body?.error ?? started.body?.data?.invoice?.status);
 
   console.log("── every notification points at a panel its recipient can open");
   const all = await db.notification.findMany({

@@ -138,6 +138,36 @@ async function main() {
     check("a negative rate is refused", negative.body?.ok === false, negative.body?.error);
   }
 
+  step("paying the contract is the importer's job, not the bank's");
+  {
+    const payRef = await newImport(500);
+    await post(admin, `/api/invoices/${payRef}/transition`, { action: "approve" });
+    await post(bank, `/api/invoices/${payRef}/transition`, {
+      action: "lockRate",
+      rate: 68400,
+      depositAccount: "IR620170000000338124720019",
+    });
+    await post(bank, `/api/invoices/${payRef}/transition`, { action: "confirmRialDeposit", receiptNo: "77" });
+
+    // The bank supplies the currency outside the system. What it may not do is
+    // make the payment itself — that was its job and is not any more.
+    const byBank = await post(bank, `/api/invoices/${payRef}/transition`, { action: "startPayment" });
+    check("the bank cannot start the payment", byBank.body?.ok === false, byBank.body?.error);
+
+    const bySeller = await post(seller, `/api/invoices/${payRef}/transition`, { action: "startPayment" });
+    check("nor can the foreign seller, who is owed it", bySeller.body?.ok === false, bySeller.body?.error);
+
+    const byImporter = await post(merchant, `/api/invoices/${payRef}/transition`, { action: "startPayment" });
+    check("the importer can", byImporter.body?.ok === true, byImporter.body?.error);
+    check("which moves it to awaiting payment", byImporter.body?.data?.invoice?.status === "PAYMENT_PENDING", byImporter.body?.data?.invoice?.status);
+
+    const invented = await post(merchant, `/api/invoices/${payRef}/transition`, {
+      action: "confirmPayment",
+      txHash: "0x" + "e".repeat(64),
+    });
+    check("and even the importer's own claimed hash is checked on chain", invented.body?.ok === false, invented.body?.error);
+  }
+
   step("only the importer or an operator may call an import off");
   {
     const outsider = jar();

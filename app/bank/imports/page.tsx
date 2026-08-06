@@ -288,21 +288,23 @@ export default function BankImportsPage() {
                 </div>
               ) : null}
 
+              {/*
+                The bank's part ends when the rial is confirmed. Supplying the
+                currency to the importer happens outside the system, and the
+                importer — not the bank — pays the contract from their own
+                wallet. This says so rather than leaving an operator waiting for
+                a step that is no longer theirs.
+              */}
               {i.status === "RIAL_RECEIVED" ? (
                 <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-3">
                   <p className="text-sm font-medium">
-                    {toPersianDigits(formatAmount(gross))} {i.currency} را به این آدرس بفرستید
+                    ریال دریافت شد — {toPersianDigits(formatAmount(gross))} {i.currency} را به
+                    واردکننده برسانید
                   </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Ltr className="font-mono text-sm">
-                      {i.paymentAddress ? truncateAddress(i.paymentAddress, 10, 8) : "—"}
-                    </Ltr>
-                    {i.paymentAddress ? <CopyButton value={i.paymentAddress} /> : null}
-                  </div>
                   <p className="text-xs text-muted-foreground">
-                    ارسال از کیف پول خود بانک و بیرون از سامانه انجام می‌شود. پس از تأیید شبکه،
-                    قرارداد اصل مبلغ را به فروشنده و کارمزد را به درگاه و سازمان تقسیم می‌کند و
-                    وضعیت فاکتور خودکار به «پرداخت شده» تغییر می‌کند.
+                    تأمین ارز بیرون از سامانه انجام می‌شود. پرداخت به قرارداد کار واردکننده است و
+                    از کیف پول خودش انجام می‌شود؛ پس از تأیید شبکه، قرارداد اصل مبلغ را به فروشنده
+                    و کارمزد را به درگاه و سازمان تقسیم می‌کند و وضعیت فاکتور خودکار عوض می‌شود.
                   </p>
                 </div>
               ) : null}

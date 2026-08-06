@@ -12,7 +12,7 @@ import { Ltr } from "@/components/shared/Ltr";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { api } from "@/lib/api/client";
 import { useLoad } from "@/lib/stores/useLoad";
-import { formatAmount, toPersianDigits } from "@/lib/format";
+import { formatAmount, toPersianDigits, truncateAddress } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { CancelImportDialog } from "@/components/invoice/CancelImportDialog";
@@ -39,6 +39,8 @@ export default function ImportsPage() {
   useLoad(load);
 
   const payable = list.filter((i) => i.status === "BANK_RATE_LOCKED");
+  /** Rial confirmed by the bank: the currency is the importer's to send on. */
+  const toSend = list.filter((i) => i.status === "RIAL_RECEIVED" || i.status === "PAYMENT_PENDING");
   /**
    * Where the importer's money is committed but the trade has not completed.
    *
@@ -54,7 +56,7 @@ export default function ImportsPage() {
     <div className="space-y-6">
       <PageHeader
         title="واردات — فاکتورهای فروشندگان خارجی"
-        description="فاکتور را فروشندهٔ خارجی صادر می‌کند؛ شما معادل ریالی را به حساب بانک می‌ریزید و بانک ارز را تأمین می‌کند"
+        description="فاکتور را فروشندهٔ خارجی صادر می‌کند؛ شما ریال را به بانک می‌دهید، بانک ارز را تأمین می‌کند، و شما ارز را به قرارداد می‌فرستید"
       />
 
       {payable.map((i) => (
@@ -92,8 +94,41 @@ export default function ImportsPage() {
               </div>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              پس از واریز، بانک رسید را ثبت می‌کند و ارز را به قرارداد تسویه می‌فرستد. اصل مبلغ به
-              فروشنده و کارمزد به درگاه و سازمان می‌رسد.
+              پس از واریز، بانک رسید را ثبت می‌کند و ارز را در اختیار شما می‌گذارد. سپس همان ارز را
+              به آدرس قرارداد می‌فرستید؛ اصل مبلغ به فروشنده و کارمزد به درگاه و سازمان می‌رسد.
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+
+      {/*
+        The importer's own payment.
+        The bank used to send the currency to the contract out of rial it had
+        taken. It no longer does: it supplies the currency to the importer
+        outside the system, and the importer pays the contract from their own
+        wallet — so this is where the address has to be.
+      */}
+      {toSend.map((i) => (
+        <Card key={`send-${i.id}`} className="border-primary/40">
+          <CardContent className="space-y-3 py-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Landmark className="h-4 w-4 text-primary" />
+              فاکتور {i.id} — ریال شما نزد بانک ثبت شد
+            </div>
+            <p className="text-sm">
+              <MoneyText amount={i.amount + (i.fee ?? 0)} currency={i.currency} /> را به این آدرس
+              بفرستید:
+            </p>
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+              <Ltr className="font-mono text-sm">
+                {i.paymentAddress ? truncateAddress(i.paymentAddress, 10, 8) : "—"}
+              </Ltr>
+              {i.paymentAddress ? <CopyButton value={i.paymentAddress} /> : null}
+            </div>
+            <p className="text-xs leading-6 text-muted-foreground">
+              این آدرس فقط برای همین فاکتور ساخته شده و مقصدهایش قفل است. ارسال از کیف پول خودتان و
+              بیرون از سامانه انجام می‌شود؛ پس از تأیید شبکه، وضعیت فاکتور خودکار به «پرداخت شده»
+              تغییر می‌کند و کار دیگری لازم نیست.
             </p>
           </CardContent>
         </Card>
@@ -130,8 +165,9 @@ export default function ImportsPage() {
           <CardContent className="space-y-3 py-4">
             <div className="text-sm font-medium">لغو معامله</div>
             <p className="text-xs leading-6 text-muted-foreground">
-              اگر معامله به هم خورده، درخواست لغو ثبت کنید. تصمیم با سازمان و بانک است، چون تنها
-              بانک می‌داند ارز ارسال شده یا نه. اگر ریالی واریز کرده باشید، بازگردانده می‌شود.
+              اگر معامله به هم خورده، درخواست لغو ثبت کنید. تصمیم با سازمان و بانک است، چون ریال
+              نزد بانک است و جابه‌جایی ارز بیرون از سامانه انجام می‌شود. اگر ریالی واریز کرده
+              باشید، بازگردانده می‌شود.
             </p>
             <div className="flex flex-wrap gap-2">
               {inFlight.map((i) =>

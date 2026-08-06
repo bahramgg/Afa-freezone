@@ -42,13 +42,18 @@ export type FeeSettings = { feeBasePercent: number; feeMin: number; feeMax: numb
  * small transfers, but on a credit it must never exceed the transfer itself —
  * without the final clamp a payment smaller than the floor produces a negative
  * payout, which is what a small invoice did in testing.
+ *
+ * A ceiling of zero means there is none, which is the convention the settlement
+ * contract already uses (`feeMax > 0 && fee > feeMax`). Keeping the two the same
+ * matters: the panel's figure and the contract's have to agree, and the contract
+ * is the one that actually moves the money.
  */
 export function splitFee(gross: number, settings: FeeSettings, side: FeeSide = "credit"): FeeBreakdown {
   if (!Number.isFinite(gross) || gross <= 0) return { gross: 0, fee: 0, net: 0 };
 
   const percentage = (gross * settings.feeBasePercent) / 100;
   const withFloor = Math.max(percentage, settings.feeMin);
-  const withCeiling = Math.min(withFloor, settings.feeMax);
+  const withCeiling = settings.feeMax > 0 ? Math.min(withFloor, settings.feeMax) : withFloor;
   // A debit adds the fee on top, so there is nothing for it to exceed.
   const fee = side === "credit" ? Math.min(withCeiling, gross) : withCeiling;
 
@@ -66,7 +71,7 @@ export async function feeFor(gross: number, side: FeeSide = "credit"): Promise<F
     {
       feeBasePercent: Number(settings?.feeBasePercent ?? 2),
       feeMin: Number(settings?.feeMin ?? 0),
-      feeMax: Number(settings?.feeMax ?? Number.POSITIVE_INFINITY),
+      feeMax: Number(settings?.feeMax ?? 0),
     },
     side,
   );

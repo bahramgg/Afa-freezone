@@ -220,10 +220,17 @@ export const POST = handler(
       }
 
       case "startPayment": {
-        // On an import the bank pays, having already taken the rial; on an
-        // export it is the buyer the invoice was addressed to.
-        const payer = invoice.direction === "IMPORT" ? "BANK" : null;
-        if (payer ? user.role !== payer : invoice.counterpartyId !== user.id) {
+        /**
+         * Whoever owes the money pays it, in both directions.
+         *
+         * The invoice is raised by whoever is owed — the Iranian merchant
+         * exporting, the foreign seller when importing — so the party who owes
+         * is the counterparty either way. The bank used to make the import
+         * payment itself, out of rial it had already taken; it no longer does.
+         * Its job is to supply the currency and to price it, and the importer
+         * pays the contract from their own wallet.
+         */
+        if (invoice.counterpartyId !== user.id) {
           throw forbidden("این فاکتور برای حساب دیگری صادر شده است");
         }
         assertTransition(
@@ -231,10 +238,10 @@ export const POST = handler(
           invoice.direction === "IMPORT" ? ["RIAL_RECEIVED"] : ["APPROVED"],
           "شروع پرداخت",
         );
-        // An import that has reached this point is funded by the bank out of
-        // rial it already holds. Refusing on a lapsed deadline would strand the
-        // importer's money: they paid, and nobody would be allowed to complete
-        // the trade or send it back.
+        // An import that has reached this point has had its rial taken and is
+        // waiting on currency the bank supplies outside the system. Refusing on
+        // a lapsed deadline would strand that money: the importer paid, and
+        // nobody would be allowed to finish the trade or send it back.
         const deadlineApplies = invoice.direction !== "IMPORT";
         if (deadlineApplies && invoice.expiresAt && invoice.expiresAt.getTime() < Date.now()) {
           throw badRequest("مهلت پرداخت این فاکتور به پایان رسیده است");
@@ -244,12 +251,11 @@ export const POST = handler(
         break;
       }
       case "confirmPayment": {
-        // The buyer reports the hash of the payment they made. The deposit
-        // watcher does this automatically when log scanning is available; this
-        // path lets a payment settle without it, and is no less safe because
-        // the chain — not the caller — supplies amount and recipient.
-        const payerRole = invoice.direction === "IMPORT" ? "BANK" : null;
-        if (payerRole ? user.role !== payerRole : invoice.counterpartyId !== user.id) {
+        // Whoever paid reports the hash. The deposit watcher does this on its
+        // own when log scanning is available; this path lets a payment settle
+        // without it, and is no less safe because the chain — not the caller —
+        // supplies the amount and the recipient.
+        if (invoice.counterpartyId !== user.id) {
           throw forbidden("این فاکتور برای حساب دیگری صادر شده است");
         }
         assertTransition(
@@ -263,9 +269,9 @@ export const POST = handler(
         if (!invoice.paymentAddress) throw badRequest("آدرس پرداخت این فاکتور تعیین نشده است");
 
         // Importing, the fee rides on top of what the seller is owed, so the
-        // bank has to send both. Accepting the principal alone would settle the
-        // invoice while the contract paid the seller the fee less than their
-        // own figure.
+        // importer has to send both. Accepting the principal alone would settle
+        // the invoice while the contract paid the seller their own figure less
+        // the fee.
         const required =
           invoice.direction === "IMPORT"
             ? invoice.amount.add(invoice.feeAmount ?? 0)

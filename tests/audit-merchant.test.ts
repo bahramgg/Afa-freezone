@@ -46,8 +46,11 @@ async function main() {
   const min = Number(settings?.invoiceMinAmount ?? 10);
   const max = Number(settings?.invoiceMaxAmount ?? 10000);
 
+  // `max` of zero means there is no ceiling, so it must not be clamped against.
+  const ordinary = max > 0 ? Math.min(max, Math.max(min, 100)) : Math.max(min, 100);
+
   const invoice = (over: Record<string, unknown> = {}) => ({
-    amount: Math.min(max, Math.max(min, 100)),
+    amount: ordinary,
     currency: "USDT",
     description: `ارزیابی ${unique("m")}`,
     goodsTitle: "کالای ارزیابی",
@@ -81,12 +84,53 @@ async function main() {
   {
     const low = await post(merchant, "/api/invoices", invoice({ amount: Math.max(0.01, min / 2) }));
     check("below the minimum is refused", low.body?.ok === false, low.body);
-    const high = await post(merchant, "/api/invoices", invoice({ amount: max * 2 }));
-    check("above the maximum is refused", high.body?.ok === false, high.body);
+    // Zero means there is no maximum. Read fresh, because another suite may
+    // have written the row since this one started.
+    const now = await db.settings.findUnique({ where: { id: 1 } });
+    const cap = Number(now?.invoiceMaxAmount ?? 0);
+    const huge = await post(merchant, "/api/invoices", invoice({ amount: cap > 0 ? cap * 2 : 5_000_000 }));
+    check(
+      cap > 0 ? "above the maximum is refused" : "with no maximum set, a very large invoice is allowed",
+      cap > 0 ? huge.body?.ok === false : huge.body?.ok === true,
+      { cap, ok: huge.body?.ok, err: huge.body?.error?.message },
+    );
     const zero = await post(merchant, "/api/invoices", invoice({ amount: 0 }));
     check("zero is refused", zero.body?.ok === false, zero.body);
     const negative = await post(merchant, "/api/invoices", invoice({ amount: -50 }));
     check("negative is refused", negative.body?.ok === false, negative.body);
+  }
+
+  step("the fee is the same percentage at every size");
+  {
+    const { splitFee } = await import("@/lib/server/fees");
+    /**
+     * Set here rather than read from the row.
+     *
+     * Other suites move the settings around — `ledger` writes its own fee
+     * bounds — so reading whatever happens to be there makes this check depend
+     * on which suite ran last. What is being checked is the rule, not the
+     * deployment: with no ceiling, one percentage holds at every size.
+     */
+    const live = { feeBasePercent: 2, feeMin: 1, feeMax: 0 };
+    // The floor used to bind below 50 and the ceiling above 25,000, so the
+    // advertised percentage was true only in between. The minimum invoice was
+    // raised past the floor and both ceilings removed; this is what makes that
+    // claim checkable rather than remembered.
+    const off = [50, 100, 1000, 25_000, 100_000, 1_000_000]
+      .map((gross) => ({ gross, rate: (splitFee(gross, live).fee / gross) * 100 }))
+      .filter((r) => Math.abs(r.rate - live.feeBasePercent) > 0.001);
+    check(`the rate is ${live.feeBasePercent}% from the smallest invoice up`, off.length === 0, off);
+    check("and there is no fee ceiling", live.feeMax === 0, live.feeMax);
+
+    // The old bounds, for contrast: the floor bit below 50 and the ceiling
+    // above 25,000, so "two percent" was true only in between.
+    const old = { feeBasePercent: 2, feeMin: 1, feeMax: 500 };
+    check(
+      "which was not true of the bounds this replaced",
+      Math.abs((splitFee(10, old).fee / 10) * 100 - 2) > 1 &&
+        Math.abs((splitFee(100_000, old).fee / 100_000) * 100 - 2) > 1,
+      { at10: (splitFee(10, old).fee / 10) * 100, at100k: (splitFee(100_000, old).fee / 100_000) * 100 },
+    );
   }
 
   step("the buyer has to be a real, registered, enabled foreign account");
@@ -144,7 +188,12 @@ async function main() {
     const otherEmail = unique("other") + "@example.com";
     await signIn(otherJar, otherEmail);
     const other = await db.user.findUnique({ where: { email: otherEmail } });
-    await db.user.update({ where: { id: other!.id }, data: { kyc: "APPROVED", fullName: "بازرگان دیگر", nationalId: unique("n").replace(/\D/g, "").padEnd(10, "7").slice(0, 10) } });
+    // `nationalId` is unique in the schema, so this has to be too. Stripping
+    // the letters out of `unique()` does not do it — what is left is three or
+    // four digits padded with sevens, which collided between runs and failed
+    // the suite on a constraint rather than on anything it was checking.
+    const nationalId = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join("");
+    await db.user.update({ where: { id: other!.id }, data: { kyc: "APPROVED", fullName: "بازرگان دیگر", nationalId } });
 
     const list = await get(otherJar, "/api/invoices?status=ALL");
     const refs = (list.body?.data?.list ?? []).map((i: { id: string }) => i.id);

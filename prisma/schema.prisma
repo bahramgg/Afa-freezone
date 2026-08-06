@@ -1067,7 +1067,11 @@ model Settings {
 
   feeBasePercent Decimal @default(2) @db.Decimal(6, 3)
   feeMin         Decimal @default(1) @db.Decimal(38, 18)
-  feeMax         Decimal @default(500) @db.Decimal(38, 18)
+  /**
+   * The most the gateway fee may be. Zero means there is no ceiling — the same
+   * convention the settlement contract uses, so the panel and the chain agree.
+   */
+  feeMax         Decimal @default(0) @db.Decimal(38, 18)
 
   /**
    * How long an export invoice stays payable. Minutes is the right unit: the
@@ -1083,8 +1087,9 @@ model Settings {
    * bank ever opened its queue.
    */
   importValidityHours    Int     @default(72)
-  invoiceMinAmount       Decimal @default(10) @db.Decimal(38, 18)
-  invoiceMaxAmount       Decimal @default(100000) @db.Decimal(38, 18)
+  invoiceMinAmount       Decimal @default(50) @db.Decimal(38, 18)
+  /** Largest invoice that may be raised. Zero means there is no ceiling. */
+  invoiceMaxAmount       Decimal @default(0) @db.Decimal(38, 18)
 
   usdtRate Decimal @default(66800) @db.Decimal(24, 4)
   bnbRate  Decimal @default(222000) @db.Decimal(24, 4)

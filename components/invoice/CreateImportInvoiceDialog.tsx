@@ -64,7 +64,11 @@ export function CreateImportInvoiceDialog() {
   const percent = settings.feeBasePercent;
   const fee =
     amount > 0
-      ? Math.min(Math.max((amount * percent) / 100, settings.feeMin), settings.feeMax)
+      ? (() => {
+          const withFloor = Math.max((amount * percent) / 100, settings.feeMin);
+          // Zero is no ceiling, as it is in the contract.
+          return settings.feeMax > 0 ? Math.min(withFloor, settings.feeMax) : withFloor;
+        })()
       : 0;
 
   const onSubmit = async (data: FormValues) => {

@@ -125,7 +125,9 @@ export const POST = handler(async (request: Request) => {
     if (input.amount < Number(settings.invoiceMinAmount)) {
       throw badRequest(`حداقل مبلغ فاکتور ${settings.invoiceMinAmount} ${input.currency} است`);
     }
-    if (input.amount > Number(settings.invoiceMaxAmount)) {
+    // Zero means no ceiling, the same convention the fee uses and the same one
+    // the settlement contract uses for its own.
+    if (Number(settings.invoiceMaxAmount) > 0 && input.amount > Number(settings.invoiceMaxAmount)) {
       throw badRequest(`حداکثر مبلغ فاکتور ${settings.invoiceMaxAmount} ${input.currency} است`);
     }
   }

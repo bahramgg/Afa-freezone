@@ -144,7 +144,10 @@ async function main() {
     received?: number; pending?: number; rial?: number; rate?: number;
   }) => {
     seq += 1;
-    const fee = Math.max(1, Math.min(500, o.amount * 0.02));
+    // Two percent, with a floor and no ceiling — the same rule `splitFee` now
+    // applies. The old ceiling of 500 is gone, so a screenshot of a large
+    // invoice no longer shows a fee the system would not charge.
+    const fee = Math.max(1, o.amount * 0.02);
     return db.invoice.create({
       data: {
         ref: `INV-${seq}`,
@@ -189,7 +192,10 @@ async function main() {
   // the counterparty — `/api/invoices` picks the role from the direction, and
   // seeding it the other way round produced screens no route could produce.
   await invoice({ owner: b1, buyer: m0, amount: 15000, status: "PAID", direction: "IMPORT", goods: "ماشین‌آلات بسته‌بندی", age: 25, received: 15300, rial: 1_046_520_000, rate: 68400 });
-  await invoice({ owner: b2, buyer: m1, amount: 7300, status: "RIAL_RECEIVED", direction: "IMPORT", goods: "مواد اولیهٔ صنعتی", age: 5, rial: 509_431_200, rate: 68400 });
+  // Waiting on the importer to send the currency on. It belongs to the merchant
+  // the screenshots are taken as, because that step is the importer's now and
+  // the guide has to show the screen it is taken on.
+  await invoice({ owner: b2, buyer: m0, amount: 7300, status: "RIAL_RECEIVED", direction: "IMPORT", goods: "مواد اولیهٔ صنعتی", age: 5, rial: 509_431_200, rate: 68400 });
   await invoice({ owner: b0, buyer: m0, amount: 5400, status: "BANK_RATE_LOCKED", direction: "IMPORT", goods: "قطعات یدکی", age: 4, rial: 376_876_800, rate: 68400 });
   await invoice({ owner: b0, buyer: m1, amount: 2600, status: "APPROVED", direction: "IMPORT", goods: "لوازم آزمایشگاهی", age: 2 });
 

@@ -75,7 +75,8 @@ const IMPORT_STAGES: Stage[] = [
   { label: "بانک نرخ و حساب ریالی را اعلام می‌کند", actor: "bank" },
   { label: "بازرگان ریال را واریز می‌کند", actor: "merchant" },
   { label: "بانک دریافت ریال را تأیید می‌کند", actor: "bank" },
-  { label: "بانک ارز را به نشانی قرارداد می‌فرستد", actor: "bank" },
+  { label: "بانک ارز را به واردکننده می‌رساند", actor: "bank" },
+  { label: "واردکننده ارز را به نشانی قرارداد می‌فرستد", actor: "merchant" },
   { label: "قرارداد ارز را به فروشندهٔ خارجی می‌دهد", actor: "chain" },
 ];
 
@@ -107,6 +108,18 @@ export const SHOTS: Shot[] = [
   { name: "u-settlement", as: "merchant", path: "/settlement", clip: listClip },
   { name: "u-settlement-row", as: "merchant", path: "/settlement", clip: listClip, ring: "tbody tr:nth-child(1)" },
   { name: "u-imports", as: "merchant", path: "/imports", clip: { x: 0, y: 0, w: 1, h: 0.72 } },
+  // The step that used to be the bank's. The card carries the contract address
+  // the importer sends the currency to, so the ring goes on the address itself.
+  {
+    name: "u-imports-send",
+    as: "merchant",
+    path: "/imports",
+    clip: { x: 0, y: 0.18, w: 1, h: 0.6 },
+    // The address itself, found by where it sits rather than by a class that
+    // two cards on this page share — the bank's account number is marked up
+    // the same way, a card higher.
+    ring: 'div.rounded-md:below(:text("را به این آدرس بفرستید"))',
+  },
   { name: "u-wallets", as: "merchant", path: "/wallets", clip: listClip },
   { name: "u-reports", as: "merchant", path: "/reports", clip: fullish },
 
@@ -194,14 +207,17 @@ const USER_BEATS: Beat[] = [
 
   { kind: "title", heading: "مسیر دوم: واردات", sub: "از ثبت فاکتور فروشنده تا رسیدن ارز به او" },
   { kind: "diagram", svg: directionsDiagram("IMPORT"), caption: "اینجا برعکس است: کالا می‌آید و شما ریال می‌پردازید." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 0, "مسیر واردات"), step: step(1, 7), caption: "فروشندهٔ خارجی فاکتور را صادر می‌کند و به نام شما ثبت می‌شود." },
-  { kind: "shot", shot: "u-imports", step: step(1, 7), caption: "صفحهٔ «واردات» — فاکتورهایی که باید ریالشان را بپردازید." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 1, "مسیر واردات"), step: step(2, 7), caption: "سازمان آن را هم تأیید می‌کند." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 2, "مسیر واردات"), step: step(3, 7), caption: "بانک نرخ را اعلام و شمارهٔ حساب ریالی را می‌دهد." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 3, "مسیر واردات"), step: step(4, 7), caption: "شما ریال را به همان حساب واریز می‌کنید." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 4, "مسیر واردات"), step: step(5, 7), caption: "بانک دریافت ریال را تأیید می‌کند." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 5, "مسیر واردات"), step: step(6, 7), caption: "بانک ارز را به نشانی قرارداد می‌فرستد." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 6, "مسیر واردات"), step: step(7, 7), caption: "قرارداد ارز را به فروشندهٔ خارجی می‌رساند. واردات تمام است." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 0, "مسیر واردات"), step: step(1, 8), caption: "فروشندهٔ خارجی فاکتور را صادر می‌کند و به نام شما ثبت می‌شود." },
+  { kind: "shot", shot: "u-imports", step: step(1, 8), caption: "صفحهٔ «واردات» — فاکتورهایی که باید ریالشان را بپردازید." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 1, "مسیر واردات"), step: step(2, 8), caption: "سازمان آن را هم تأیید می‌کند." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 2, "مسیر واردات"), step: step(3, 8), caption: "بانک نرخ را اعلام و شمارهٔ حساب ریالی را می‌دهد." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 3, "مسیر واردات"), step: step(4, 8), caption: "شما ریال را به همان حساب واریز می‌کنید." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 4, "مسیر واردات"), step: step(5, 8), caption: "بانک دریافت ریال را تأیید می‌کند." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 5, "مسیر واردات"), step: step(6, 8), caption: "بانک ارز را در اختیار شما می‌گذارد — این کار بیرون از سامانه انجام می‌شود." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 6, "مسیر واردات"), step: step(7, 8), caption: "ارز را از کیف پول خودتان به نشانی قرارداد می‌فرستید — این کار با خود شماست، نه با بانک." },
+  { kind: "shot", shot: "u-imports-send", step: step(7, 8), caption: "نشانی قرارداد، در همان صفحهٔ «واردات» زیر همان فاکتور." },
+  { kind: "diagram", svg: addressDiagram(), step: step(7, 8), caption: "مقصدهای این نشانی از پیش قفل است؛ ارز جای دیگری نمی‌رود." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 7, "مسیر واردات"), step: step(8, 8), caption: "قرارداد ارز را به فروشندهٔ خارجی می‌رساند و فاکتور «پرداخت شده» می‌شود." },
   { kind: "diagram", svg: cancelDiagram(), caption: "و اگر معامله به‌هم بخورد، مسیر لغو سه گام دارد و ریال شما برمی‌گردد." },
 
   { kind: "shot", shot: "u-wallets", caption: "«مدیریت والت»: کیف پول‌هایی که به نام شما ثبت شده‌اند." },
@@ -257,15 +273,15 @@ const ADMIN_BEATS: Beat[] = [
 
 const BANK_BEATS: Beat[] = [
   { kind: "title", heading: "پنل بانک عامل", sub: "راهنمای گام‌به‌گام — نقش صرافی سامانه" },
-  { kind: "diagram", svg: partiesDiagram("bank"), caption: "بانک صرافی سامانه است: ارز می‌دهد و ریال می‌گیرد، و برعکس." },
+  { kind: "diagram", svg: partiesDiagram("bank"), caption: "بانک صرافی سامانه است: ارز تأمین می‌کند و ارز و ریال را به هم تبدیل می‌کند." },
   { kind: "shot", shot: "b-dash", caption: "داشبورد: دو صف در انتظار بانک — واردات و تسویه." },
 
-  { kind: "title", heading: "کار یکم: واردات", sub: "بانک ارز را برای فروشندهٔ خارجی تأمین می‌کند" },
+  { kind: "title", heading: "کار یکم: واردات", sub: "بانک ارز را برای واردکننده تأمین می‌کند" },
   { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 2, "مسیر واردات"), step: step(1, 4), caption: "بانک نرخ روز را قفل و شمارهٔ حساب ریالی را اعلام می‌کند." },
   { kind: "shot", shot: "b-imports-rate", step: step(1, 4), caption: "نرخ را وارد و «قفل نرخ» را می‌زنید." },
   { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 4, "مسیر واردات"), step: step(2, 4), caption: "پس از واریز بازرگان، دریافت ریال را تأیید می‌کنید." },
   { kind: "shot", shot: "b-imports-rial", step: step(2, 4), caption: "شمارهٔ رسید را ثبت و «تأیید دریافت ریال» را می‌زنید." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 5, "مسیر واردات"), step: step(3, 4), caption: "بعد ارز را به نشانی قرارداد می‌فرستید." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 5, "مسیر واردات"), step: step(3, 4), caption: "بعد ارز را به واردکننده می‌رسانید — بیرون از سامانه." },
   { kind: "shot", shot: "b-deposits", step: step(3, 4), caption: "«آدرس‌های واریز»: ارزی که رسیده و هنوز تقسیم نشده." },
   { kind: "diagram", svg: splitDiagram(15000, 300, 50), step: step(4, 4), caption: "قرارداد تقسیم می‌کند — مقصدها از پیش قفل شده‌اند." },
   { kind: "shot", shot: "b-deposits-split", step: step(4, 4), caption: "پیش‌بینی تقسیم، پیش از آنکه انجام شود." },

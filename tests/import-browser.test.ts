@@ -167,12 +167,28 @@ async function main() {
         .click();
       await s.page.getByText("واریز ریالی ثبت شد", { exact: false }).waitFor({ timeout: 10_000 });
       const text = await s.page.innerText("body");
+      // The bank's part ends here. Supplying the currency happens outside the
+      // system and the importer pays the contract, so the bank's screen says
+      // what to do next rather than showing an address it will not send to.
       check(
-        "the contract address is shown to send to",
-        text.includes(paymentAddress.slice(0, 10)),
+        "the bank is told to get the currency to the importer",
+        text.includes("واردکننده") && text.includes("ریال دریافت شد"),
         text.slice(0, 400),
       );
       check("with the full amount including the fee", /۱۲۲٫۴/.test(text), text.slice(0, 400));
+      check("no sideways scroll at 390px", (await overflow(s.page)) <= 1);
+      await s.close();
+    }
+
+    step("and the importer is the one shown the address to pay");
+    {
+      const s = await open(importerCookie, "/imports");
+      const text = await s.page.innerText("body");
+      check(
+        "the contract address is on the importer's screen",
+        text.includes(paymentAddress.slice(0, 10)),
+        text.slice(0, 400),
+      );
       check("no sideways scroll at 390px", (await overflow(s.page)) <= 1);
       await s.close();
     }

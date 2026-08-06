@@ -48,6 +48,13 @@ const SUITES: Suite[] = [
     title: "money nobody's invoice claims",
     needs: ["server", "db"],
   },
+  // ── the audits: each persona put under every condition it can be put in,
+  // and the money paths under every shape a payment can arrive in.
+  { file: "audit-merchant.test.ts", title: "audit — the Iranian merchant", needs: ["server", "db"] },
+  { file: "audit-foreign.test.ts", title: "audit — the foreign merchant", needs: ["server", "db"] },
+  { file: "audit-admin.test.ts", title: "audit — the organisation", needs: ["server", "db"] },
+  { file: "audit-bank.test.ts", title: "audit — the bank", needs: ["server", "db"] },
+  { file: "audit-money.test.ts", title: "audit — the money, when the payment is not clean", needs: ["server", "db", "chain"] },
   { file: "email-login.test.ts", title: "one email door for every panel", needs: ["server", "db"] },
   { file: "staff-access.test.ts", title: "who may be the bank or the organisation", needs: ["server", "db"] },
   { file: "hardening.test.ts", title: "the edges money escapes through", needs: ["server", "db", "chain"] },

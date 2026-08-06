@@ -67,7 +67,10 @@ const SETTLE_STAGES: Stage[] = [
 ];
 
 const IMPORT_STAGES: Stage[] = [
-  { label: "فاکتور واردات ثبت می‌شود", actor: "merchant" },
+  // The route picks the role from the direction: whoever is owed the money
+  // raises the invoice. Importing, that is the foreign seller — not the
+  // importer, which is what the first cut of this said.
+  { label: "فروشندهٔ خارجی فاکتور صادر می‌کند", actor: "foreign" },
   { label: "سازمان تأیید می‌کند", actor: "admin" },
   { label: "بانک نرخ و حساب ریالی را اعلام می‌کند", actor: "bank" },
   { label: "بازرگان ریال را واریز می‌کند", actor: "merchant" },
@@ -191,7 +194,7 @@ const USER_BEATS: Beat[] = [
 
   { kind: "title", heading: "مسیر دوم: واردات", sub: "از ثبت فاکتور فروشنده تا رسیدن ارز به او" },
   { kind: "diagram", svg: directionsDiagram("IMPORT"), caption: "اینجا برعکس است: کالا می‌آید و شما ریال می‌پردازید." },
-  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 0, "مسیر واردات"), step: step(1, 7), caption: "فاکتور فروشندهٔ خارجی در سامانه ثبت می‌شود." },
+  { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 0, "مسیر واردات"), step: step(1, 7), caption: "فروشندهٔ خارجی فاکتور را صادر می‌کند و به نام شما ثبت می‌شود." },
   { kind: "shot", shot: "u-imports", step: step(1, 7), caption: "صفحهٔ «واردات» — فاکتورهایی که باید ریالشان را بپردازید." },
   { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 1, "مسیر واردات"), step: step(2, 7), caption: "سازمان آن را هم تأیید می‌کند." },
   { kind: "diagram", svg: ladderDiagram(IMPORT_STAGES, 2, "مسیر واردات"), step: step(3, 7), caption: "بانک نرخ را اعلام و شمارهٔ حساب ریالی را می‌دهد." },

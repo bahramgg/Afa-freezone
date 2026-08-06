@@ -185,10 +185,13 @@ async function main() {
   await invoice({ owner: m1, buyer: b1, amount: 9750, status: "PENDING", direction: "EXPORT", goods: GOODS[4]!, age: 1 });
   await invoice({ owner: m0, buyer: b1, amount: 3100, status: "PAYMENT_PENDING", direction: "EXPORT", goods: GOODS[5]!, age: 2, received: 1800 });
 
-  await invoice({ owner: m0, buyer: b1, amount: 15000, status: "PAID", direction: "IMPORT", goods: "ماشین‌آلات بسته‌بندی", age: 25, received: 15300, rial: 1_046_520_000, rate: 68400 });
-  await invoice({ owner: m1, buyer: b2, amount: 7300, status: "RIAL_RECEIVED", direction: "IMPORT", goods: "مواد اولیهٔ صنعتی", age: 5, rial: 509_431_200, rate: 68400 });
-  await invoice({ owner: m0, buyer: b0, amount: 5400, status: "BANK_RATE_LOCKED", direction: "IMPORT", goods: "قطعات یدکی", age: 4, rial: 376_876_800, rate: 68400 });
-  await invoice({ owner: m1, buyer: b0, amount: 2600, status: "APPROVED", direction: "IMPORT", goods: "لوازم آزمایشگاهی", age: 2 });
+  // Importing, the foreign seller owns the invoice and the Iranian importer is
+  // the counterparty — `/api/invoices` picks the role from the direction, and
+  // seeding it the other way round produced screens no route could produce.
+  await invoice({ owner: b1, buyer: m0, amount: 15000, status: "PAID", direction: "IMPORT", goods: "ماشین‌آلات بسته‌بندی", age: 25, received: 15300, rial: 1_046_520_000, rate: 68400 });
+  await invoice({ owner: b2, buyer: m1, amount: 7300, status: "RIAL_RECEIVED", direction: "IMPORT", goods: "مواد اولیهٔ صنعتی", age: 5, rial: 509_431_200, rate: 68400 });
+  await invoice({ owner: b0, buyer: m0, amount: 5400, status: "BANK_RATE_LOCKED", direction: "IMPORT", goods: "قطعات یدکی", age: 4, rial: 376_876_800, rate: 68400 });
+  await invoice({ owner: b0, buyer: m1, amount: 2600, status: "APPROVED", direction: "IMPORT", goods: "لوازم آزمایشگاهی", age: 2 });
 
   // ── settlements: the rial the bank owes a merchant for an export ──────────
   let sq = 310;

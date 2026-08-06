@@ -21,11 +21,11 @@ import { useInvoicesStore } from "@/lib/stores/invoices";
 /**
  * What a foreign seller has billed this importer, and what it costs in rial.
  *
- * The importer never touches currency. The bank buys it on their behalf and
- * pays the settlement contract; all the importer does is pay rial into the
- * account the bank names here. The rial figure covers the seller's price and
- * the fee together — the fee is added on top of the seller's price rather than
- * taken out of it, so it cannot go missing between the two.
+ * The importer pays rial into the account the bank names here; the bank prices
+ * the currency and gets it to them outside the system; and the importer sends
+ * it on to the address of their own invoice. The rial figure covers the
+ * seller's price and the fee together — the fee is added on top of the seller's
+ * price rather than taken out of it, so it cannot go missing between the two.
  */
 export default function ImportsPage() {
   const [list, setList] = useState<Invoice[]>([]);
